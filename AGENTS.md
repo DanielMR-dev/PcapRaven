@@ -26,10 +26,10 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 1. Phase 0 product and
-governance work is complete; Phase 1 workspace, skeleton, tooling, and CI work
-is in scope. Phase 2 capture reading and every later capability remain out of
-scope until their roadmap gates are accepted.
+The accepted repository phase for this branch is Phase 2. Phase 0 product and
+governance work and Phase 1 workspace/tooling work are complete. Phase 2 safe
+PCAP/PCAPNG container reading is in scope; protocol decoding and every later
+capability remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 
@@ -63,13 +63,14 @@ prohibited workspace, source, fixture, CI, parser, flow, protocol, detection,
 reporting, and CLI implementation; it is complete and remains the boundary for
 historical Phase 0 work.
 
-Phase 1 uses Rust Edition 2024, resolver 3, and the exact workspace graph in
-`docs/ARCHITECTURE.md`. Its skeleton crates contain no analysis behavior or
-external Rust dependencies, and its workspace lint policy forbids project
-`unsafe` code by default. The declared MSRV is Rust 1.85; the pinned
-development toolchain is separate. Any future dependency must undergo the
-version, feature, MSRV, license, maintenance, transitive-footprint, and unsafe
-usage review required by the canonical security and testing documents.
+Phase 2 retains Rust Edition 2024, resolver 3, and the exact seven-package main
+workspace graph in `docs/ARCHITECTURE.md`. Capture-container behavior is owned
+by `pcapraven-pcap`; the other analysis crates remain skeletons. The workspace
+lint policy forbids project `unsafe` code by default. The declared MSRV is Rust
+1.85; the pinned development toolchain is separate. Any future dependency must
+undergo the version, feature, MSRV, license, maintenance, transitive-footprint,
+and unsafe usage review required by the canonical security and testing
+documents.
 
 ## Required Workflow
 

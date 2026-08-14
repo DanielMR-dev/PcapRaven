@@ -1,6 +1,6 @@
 [package]
 name = "pcapraven-pcap"
-description = "PcapRaven capture-ingestion boundary skeleton"
+description = "Safe, bounded PCAP and PCAPNG capture reader"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,3 +12,7 @@ workspace = true
 
 [dependencies]
 pcapraven-domain = { workspace = true }
+pcap-parser = { version = "=0.17.0", default-features = false }
+
+[dev-dependencies]
+proptest = { version = "=1.11.0", default-features = false, features = ["std"] }

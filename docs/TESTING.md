@@ -2,11 +2,11 @@
 
 ## Status
 
-Phase 0 documentation and governance work is complete. Phase 1 is complete with
-the virtual Rust workspace, compile-only crate skeletons, a dependency-free
-architecture checker, a pinned development toolchain, and baseline CI. It has no
-behavioral analysis tests, capture fixtures, or fuzz targets; those are
-introduced by their owning later phases.
+Phase 0 documentation and governance work and Phase 1 workspace/tooling work are
+complete. Phase 2 adds synthetic bounded PCAP/PCAPNG reader tests, property
+tests, an excluded public-API fuzz target, and CI build validation. Protocol,
+flow, detection, reporting, CLI, and production-capture fixtures remain future
+phase work.
 
 ## Testing Pyramid
 
@@ -41,12 +41,17 @@ terminal text handling.
 
 ### Property-Based Tests
 
-Property tests will use `proptest`. Target properties include:
+Property tests use `proptest` for the Phase 2 reader and will expand with later
+phases. Current and target properties include:
 
 - Parsing arbitrary bytes never panics and respects configured limits.
+- Truncating generated valid PCAP and PCAPNG structures at every byte boundary
+  never panics, emits attacker-sized output, or fabricates a complete result.
 - Successful parser steps consume input or transition state; loops always make
   progress.
 - Declared and captured lengths cannot cause overflow or out-of-bounds access.
+- Timestamp exponents, signed offsets, block lengths, padding, and interface
+  references remain within validated representable and configured bounds.
 - Normalizing an already normalized supported value is stable where the
   operation is defined as idempotent.
 - Reversing packet direction preserves the canonical bidirectional flow key and
@@ -68,8 +73,16 @@ tests or corpus entries.
 
 ## Fuzzing Strategy
 
-Fuzzing will use `cargo-fuzz` beginning with the capture reader in Phase 2 and
-expanding with each parser. Planned targets include:
+Fuzzing begins with the capture reader in Phase 2 using an excluded `fuzz/`
+package and `libfuzzer-sys`; the target calls only the public bounded reader API
+and does not access files or networks. The checked-in CI smoke command is:
+
+```text
+cargo build --manifest-path fuzz/Cargo.toml --bin fuzz_pcap_reader --locked
+```
+
+Long-running `cargo-fuzz` campaigns and additional structured targets remain
+future work. Planned targets include:
 
 - PCAP and PCAPNG container ingestion.
 - Link, network, and transport normalization.
@@ -101,8 +114,7 @@ fixtures/pcaps/edge-cases/
 fixtures/expected/
 ```
 
-These paths are planned for Phase 17 and intentionally do not exist in Phase
-1.
+These paths are planned for Phase 17 and intentionally do not exist in Phase 2.
 
 ### Categories
 
@@ -142,9 +154,9 @@ expected behavior without exposing embargoed vulnerability detail before
 coordinated disclosure. Duplicate corpus cases are consolidated where they
 exercise the same boundary.
 
-## Phase 1 Quality Gates
+## Phase 2 Quality Gates
 
-The Phase 1 Linux quality job runs the following baseline gates with the pinned
+The Phase 2 Linux quality job runs the following baseline gates with the pinned
 development toolchain:
 
 ```text
@@ -154,6 +166,7 @@ cargo test --workspace --all-features --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 cargo metadata --format-version 1 --no-deps --locked
 python3 scripts/check_workspace_architecture.py
+cargo build --manifest-path fuzz/Cargo.toml --bin fuzz_pcap_reader --locked
 ```
 
 The CI job uses locked dependency resolution for workspace quality, metadata,
@@ -164,8 +177,9 @@ locked MSRV job runs `cargo +1.85.0 check --workspace --locked`, `cargo +1.85.0 
 lightweight `cargo check --workspace --locked` runs on Linux, Windows, and
 macOS. The architecture checker rejects unexpected packages, roles, external
 dependencies, and dependency directions. The workspace lint policy rejects
-project `unsafe` code by default. Phase-appropriate fixture, property, and
-fuzz smoke tests will be added when their owning phases begin.
+project `unsafe` code by default. The fuzz package is excluded from the seven
+package main workspace and is validated by its separate locked build command.
+Phase-appropriate fixtures and long-running fuzz campaigns remain future work.
 
 ## Phase 0 Validation (completed)
 
@@ -180,9 +194,54 @@ replaced the Phase 0 absence checks with the workspace and topology gates above.
 Phase 1 validation confirms the exact seven-package virtual workspace, Edition
 2024 and resolver 3 settings, workspace package metadata, internal-only graph,
 forbidden-unsafe lint, generated lockfile, pinned development toolchain, and
-absence of capture or analysis behavior. It also checks that documentation and
+absence of protocol or analysis behavior. It also checks that documentation and
 the repository manifest identify Phase 0 and Phase 1 as complete and Phase 2 as
-next.
+the current capture-reader phase.
+
+## Phase 2 Validation
+
+Phase 2 validation confirms the documented PCAP/PCAPNG subset, owned packet-byte
+extraction, integer-only timestamp handling, section-local interface state,
+bounded records and diagnostics, explicit completion state, safe recovery only at
+validated block boundaries, arbitrary-input no-panic properties, truncation and
+limit boundaries, and the public-API fuzz target build. It also confirms that no
+protocol normalization, flow reconstruction, detector, reporter, or functional
+CLI behavior has been introduced.
+
+## Phase 2 Dependency Audit
+
+The production parser dependency is exact `pcap-parser = 0.17.0`, licensed
+MIT/Apache-2.0, with declared MSRV 1.65. Its default feature set is empty in this
+project and the optional `data` and `serialize` features are disabled. The direct
+normal dependency footprint is `circular 0.3`, `nom 8`, and
+`rusticata-macros 5`; it has no application network or telemetry behavior. The
+source audit found a narrowly scoped explicitly allowed unsafe helper in
+`pcap-parser` and unsafe pointer-copy internals in transitive `circular`; no
+project unsafe code is added. Crates.io release metadata and the upstream
+project were inspected for maintenance posture at audit time:
+<https://crates.io/crates/pcap-parser/0.17.0> and
+<https://github.com/rusticata/pcap-parser>. Any update requires repeating this
+review.
+
+The test dependency is exact `proptest = 1.11.0`, licensed MIT/Apache-2.0, with
+declared MSRV 1.85. It uses `default-features = false` and only the `std`
+feature, avoiding unrelated optional features. It is dev-only and performs local
+property generation without application network behavior.
+The crates.io release and upstream project were inspected at audit time:
+<https://crates.io/crates/proptest/1.11.0> and
+<https://github.com/proptest-rs/proptest>. Any update requires repeating this
+review.
+
+The excluded fuzz package uses exact `libfuzzer-sys = 0.4.13`, licensed
+`(MIT OR Apache-2.0) AND NCSA`, with its default `link_libfuzzer` feature. It
+builds native libFuzzer code through `cc` and is intentionally confined to fuzz
+development/CI; it is not linked into the production workspace or application
+runtime. Its build has no configured telemetry or capture upload path. The
+fuzz-only dependency has no declared MSRV and is therefore separately checked
+by its locked build rather than changing the project MSRV contract.
+Its release metadata was inspected at
+<https://crates.io/crates/libfuzzer-sys/0.4.13>; any update requires a separate
+fuzz dependency review.
 
 ## Test Quality Rules
 

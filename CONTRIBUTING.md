@@ -2,11 +2,12 @@
 
 ## Current Phase
 
-Phase 0 is complete and Phase 1 is complete. Contributions currently remain
-limited to the Phase 1 workspace, documented crate skeletons, dependency-boundary
-tooling, CI, governance, and documentation. Do not add capture readers,
-protocol handling, flow logic, detectors, reporters, fixtures, or functional CLI
-behavior until the relevant later roadmap phase begins. Phase 2 is next.
+Phase 0 and Phase 1 are complete. Phase 2 contributions may modify the bounded
+PCAP/PCAPNG reader in `pcapraven-pcap`, its synthetic tests, audited Cargo
+manifests, architecture checker, initial fuzz target, CI validation, and related
+documentation. Do not add Ethernet/IP/TCP/UDP normalization, flow logic,
+application protocol handling, detectors, reporters, or functional CLI behavior
+until the relevant later roadmap phase begins. Phase 3 is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -50,10 +51,11 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 1 validation uses the baseline commands and architecture checker described
-in [Testing](docs/TESTING.md#phase-1-quality-gates). The pinned development
-toolchain is separate from the Rust 1.85 MSRV. The seven skeleton crates contain
-no behavior, and the binary emits no output.
+Phase 2 validation uses the reader-focused tests, baseline commands, fuzz-target
+build, and architecture checker described in
+[Testing](docs/TESTING.md#phase-2-quality-gates). The pinned development
+toolchain is separate from the Rust 1.85 MSRV. The capture reader is
+library-only; the binary emits no output.
 
 The baseline gates are formatting, Clippy with warnings denied, workspace tests,
 documentation generation, Cargo metadata, and the architecture checker. Locked

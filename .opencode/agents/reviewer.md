@@ -73,7 +73,7 @@ Do not:
 
 - edit files,
 - apply patches,
-- execute shell commands,
+- execute shell commands except explicitly authorized non-mutating verification,
 - invoke the Developer,
 - invoke another Reviewer,
 - delegate tasks,
@@ -83,7 +83,10 @@ Do not:
 - inspect unrelated sensitive files,
 - or use network tools to replace repository-visible evidence.
 
-Verification commands are owned by the Developer.
+Verification commands are owned by the Developer. If the Orchestrator
+explicitly authorizes a non-mutating verification command, it may be run only
+to independently compare evidence; it must not modify files, repository state,
+or history.
 
 Your role is to inspect the implementation and the evidence that those commands
 were run.

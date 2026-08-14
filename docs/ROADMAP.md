@@ -7,9 +7,10 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0 and Phase 1 are complete. Phase 2, the safe PCAP/PCAPNG capture reader,
-is next. The Phase 1 completion establishes only documented crate skeletons and
-tooling; no capture analysis capability is available yet.
+Phase 0 and Phase 1 are complete. Phase 2 is the current implementation phase
+for the safe PCAP/PCAPNG capture reader. The reader and its focused tests are
+present on this branch; phase acceptance still requires the documented quality,
+security, documentation, and independent review gates. Phase 3 remains next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -30,9 +31,22 @@ baseline CI tooling without implementing capture analysis.
 ## Phase 2 - Safe PCAP/PCAPNG capture reader
 
 Implement bounded capture-container ingestion and capture record metadata for
-the documented PCAP/PCAPNG subset. Define limits, recovery behavior, malformed
-input tests, property tests, and initial fuzz targets. Do not decode packet
-protocols.
+the documented PCAP/PCAPNG subset. The current reader accepts a generic `Read`
+source, supports legacy PCAP little/big-endian microsecond and nanosecond
+variants plus PCAPNG section/interface description, enhanced-packet, and
+simple-packet blocks, and preserves section-local timestamp resolution, signed
+offsets, truncation, and unavailable simple-packet timestamps. It emits owned
+bounded packet bytes, capture metadata, stable emitted-record ordinals, bounded
+fixed diagnostics, and explicit complete/partial/failed completion state.
+
+The reader validates container boundaries, lengths, timestamps, interface
+references, configured resource limits, and streaming progress. Recoverable
+unsupported or malformed blocks are reported only at parser-validated block
+boundaries; unsafe continuation is terminal. The Phase 2 limits and default
+budgets are documented in `pcapraven-pcap`, with synthetic boundary tests,
+property tests, an excluded public-API fuzz target, and CI build validation.
+The reader does not decode packet protocols or create normalized domain packet
+records.
 
 ## Phase 3 - Ethernet + IPv4/IPv6 + TCP/UDP normalization
 

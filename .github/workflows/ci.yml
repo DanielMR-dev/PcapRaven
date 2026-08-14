@@ -160,3 +160,13 @@ jobs:
 
       - name: Check workspace skeleton
         run: cargo check --workspace --locked
+
+  fuzz-target:
+    name: Linux fuzz-target build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build bounded PCAP reader fuzz target
+        run: cargo build --manifest-path fuzz/Cargo.toml --bin fuzz_pcap_reader --locked

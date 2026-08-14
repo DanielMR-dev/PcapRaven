@@ -1,5 +1,15 @@
-//! Capture-ingestion boundary for PcapRaven.
+//! Bounded, streaming capture-container ingestion for PcapRaven.
 //!
-//! This Phase 1 library skeleton documents the future ownership boundary only.
-//! Capture reading and record handling begin in Phase 2 and are not implemented
-//! here.
+//! This crate deliberately stops at the PCAP/PCAPNG container boundary.  It
+//! does not interpret Ethernet or any network-layer, transport-layer, or
+//! application protocol.
+
+mod reader;
+
+pub use reader::{
+    ByteOrder, CaptureCompletion, CaptureDiagnostic, CaptureDiagnosticKind, CaptureDiagnosticStage,
+    CaptureFormat, CaptureGlobalMetadata, CaptureInterface, CaptureLocation, CaptureMetadata,
+    CaptureReadOutcome, CaptureReader, CaptureReaderError, CaptureReaderErrorKind, CaptureRecord,
+    CaptureSection, CaptureTimestamp, CaptureTimestampResolution, CapturedPacket, MalformedCapture,
+    ReaderLimit, ReaderLimits, ReaderLimitsBuilder, UnsupportedCapture, read_capture,
+};
