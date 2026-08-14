@@ -3,11 +3,13 @@
 ## Status
 
 Phase 0 product and architecture definition, Phase 1 workspace/tooling work,
-and Phase 2 capture-container ingestion are complete. Phase 3 adds bounded
-Ethernet, IPv4/IPv6, and TCP/UDP packet normalization to `pcapraven-domain` and
-`pcapraven-protocols`; the other analysis crates and the CLI remain skeletons.
-Flow reconstruction, application decoders (DNS/HTTP/TLS), threat detection,
-reporting, and user-facing CLI behavior remain future work.
+Phase 2 capture-container ingestion, Phase 3 packet normalization, and Phase 4
+bidirectional flow reconstruction are complete. `pcapraven-domain` defines
+normalized packet and flow models, `pcapraven-pcap` provides capture ingestion,
+`pcapraven-protocols` provides packet normalization, and `pcapraven-flows`
+provides stateful bidirectional flow reconstruction. Phase 5 flow statistics,
+application decoders (DNS/HTTP/TLS), threat detection, reporting, and
+user-facing CLI behavior remain future work.
 
 ## Architectural Principles
 
@@ -52,7 +54,7 @@ intentionally newer than the declared MSRV. The only dependencies are the
 documented path edges below and the audited external dependencies. Every member
 opts into the workspace lint policy, which forbids project `unsafe` code by default.
 
-The source files for flows, detection, reporting, and CLI packages remain
+The source files for detection, reporting, and CLI packages remain
 compile-only documentation skeletons. They do not define business behavior or
 implement analysis.
 
@@ -118,21 +120,51 @@ Phase 3 uses `etherparse = 0.21.0` as a normal dependency in `pcapraven-protocol
 with default features disabled. `proptest = 1.11.0` is dev-only. `pcapraven-protocols`
 depends only on `pcapraven-domain` and does not depend on `pcapraven-pcap`.
 
+## Phase 4 Bidirectional Flow Reconstruction Boundary
+
+`pcapraven-flows` reconstructs bidirectional communication streams from normalized
+packet domain facts (`NormalizedPacket`) into deterministic flow identities:
+
+- **Flow Domain Representations:** `pcapraven-domain` defines `FlowEndpoint`,
+  `FlowKey`, `FlowDirection`, `FlowReference`, `FlowPacketAssociation`,
+  `FlowEndReason`, and `FlowRecord`.
+- **Canonical Ordering:** Endpoints are canonicalized by binary total ordering
+  (`endpoint_a <= endpoint_b`). Reversing the observed direction yields the
+  identical `FlowKey`.
+- **Direction Semantics:** Relative packet direction is explicitly classified as
+  `AToB`, `BToA`, or `SameEndpoint` (for synthetic same IP/port packets).
+- **Packet Stream Ordering:** Requires strictly increasing `capture_record_ordinal`
+  values in capture stream order. Input is never reordered.
+- **Lifecycle Boundaries:**
+  - Idle timeouts: integer-only timestamp comparisons (default 300s for TCP, 60s for UDP).
+  - TCP SYN retransmissions: initial SYNs before handshake completion remain in the same flow.
+  - TCP new initial SYN: initial SYN observed after activity closes the prior flow (`TcpNewInitialSyn`)
+    and creates a new flow reference.
+  - TCP reset: RST associates with the current flow and then immediately closes it (`TcpReset`).
+  - TCP FIN: conservative policy (FIN does not force immediate closure without timeout or termination).
+- **Memory Non-Retention:** Active flow state retains only scalar and reference lifecycle
+  metadata (`FlowReference`, `FlowKey`, first/last `PacketReference`, timestamp anchor, TCP phase).
+  It never retains packet payload or `NormalizedPacket` structs.
+- **Resource Bounds:** Finite limits on `maximum_tracked_flows` (default 65,536, hard cap 1,000,000)
+  and `maximum_flow_instances` (default 1,000,000, hard cap 10,000,000).
+
+Phase 4 adds no new production dependencies; `proptest = 1.11.0` is dev-only.
+`pcapraven-flows` depends only on `pcapraven-domain`.
+
 ## Crate Responsibilities
 
-The crates have the following responsibilities. Phase 3 implements only the
-capture-container subset in `pcapraven-pcap` and the Ethernet/IP/TCP/UDP
-normalization in `pcapraven-domain` and `pcapraven-protocols`; the other analysis
-responsibilities remain documented future work.
+The crates have the following responsibilities:
 
 ### `pcapraven-domain`
 
 Owns capture-independent domain types and invariants: normalized packet
 metadata (`NormalizedPacket`, `EthernetMetadata`, `Ipv4Metadata`, `Ipv6Metadata`,
-`TcpMetadata`, `UdpMetadata`, `FragmentationState`, `TcpFlags`), endpoints,
-flow identities and summaries, protocol observations, evidence, findings,
-severity, confidence, diagnostics, and analysis result metadata. It contains
-no capture parser, protocol parser, CLI, terminal, filesystem orchestration,
+`TcpMetadata`, `UdpMetadata`, `FragmentationState`, `TcpFlags`), endpoints
+(`FlowEndpoint`), flow keys (`FlowKey`), flow references (`FlowReference`),
+directions (`FlowDirection`), associations (`FlowPacketAssociation`), completed
+records (`FlowRecord`), end reasons (`FlowEndReason`), protocol observations,
+evidence, findings, severity, confidence, diagnostics, and analysis result metadata.
+It contains no capture parser, protocol parser, CLI, terminal, filesystem orchestration,
 detector implementation, or serializer-specific logic.
 
 ### `pcapraven-pcap`
@@ -146,24 +178,20 @@ threats; format reports; or interact with users.
 
 ### `pcapraven-protocols`
 
-Owns normalization of supported network and application protocol data. Phase 3
-normalizes Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations.
-Future phases will derive DNS, HTTP/1.x, and TLS handshake observations from
-normalized data. It does not read capture container files, reconstruct global
-flow state, assign security findings, serialize reports, or implement CLI
-behavior.
-
-"Operates on normalized data" means application protocol analyzers consume
-normalized transport/packet inputs rather than capture-container bytes.
-Container ingestion remains exclusively in `pcapraven-pcap`.
+Owns normalization of supported network and application protocol data. Normalizes
+Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations. Future phases
+will derive DNS, HTTP/1.x, and TLS handshake observations from normalized data. It
+does not read capture container files, reconstruct global flow state, assign
+security findings, serialize reports, or implement CLI behavior.
 
 ### `pcapraven-flows`
 
 Owns bidirectional communication reconstruction, canonical flow keys,
-direction assignment, lifecycle state, packet/byte counters, and temporal
-statistics. It consumes normalized domain packet metadata and does not parse
-capture containers or application protocols, produce security findings,
-serialize reports, or interact with users.
+direction assignment, lifecycle state management, and packet associations.
+Phase 5 will add packet/byte counters and temporal statistics. It consumes
+normalized domain packet metadata and does not parse capture containers or
+application protocols, produce security findings, serialize reports, or
+interact with users.
 
 ### `pcapraven-detection`
 
@@ -211,7 +239,7 @@ must preserve acyclicity, and must update this table before implementation.
 Forbidden directions include any library depending on `pcapraven-cli`, domain
 depending on a parser or serializer, detection depending on parser crates, and
 reporting invoking detection. `scripts/check_workspace_architecture.py` checks
-the seven-package graph, documented internal edges, and audited Phase 2 direct
+the seven-package graph, documented internal edges, and audited external
 dependencies from Cargo metadata.
 
 ## Target Data Flow
@@ -242,9 +270,10 @@ pcapraven-flows       domain observation store
 pcapraven-cli configures and orchestrates each stage.
 ```
 
-Capture records are streamed by the Phase 2 reader. Later boundaries must carry
-bounded data and explicit diagnostics. The protocol, flow, detection, reporting,
-and CLI stages in this diagram remain a logical contract for later phases.
+Capture records are streamed by the Phase 2 reader, normalized by the Phase 3
+normalizer, and associated into flows by the Phase 4 flow reconstructor.
+Detection, reporting, and CLI stages in this diagram remain a logical contract
+for later phases.
 
 ## Domain Boundary
 
@@ -291,7 +320,7 @@ sensitive data in diagnostics.
 ## Logging Policy
 
 Later analysis phases will use structured `tracing` diagnostics. No tracing
-dependency or logging behavior is present in the current library reader; the
+dependency or logging behavior is present in the current library crates; the
 detailed dependency choice remains subject to the dependency review required
 when CLI/logging behavior is introduced.
 

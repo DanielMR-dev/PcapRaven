@@ -6,7 +6,8 @@ This document defines PcapRaven's technical security posture. Operational
 vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). Phase 2
 contains a bounded library-only PCAP/PCAPNG container reader in
 `pcapraven-pcap`. Phase 3 adds bounded Ethernet, IPv4/IPv6, and TCP/UDP packet
-normalization in `pcapraven-protocols`.
+normalization in `pcapraven-protocols`. Phase 4 adds deterministic bidirectional
+flow reconstruction in `pcapraven-flows`.
 
 ## Assets
 
@@ -90,10 +91,21 @@ The Phase 2 capture reader and Phase 3 protocol normalizers must:
 - Continue after a malformed record only when resynchronization is specified
   and safe; never scan unbounded input for a guessed boundary.
 
-The Phase 2 reader and Phase 3 normalizer document specific limits and recovery
-rules in [Architecture](ARCHITECTURE.md) and expose only validated finite policies.
-They use fixed diagnostic messages and structured locations rather than copying
-attacker-controlled payloads or error text into diagnostics.
+## Flow Reconstruction Safety Requirements
+
+The Phase 4 bidirectional flow reconstructor in `pcapraven-flows` must:
+
+- Enforce strictly increasing `capture_record_ordinal` sequence without sorting
+  or reordering, immediately failing on out-of-order records.
+- Avoid retaining packet payloads or `NormalizedPacket` structs in active flow
+  state; track only scalar keys, references, and timestamps.
+- Use exact integer/fraction cross-multiplication for timeout comparisons without
+  floating-point calculations or rounding inaccuracies.
+- Enforce strict resource bounds on `maximum_tracked_flows` and `maximum_flow_instances`,
+  failing safely with structured resource errors upon exhaustion rather than performing
+  lossy or non-deterministic eviction.
+- Order all completed flow records deterministically by monotonic `FlowReference`
+  ordinals on finalization.
 
 ## Resource Exhaustion
 
@@ -162,19 +174,18 @@ not establish attribution. The canonical policy is in
 
 Project unsafe code follows the exception process in
 [Architecture](ARCHITECTURE.md#unsafe-rust-policy). Third-party dependencies
-expand the attack surface. For Phase 2, `pcap-parser = 0.17.0` is the only
-production third-party dependency, with default, `data`, and `serialize`
-features disabled. It is licensed MIT/Apache-2.0, declares MSRV 1.65, and has
-the direct transitive footprint `circular 0.3`, `nom 8`, and
-`rusticata-macros 5`. Its source and the transitive unsafe pointer-copy helper
-were reviewed; this does not permit unsafe project code. `proptest = 1.11.0` is
-dev-only, licensed MIT/Apache-2.0, declares MSRV 1.85, and is used with only its
-`std` feature. The excluded fuzz package uses separately audited
-`libfuzzer-sys = 0.4.13` and is not part of production builds. Full version,
-feature, license, MSRV, maintenance, transitive-footprint, unsafe-use, and
-offline-behavior notes are recorded in
-[Testing](TESTING.md#phase-2-dependency-audit). No dependency may introduce
-default telemetry or network behavior that contradicts this model.
+expand the attack surface.
+
+- `pcap-parser = 0.17.0` (in `pcapraven-pcap`): normal dependency, default/data/serialize
+  features disabled. MIT/Apache-2.0, MSRV 1.65.
+- `etherparse = 0.21.0` (in `pcapraven-protocols`): normal dependency, default features
+  disabled. MIT/Apache-2.0, MSRV 1.61.
+- `pcapraven-flows`: zero third-party production dependencies.
+- `proptest = 1.11.0`: dev-only in test targets, `std` feature only. MIT/Apache-2.0, MSRV 1.85.
+- `libfuzzer-sys = 0.4.13`: separate `fuzz/` package only.
+
+No dependency may introduce default telemetry or network behavior that
+contradicts this model.
 
 ## Fixtures and Development Data
 

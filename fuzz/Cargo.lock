@@ -121,11 +121,19 @@ name = "pcapraven-domain"
 version = "0.0.0"
 
 [[package]]
+name = "pcapraven-flows"
+version = "0.0.0"
+dependencies = [
+ "pcapraven-domain",
+]
+
+[[package]]
 name = "pcapraven-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "pcapraven-domain",
+ "pcapraven-flows",
  "pcapraven-pcap",
  "pcapraven-protocols",
 ]

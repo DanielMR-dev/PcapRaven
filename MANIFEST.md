@@ -4,9 +4,9 @@
 
 This is a human-readable inventory and governance document, not a Cargo
 manifest. Phase 0 product and governance work, Phase 1 workspace/tooling work,
-Phase 2 safe PCAP/PCAPNG container reader work, and Phase 3 packet normalization
-work are complete. Flow reconstruction and later analysis capabilities remain
-future work.
+Phase 2 safe PCAP/PCAPNG container reader work, Phase 3 packet normalization
+work, and Phase 4 bidirectional flow reconstruction work are complete.
+Phase 5 flow statistics and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -29,17 +29,19 @@ future work.
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader and normalizer tests, dependency audit, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, and flow reconstructor tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
 | `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
+| `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
 | `.agents/skills/secure-parser-review/SKILL.md` | Reusable hostile-input parser review procedure. |
 | `crates/pcapraven-domain/Cargo.toml` | Domain library package manifest. |
 | `crates/pcapraven-domain/src/lib.rs` | Domain library entry point and type exports. |
 | `crates/pcapraven-domain/src/packet.rs` | Normalized packet model, metadata, diagnostics, addresses, flags, and completeness states. |
+| `crates/pcapraven-domain/src/flow.rs` | Capture-independent flow endpoints, keys, references, directions, associations, end reasons, and records. |
 | `crates/pcapraven-pcap/Cargo.toml` | Capture-ingestion manifest with the audited `pcap-parser` and dev-only `proptest` dependencies. |
 | `crates/pcapraven-pcap/src/lib.rs` | Public bounded PCAP/PCAPNG reader contract and crate boundary. |
 | `crates/pcapraven-pcap/src/reader.rs` | Safe streaming reader implementation, limits, metadata, diagnostics, error mapping, and normalization adapter. |
@@ -49,8 +51,12 @@ future work.
 | `crates/pcapraven-protocols/src/limits.rs` | Finite normalization resource limits and builder. |
 | `crates/pcapraven-protocols/src/normalizer.rs` | Bounded Ethernet, IPv4, IPv6, TCP, and UDP packet normalization engine. |
 | `crates/pcapraven-protocols/tests/normalization.rs` | Unit, boundary, property, and regression tests for packet normalization. |
-| `crates/pcapraven-flows/Cargo.toml` | Flow-analysis library package manifest. |
-| `crates/pcapraven-flows/src/lib.rs` | Flow-analysis Phase 1 documentation skeleton. |
+| `crates/pcapraven-flows/Cargo.toml` | Flow-analysis library package manifest with dev-only `proptest`. |
+| `crates/pcapraven-flows/src/lib.rs` | Flow-analysis library entry point and re-exports. |
+| `crates/pcapraven-flows/src/config.rs` | Configurable finite flow reconstruction limits and builder. |
+| `crates/pcapraven-flows/src/error.rs` | Structured flow reconstruction error types. |
+| `crates/pcapraven-flows/src/reconstructor.rs` | Stateful deterministic bidirectional flow reconstruction engine. |
+| `crates/pcapraven-flows/tests/reconstruction.rs` | Unit, boundary, lifecycle, and property tests for flow reconstruction. |
 | `crates/pcapraven-detection/Cargo.toml` | Detection library package manifest. |
 | `crates/pcapraven-detection/src/lib.rs` | Detection Phase 1 documentation skeleton. |
 | `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
@@ -61,12 +67,13 @@ future work.
 | `fuzz/Cargo.lock` | Cargo-generated lockfile for the excluded fuzz project. |
 | `fuzz/fuzz_targets/fuzz_pcap_reader.rs` | Stable-name libFuzzer target using only the public bounded reader API. |
 | `fuzz/fuzz_targets/fuzz_packet_normalizer.rs` | Stable-name libFuzzer target for bounded protocol normalization. |
+| `fuzz/fuzz_targets/fuzz_flow_reconstructor.rs` | Stable-name libFuzzer target for bounded bidirectional flow reconstruction. |
 
 The former duplicate skill copies are intentionally absent. Future capture
-fixtures, flow reconstruction, analysis behavior, reporters, and functional
-CLI commands are not current inventory and may be added only by their owning
-roadmap phases. The excluded `fuzz/` project is current Phase 3 inventory but is
-not one of the seven main workspace packages.
+fixtures, flow temporal metrics (Phase 5), application protocol analysis, reporters,
+and functional CLI commands are not current inventory and may be added only by their
+owning roadmap phases. The excluded `fuzz/` project is current Phase 4 inventory but
+is not one of the seven main workspace packages.
 
 ## Inventory Rules
 

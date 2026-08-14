@@ -20,6 +20,10 @@ permission:
   task: deny
   bash:
     "*": ask
+    "cargo publish*": deny
+    "cargo yank*": deny
+    "cargo login*": deny
+    "cargo owner*": deny
     "cargo *": allow
     "rustc --version*": allow
     "rustup *": allow

@@ -26,11 +26,12 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 3. Phase 0 product and
-governance work, Phase 1 workspace/tooling work, and Phase 2 capture reader
-work are complete. Phase 3 safe Ethernet, IPv4/IPv6, and TCP/UDP normalization
-is in scope; flow reconstruction and every later capability remain out of scope
-until their roadmap gates are accepted.
+The accepted repository phase for this branch is Phase 4. Phase 0 product and
+governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
+and Phase 3 packet normalization work are complete. Phase 4 safe deterministic
+bidirectional flow reconstruction is in scope; Phase 5 flow statistics, temporal
+metrics, and every later capability remain out of scope until their roadmap gates
+are accepted.
 
 ## Project Invariants
 
@@ -64,15 +65,15 @@ prohibited workspace, source, fixture, CI, parser, flow, protocol, detection,
 reporting, and CLI implementation; it is complete and remains the boundary for
 historical Phase 0 work.
 
-Phase 3 retains Rust Edition 2024, resolver 3, and the exact seven-package main
+Phase 4 retains Rust Edition 2024, resolver 3, and the exact seven-package main
 workspace graph in `docs/ARCHITECTURE.md`. Capture-container behavior is owned
-by `pcapraven-pcap`, domain packet representations by `pcapraven-domain`, and
-protocol normalization by `pcapraven-protocols`; the other analysis crates remain
-skeletons. The workspace lint policy forbids project `unsafe` code by default. The
-declared MSRV is Rust 1.85; the pinned development toolchain is separate. Any future
-dependency must undergo the version, feature, MSRV, license, maintenance,
-transitive-footprint, and unsafe usage review required by the canonical security and
-testing documents.
+by `pcapraven-pcap`, domain packet and flow representations by `pcapraven-domain`,
+protocol normalization by `pcapraven-protocols`, and flow reconstruction by
+`pcapraven-flows`; the other analysis crates remain skeletons. The workspace lint
+policy forbids project `unsafe` code by default. The declared MSRV is Rust 1.85; the
+pinned development toolchain is separate. Any future dependency must undergo the
+version, feature, MSRV, license, maintenance, transitive-footprint, and unsafe
+usage review required by the canonical security and testing documents.
 
 ## Required Workflow
 

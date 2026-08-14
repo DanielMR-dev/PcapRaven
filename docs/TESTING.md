@@ -2,11 +2,10 @@
 
 ## Status
 
-Phase 0 documentation and governance work, Phase 1 workspace/tooling work, and
-Phase 2 capture-container ingestion tests are complete. Phase 3 adds unit,
-boundary, property, and fuzz tests for Ethernet, IPv4/IPv6, and TCP/UDP
-normalization in `pcapraven-protocols`. Flow, application decoders, detection,
-reporting, and CLI testing remain future phase work.
+Phase 0 documentation and governance work, Phase 1 workspace/tooling work,
+Phase 2 capture-container ingestion tests, Phase 3 protocol normalization tests,
+and Phase 4 bidirectional flow reconstruction tests are complete. Application
+decoders, detection, reporting, and CLI testing remain future phase work.
 
 ## Testing Pyramid
 
@@ -15,7 +14,8 @@ reporting, and CLI testing remain future phase work.
 Unit tests cover local invariants and transformations: checked length and
 offset calculations, Ethernet II header normalization, IPv4 options and total
 length checks, IPv6 extension header bounded traversal, TCP/UDP headers and
-flags, payload truncation, and diagnostic emission.
+flags, payload truncation, diagnostic emission, flow key canonicalization,
+direction assignment, timestamp arithmetic, and TCP/UDP lifecycle state machines.
 
 ### Fixture and Golden Tests
 
@@ -41,27 +41,34 @@ terminal text handling.
 
 ### Property-Based Tests
 
-Property tests use `proptest` for the Phase 2 reader and Phase 3 normalizer.
+Property tests use `proptest` for the reader, normalizer, and flow reconstructor.
 Implemented properties include:
 
 - Parsing arbitrary bytes never panics and respects configured limits.
 - Arbitrary link types are handled deterministically without panics.
 - Truncating valid PCAP/PCAPNG and packet prefixes never panics or claims
   completeness.
-- Identical input yields strictly identical normalized output (determinism).
+- Identical input yields strictly identical normalized and flow output (determinism).
 - Retained transport payload never exceeds `maximum_retained_payload_bytes`.
 - Emitted diagnostics never exceed `maximum_diagnostics_per_packet`.
+- `FlowKey` canonical ordering and reversibility: `FlowKey::new(p, a, b) == FlowKey::new(p, b, a)`
+  and `endpoint_a <= endpoint_b`.
+- Arbitrary combinations of TCP flags never cause panics or unexpected crashes.
+- Arbitrary endpoint addresses, port numbers, and timestamp configurations never overflow
+  or panic.
 
 ### Fuzzing Strategy
 
-Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with two targets:
-`fuzz_pcap_reader` for capture-container parsing and `fuzz_packet_normalizer`
-for protocol normalization. The targets call only public bounded APIs and do
-not access files or networks. The checked-in CI build commands are:
+Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with three targets:
+`fuzz_pcap_reader` for capture-container parsing, `fuzz_packet_normalizer` for
+protocol normalization, and `fuzz_flow_reconstructor` for flow reconstruction.
+The targets call only public bounded APIs and do not access files or networks.
+The checked-in CI build commands are:
 
 ```text
 cargo +nightly fuzz build fuzz_pcap_reader
 cargo +nightly fuzz build fuzz_packet_normalizer
+cargo +nightly fuzz build fuzz_flow_reconstructor
 ```
 
 Long-running `cargo-fuzz` campaigns and additional structured targets remain
@@ -69,8 +76,8 @@ future work. Planned targets include:
 
 - PCAP and PCAPNG container ingestion.
 - Link, network, and transport normalization.
+- Stateful bidirectional flow reconstruction.
 - DNS, HTTP/1.x, and TLS handshake parsers.
-- Stateful parser sequences and flow updates with structured generated input.
 - Report escaping and serializers for attacker-controlled text and values.
 
 Fuzz harnesses must configure conservative memory, record, nesting, and work
@@ -97,7 +104,7 @@ fixtures/pcaps/edge-cases/
 fixtures/expected/
 ```
 
-These paths are planned for Phase 17 and intentionally do not exist in Phase 2.
+These paths are planned for Phase 17 and intentionally do not exist in Phase 4.
 
 ### Categories
 
@@ -137,9 +144,9 @@ expected behavior without exposing embargoed vulnerability detail before
 coordinated disclosure. Duplicate corpus cases are consolidated where they
 exercise the same boundary.
 
-## Phase 2 Quality Gates
+## Phase 4 Quality Gates
 
-The Phase 2 Linux quality job runs the following baseline gates with the pinned
+The Phase 4 Linux quality job runs the following baseline gates with the pinned
 development toolchain:
 
 ```text
@@ -151,11 +158,13 @@ cargo metadata --format-version 1 --no-deps --locked
 python3 scripts/check_workspace_architecture.py
 ```
 
-The separate CI fuzz build job verifies the excluded fuzz harness using the
+The separate CI fuzz build job verifies the excluded fuzz harnesses using the
 nightly toolchain and pinned `cargo-fuzz = 0.13.2`:
 
 ```text
 cargo +nightly fuzz build fuzz_pcap_reader
+cargo +nightly fuzz build fuzz_packet_normalizer
+cargo +nightly fuzz build fuzz_flow_reconstructor
 ```
 
 The CI job uses locked dependency resolution for workspace quality, metadata,
@@ -163,74 +172,82 @@ test, and documentation invocations where Cargo supports it. The architecture
 checker also passes `--locked` and `--offline` to Cargo metadata. A separate
 locked MSRV job runs `cargo +1.85.0 check --workspace --locked`, `cargo +1.85.0 build
 --workspace --locked`, and `cargo +1.85.0 test --workspace --locked`. A
-lightweight `cargo check --workspace --locked` runs on Linux, Windows, and
+lightweight `cargo check --workspace --locked` runs across Linux, Windows, and
 macOS. The architecture checker rejects unexpected packages, roles, external
 dependencies, and dependency directions. The workspace lint policy rejects
 project `unsafe` code by default. The fuzz package is excluded from the seven
 package main workspace and is validated by its separate locked fuzz build command.
-Phase-appropriate fixtures and long-running fuzz campaigns remain future work.
 
 ## Phase 0 Validation (completed)
 
 Phase 0 used read-only repository inspection rather than Cargo gates. It
 required the governance files, valid internal links and OpenCode frontmatter,
 consistent terminology, the exact roadmap, and confirmation that no
-implementation or later-phase functionality had been introduced. Phase 1
-replaced the Phase 0 absence checks with the workspace and topology gates above.
+implementation or later-phase functionality had been introduced.
 
-## Phase 1 Validation
+## Phase 1 Validation (completed)
 
-Phase 1 validation confirms the exact seven-package virtual workspace, Edition
+Phase 1 validation confirmed the exact seven-package virtual workspace, Edition
 2024 and resolver 3 settings, workspace package metadata, internal-only graph,
 forbidden-unsafe lint, generated lockfile, pinned development toolchain, and
-absence of protocol or analysis behavior. It also checks that documentation and
-the repository manifest identify Phase 0 and Phase 1 as complete and Phase 2 as
-the current capture-reader phase.
+absence of protocol or analysis behavior.
 
-## Phase 2 Validation
+## Phase 2 Validation (completed)
 
-Phase 2 validation confirms the documented PCAP/PCAPNG subset, owned packet-byte
+Phase 2 validation confirmed the documented PCAP/PCAPNG subset, owned packet-byte
 extraction, integer-only timestamp handling, section-local interface state,
 bounded records and diagnostics, explicit completion state, safe recovery only at
 validated block boundaries, arbitrary-input no-panic properties, truncation and
-limit boundaries, and the public-API fuzz target build. It also confirms that no
-protocol normalization, flow reconstruction, detector, reporter, or functional
-CLI behavior has been introduced.
+limit boundaries, and the public-API fuzz target build.
 
-## Phase 2 Dependency Audit
+## Phase 3 Validation (completed)
 
-The production parser dependency is exact `pcap-parser = 0.17.0`, licensed
-MIT/Apache-2.0, with declared MSRV 1.65. Its default feature set is empty in this
-project and the optional `data` and `serialize` features are disabled. The direct
-normal dependency footprint is `circular 0.3`, `nom 8`, and
-`rusticata-macros 5`; it has no application network or telemetry behavior. The
-source audit found a narrowly scoped explicitly allowed unsafe helper in
-`pcap-parser` and unsafe pointer-copy internals in transitive `circular`; no
-project unsafe code is added. Crates.io release metadata and the upstream
-project were inspected for maintenance posture at audit time:
-<https://crates.io/crates/pcap-parser/0.17.0> and
-<https://github.com/rusticata/pcap-parser>. Any update requires repeating this
-review.
+Phase 3 validation confirmed Ethernet II, IPv4, IPv6, TCP, and UDP normalization,
+Ethernet padding stripping, bounded IPv6 extension header traversal, explicit
+fragmentation handling without reassembly, bounded transport payload retention,
+structured diagnostics, property tests, and the `fuzz_packet_normalizer` target.
+
+## Phase 4 Validation
+
+Phase 4 validation confirms bidirectional flow key canonicalization, direction
+assignment, monotonic ordinal enforcement, zero packet memory retention, exact
+integer timestamp timeout arithmetic, TCP SYN retransmission retention, new initial
+SYN handling, RST immediate termination, non-forcing FIN policy, bounded resource
+limits, deterministic finalization ordering, property tests, and `fuzz_flow_reconstructor`.
+It also confirms that Phase 5 temporal metrics, flow counters, byte totals, application
+decoders, detectors, reporters, and CLI commands remain absent.
+
+## Dependency Audits
+
+### `pcap-parser = 0.17.0` (Phase 2)
+
+The production parser dependency in `pcapraven-pcap` is exact `pcap-parser = 0.17.0`,
+licensed MIT/Apache-2.0, with declared MSRV 1.65. Its default feature set is empty
+and optional `data` and `serialize` features are disabled. Direct transitive footprint:
+`circular 0.3`, `nom 8`, `rusticata-macros 5`. No telemetry or network behavior.
+
+### `etherparse = 0.21.0` (Phase 3)
+
+The production protocol parser dependency in `pcapraven-protocols` is exact
+`etherparse = 0.21.0`, licensed MIT/Apache-2.0, with declared MSRV 1.61. Default
+features are disabled. Zero transitive third-party dependencies. No telemetry or
+network behavior.
+
+### `pcapraven-flows` (Phase 4)
+
+`pcapraven-flows` introduces zero third-party production dependencies.
+
+### `proptest = 1.11.0` (Dev-only)
 
 The test dependency is exact `proptest = 1.11.0`, licensed MIT/Apache-2.0, with
-declared MSRV 1.85. It uses `default-features = false` and only the `std`
-feature, avoiding unrelated optional features. It is dev-only and performs local
-property generation without application network behavior.
-The crates.io release and upstream project were inspected at audit time:
-<https://crates.io/crates/proptest/1.11.0> and
-<https://github.com/proptest-rs/proptest>. Any update requires repeating this
-review.
+declared MSRV 1.85. It uses `default-features = false` and only the `std` feature.
+Dev-only; no telemetry or network behavior.
+
+### `libfuzzer-sys = 0.4.13` (Fuzz-only)
 
 The excluded fuzz package uses exact `libfuzzer-sys = 0.4.13`, licensed
-`(MIT OR Apache-2.0) AND NCSA`, with its default `link_libfuzzer` feature. It
-builds native libFuzzer code through `cc` and is intentionally confined to fuzz
-development/CI; it is not linked into the production workspace or application
-runtime. Its build has no configured telemetry or capture upload path. The
-fuzz-only dependency has no declared MSRV and is therefore separately checked
-by its locked build rather than changing the project MSRV contract.
-Its release metadata was inspected at
-<https://crates.io/crates/libfuzzer-sys/0.4.13>; any update requires a separate
-fuzz dependency review.
+`(MIT OR Apache-2.0) AND NCSA`. It is excluded from the production workspace and
+runtime.
 
 ## Test Quality Rules
 

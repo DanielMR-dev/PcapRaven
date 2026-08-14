@@ -2,9 +2,10 @@
 
 ## Purpose and Status
 
-This document defines the target contract for detectors and findings. Phase 2
-contains no detector or detection engine; the detection crate remains a
-documented skeleton and capture-reader diagnostics are not findings.
+This document defines the target contract for detectors and findings. Through
+Phase 4, PcapRaven contains capture ingestion, protocol normalization, and flow
+reconstruction; the detection crate remains a documented skeleton, and capture
+diagnostics and flow exclusions are not security findings.
 
 ## Separation from Parsing
 
