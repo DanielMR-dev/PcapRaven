@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pcapraven-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Linux quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned development toolchain
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tomllib
+
+          expected = tomllib.loads(
+              Path("rust-toolchain.toml").read_text()
+          )["toolchain"]["channel"]
+          subprocess.run(
+              [
+                  "rustup",
+                  "toolchain",
+                  "install",
+                  expected,
+                  "--profile",
+                  "minimal",
+                  "--component",
+                  "rustfmt",
+                  "--component",
+                  "clippy",
+                  "--no-self-update",
+              ],
+              check=True,
+          )
+          PY
+
+      - name: Verify pinned development toolchain and components
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tomllib
+
+          expected = tomllib.loads(
+              Path("rust-toolchain.toml").read_text()
+          )["toolchain"]["channel"]
+          rustc_version = subprocess.run(
+              ["rustup", "run", expected, "rustc", "--version"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.split()
+          if (
+              len(rustc_version) < 2
+              or rustc_version[0] != "rustc"
+              or rustc_version[1] != expected
+          ):
+              raise SystemExit(
+                  f"expected rustc {expected}, got {' '.join(rustc_version)}"
+              )
+          installed = subprocess.run(
+              ["rustup", "component", "list", "--installed", "--toolchain", expected],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.splitlines()
+          for component in ("rustfmt", "clippy"):
+              if not any(line.startswith(f"{component}-") for line in installed):
+                  raise SystemExit(
+                      f"{component} is not installed for toolchain {expected}"
+                  )
+          rustfmt_version = subprocess.run(
+              ["rustup", "run", expected, "rustfmt", "--version"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.strip()
+          clippy_version = subprocess.run(
+              ["rustup", "run", expected, "cargo", "clippy", "--version"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.strip()
+          if not rustfmt_version.startswith("rustfmt "):
+              raise SystemExit(f"unexpected rustfmt version output: {rustfmt_version}")
+          if not clippy_version.startswith("clippy "):
+              raise SystemExit(f"unexpected clippy version output: {clippy_version}")
+          print(
+              f"verified rustc={' '.join(rustc_version)}; "
+              f"rustfmt={rustfmt_version}; "
+              f"clippy={clippy_version} via toolchain {expected}"
+          )
+          PY
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Run workspace tests
+        run: cargo test --workspace --all-features --locked
+
+      - name: Build documentation
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+      - name: Inspect Cargo metadata
+        run: cargo metadata --format-version 1 --no-deps --locked
+
+      - name: Check workspace architecture
+        run: python3 scripts/check_workspace_architecture.py
+
+  msrv:
+    name: MSRV 1.85.0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install MSRV toolchain
+        run: rustup toolchain install 1.85.0 --profile minimal --no-self-update
+
+      - name: Check workspace with MSRV
+        run: cargo +1.85.0 check --workspace --locked
+
+      - name: Build workspace with MSRV
+        run: cargo +1.85.0 build --workspace --locked
+
+      - name: Test workspace with MSRV
+        run: cargo +1.85.0 test --workspace --locked
+
+  skeleton:
+    name: Skeleton check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Check workspace skeleton
+        run: cargo check --workspace --locked

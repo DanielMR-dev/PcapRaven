@@ -8,11 +8,16 @@ security findings.
 
 ## Early Development Status
 
-PcapRaven is currently in **Phase 0: product definition, architecture, and
-engineering foundation**. There is no Cargo workspace, executable, capture
-parser, protocol analyzer, flow engine, detector, or reporter in this
-repository yet. The commands and capabilities described in the documentation
-are targets for later roadmap phases and are not currently available.
+Phase 0 product and governance work is complete, and **Phase 1: Cargo
+workspace, crate skeletons, baseline CI, and tooling** is complete. The
+repository now contains the virtual workspace, seven documented compile-only
+crates, a pinned toolchain, an architecture checker, and baseline CI. The
+`pcapraven` binary is only a skeleton: it accepts no arguments, emits no output,
+and performs no analysis. Phase 2, the safe capture reader, is next.
+
+Capture parsing, protocol normalization, flow analysis, detection, reporting,
+and functional CLI commands remain targets for later roadmap phases and are not
+currently available.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.
@@ -35,7 +40,7 @@ The planned application will:
 See [Product Definition](docs/PRODUCT.md) for goals, non-goals, and the intended
 v1 CLI contract.
 
-## Phase 0 Documentation
+## Project Documentation
 
 - [Product definition and target CLI](docs/PRODUCT.md)
 - [Workspace architecture and crate boundaries](docs/ARCHITECTURE.md)
@@ -46,6 +51,10 @@ v1 CLI contract.
 - [Roadmap through v1.0.0](docs/ROADMAP.md)
 - [Repository structure](MANIFEST.md)
 
+Phase 1 tooling includes `scripts/check_workspace_architecture.py`, the
+workspace quality commands in [Testing](docs/TESTING.md#phase-1-quality-gates),
+and the CI workflow in `.github/workflows/ci.yml`.
+
 ## Contributing and Security
 
 Phase-aware contribution guidance is in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -54,4 +63,4 @@ private process in [SECURITY.md](SECURITY.md).
 
 ## License
 
-PcapRaven is licensed under the [Apache License 2.0](LICENSE).
+PcapRaven is licensed under the [MIT License](LICENSE).

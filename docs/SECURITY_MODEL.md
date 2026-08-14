@@ -3,8 +3,9 @@
 ## Scope and Status
 
 This document defines PcapRaven's technical security posture. Operational
-vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). No capture
-processing implementation exists in Phase 0.
+vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). Phase 1
+contains no capture-processing implementation; the workspace members are
+compile-only skeletons and Phase 2 begins capture reading.
 
 ## Assets
 
@@ -155,9 +156,11 @@ Project unsafe code follows the exception process in
 [Architecture](ARCHITECTURE.md#unsafe-rust-policy). Third-party dependencies
 expand the attack surface. During Phase 1, every proposed dependency's version,
 enabled features, MSRV, license, maintenance posture, transitive footprint, and
-unsafe usage must be reviewed before commitment. Dependencies are kept minimal,
-features are narrowed, and no dependency may introduce default telemetry or
-network behavior that contradicts this model.
+unsafe usage must be reviewed before commitment. Phase 1 commits only the
+documented internal path dependencies and no third-party Rust dependencies or
+features. Future dependencies are kept minimal, features are narrowed, and no
+dependency may introduce default telemetry or network behavior that contradicts
+this model.
 
 ## Fixtures and Development Data
 

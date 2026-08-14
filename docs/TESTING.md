@@ -2,10 +2,11 @@
 
 ## Status
 
-Phase 0 contains no Rust workspace, tests, fixtures, fuzz targets, or CI
-workflow. This document defines the strategy to be implemented in later roadmap
-phases. The commands below are future quality gates and are not currently
-runnable in this repository.
+Phase 0 documentation and governance work is complete. Phase 1 is complete with
+the virtual Rust workspace, compile-only crate skeletons, a dependency-free
+architecture checker, a pinned development toolchain, and baseline CI. It has no
+behavioral analysis tests, capture fixtures, or fuzz targets; those are
+introduced by their owning later phases.
 
 ## Testing Pyramid
 
@@ -101,7 +102,7 @@ fixtures/expected/
 ```
 
 These paths are planned for Phase 17 and intentionally do not exist in Phase
-0.
+1.
 
 ### Categories
 
@@ -118,7 +119,7 @@ These paths are planned for Phase 17 and intentionally do not exist in Phase
 ### Admission Rules
 
 Fixtures should preferably be synthetic, generated locally, sanitized, minimal,
-and redistributable under terms compatible with Apache-2.0. Every fixture must
+and redistributable under terms compatible with MIT. Every fixture must
 have provenance, generation or sanitization notes, expected purpose, and a
 license/redistribution statement in fixture metadata or an adjacent index.
 
@@ -141,30 +142,47 @@ expected behavior without exposing embargoed vulnerability detail before
 coordinated disclosure. Duplicate corpus cases are consolidated where they
 exercise the same boundary.
 
-## Future CI Quality Gates
+## Phase 1 Quality Gates
 
-Once the Phase 1 workspace and CI exist, every supported change must pass:
+The Phase 1 Linux quality job runs the following baseline gates with the pinned
+development toolchain:
 
 ```text
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo doc --workspace --no-deps
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+cargo metadata --format-version 1 --no-deps --locked
+python3 scripts/check_workspace_architecture.py
 ```
 
-CI must also reject committed project `unsafe` code unless it follows the
-approved exception process, verify required documentation and dependency
-boundaries, and run phase-appropriate fixture/property/fuzz smoke tests as they
-are introduced. Additional tools and gates require dependency/toolchain review
-rather than being silently assumed in Phase 0.
+The CI job uses locked dependency resolution for workspace quality, metadata,
+test, and documentation invocations where Cargo supports it. The architecture
+checker also passes `--locked` and `--offline` to Cargo metadata. A separate
+locked MSRV job runs `cargo +1.85.0 check --workspace --locked`, `cargo +1.85.0 build
+--workspace --locked`, and `cargo +1.85.0 test --workspace --locked`. A
+lightweight `cargo check --workspace --locked` runs on Linux, Windows, and
+macOS. The architecture checker rejects unexpected packages, roles, external
+dependencies, and dependency directions. The workspace lint policy rejects
+project `unsafe` code by default. Phase-appropriate fixture, property, and
+fuzz smoke tests will be added when their owning phases begin.
 
-## Phase 0 Validation
+## Phase 0 Validation (completed)
 
-Phase 0 uses read-only repository inspection rather than Cargo gates. It
-requires all planned governance files, valid internal links and OpenCode
-frontmatter, consistent terminology, the exact roadmap, and confirmation that
-no workspace, source code, fixtures, CI, parser, or later-phase functionality
-has been introduced.
+Phase 0 used read-only repository inspection rather than Cargo gates. It
+required the governance files, valid internal links and OpenCode frontmatter,
+consistent terminology, the exact roadmap, and confirmation that no
+implementation or later-phase functionality had been introduced. Phase 1
+replaced the Phase 0 absence checks with the workspace and topology gates above.
+
+## Phase 1 Validation
+
+Phase 1 validation confirms the exact seven-package virtual workspace, Edition
+2024 and resolver 3 settings, workspace package metadata, internal-only graph,
+forbidden-unsafe lint, generated lockfile, pinned development toolchain, and
+absence of capture or analysis behavior. It also checks that documentation and
+the repository manifest identify Phase 0 and Phase 1 as complete and Phase 2 as
+next.
 
 ## Test Quality Rules
 

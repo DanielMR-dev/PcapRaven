@@ -2,8 +2,11 @@
 
 ## Status
 
-This document defines the target architecture. Phase 0 does not create a Cargo
-workspace or any Rust crates. Workspace and crate skeletons begin in Phase 1.
+Phase 0 product and architecture definition is complete. Phase 1 is complete
+with the virtual Cargo workspace, the seven documented crate skeletons, the
+pinned development toolchain, and the dependency-boundary checks described here.
+Capture analysis, domain records, and user-facing behavior remain future work;
+Phase 2 is next.
 
 ## Architectural Principles
 
@@ -22,9 +25,9 @@ workspace or any Rust crates. Workspace and crate skeletons begin in Phase 1.
 - Treat resource limits and error context as parts of the API contract.
 - Use safe Rust in project code by default.
 
-## Target Workspace
+## Phase 1 Workspace
 
-The future Rust Edition 2024 Cargo workspace will contain exactly these initial
+The Rust Edition 2024 Cargo workspace contains exactly these initial
 architectural crates:
 
 ```text
@@ -38,12 +41,25 @@ crates/
   pcapraven-cli/
 ```
 
-These paths are planned and intentionally do not exist in Phase 0. No minimum
-supported Rust version (MSRV) is hard-coded in Phase 0. Dependency versions,
-features, MSRV requirements, and licenses must be validated in Phase 1 before
-dependencies are committed.
+The `pcapraven-cli` package has one binary target named `pcapraven`; the other
+six packages each have one library target.
+
+The workspace is virtual, uses resolver 3, and applies version `0.0.0`, license
+`MIT`, `publish = false`, and Rust `1.85` as workspace package metadata. The
+development toolchain is pinned separately in `rust-toolchain.toml` and is
+intentionally newer than the declared MSRV. Phase 1 commits no third-party Rust
+dependencies or dependency features; the only dependencies are the documented
+path edges below. Every member opts into the workspace lint policy, which
+forbids project `unsafe` code by default.
+
+The Phase 1 source files are compile-only documentation skeletons. They do not
+define domain or business types, parse captures, analyze protocols, reconstruct
+flows, run detectors, serialize reports, or implement CLI commands.
 
 ## Crate Responsibilities
+
+The skeletons document the following future responsibilities without
+implementing them.
 
 ### `pcapraven-domain`
 
@@ -128,8 +144,8 @@ must preserve acyclicity, and must update this table before implementation.
 
 Forbidden directions include any library depending on `pcapraven-cli`, domain
 depending on a parser or serializer, detection depending on parser crates, and
-reporting invoking detection. Cargo workspace checks should enforce the graph
-once the workspace exists.
+reporting invoking detection. `scripts/check_workspace_architecture.py` checks
+the Phase 1 package set and graph from Cargo metadata.
 
 ## Target Data Flow
 
@@ -161,7 +177,7 @@ pcapraven-cli configures and orchestrates each stage.
 
 Records can be streamed or retained according to later phase design, but every
 boundary must carry bounded data and explicit diagnostics. This diagram is a
-logical contract, not a Phase 0 implementation.
+logical contract for later analysis phases, not a Phase 1 implementation.
 
 ## Domain Boundary
 
@@ -201,8 +217,10 @@ sensitive data in diagnostics.
 
 ## Logging Policy
 
-PcapRaven will use structured `tracing` diagnostics. The detailed dependency
-choice is deferred to Phase 1 validation.
+Later analysis phases will use structured `tracing` diagnostics. No tracing
+dependency or logging behavior is present in the Phase 1 skeletons; the
+detailed dependency choice remains subject to the dependency review required
+when that behavior is introduced.
 
 - Stdout is reserved for requested result output.
 - Logs, warnings, progress, and diagnostics go to stderr.
@@ -220,7 +238,8 @@ choice is deferred to Phase 1 validation.
 
 ## Unsafe Rust Policy
 
-Unsafe Rust is prohibited in project code by default. An exception requires a
+Unsafe Rust is prohibited in project code by the workspace lint policy by
+default. An exception requires a
 documented need, proof that a safe alternative is unsuitable, narrowly scoped
 unsafe blocks with stated invariants, dedicated tests, and explicit security
 review. Dependency use of unsafe code is evaluated during dependency review

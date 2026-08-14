@@ -5,7 +5,7 @@
 This file is the authoritative engineering instruction source for AI agents
 working in this repository. It applies to the entire repository. Agent
 frontmatter under `.opencode/agents/` defines capabilities; skills under
-`.opencode/skills/` provide reusable procedures. Those files must defer to this
+`.agents/skills/` provide reusable procedures. Those files must defer to this
 policy and must not redefine it contradictorily.
 
 User instructions take precedence. Within repository policy, canonical product
@@ -25,6 +25,11 @@ and engineering contracts are owned by:
 
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
+
+The accepted repository phase for this branch is Phase 1. Phase 0 product and
+governance work is complete; Phase 1 workspace, skeleton, tooling, and CI work
+is in scope. Phase 2 capture reading and every later capability remain out of
+scope until their roadmap gates are accepted.
 
 ## Project Invariants
 
@@ -52,14 +57,19 @@ Before changing files, identify the current accepted phase and read its roadmap
 entry. Implement only that phase. Planned paths and commands must be described
 as future work, not created or advertised as available.
 
-During Phase 0, agents may edit only the documentation and OpenCode governance
-artifacts listed in `MANIFEST.md`. They must not create `Cargo.toml`,
-`Cargo.lock`, Rust source, `crates/`, fixtures, CI workflows, parser code, flow
-logic, protocol analysis, detections, reporting, or CLI functionality.
+During the historical Phase 0 gate, agents could edit only the documentation
+and OpenCode governance artifacts then listed in `MANIFEST.md`. That gate
+prohibited workspace, source, fixture, CI, parser, flow, protocol, detection,
+reporting, and CLI implementation; it is complete and remains the boundary for
+historical Phase 0 work.
 
-Use Rust Edition 2024 when the workspace begins in Phase 1. Do not hard-code an
-MSRV in Phase 0. Validate dependency versions, features, MSRV requirements, and
-licenses before dependencies are committed in Phase 1.
+Phase 1 uses Rust Edition 2024, resolver 3, and the exact workspace graph in
+`docs/ARCHITECTURE.md`. Its skeleton crates contain no analysis behavior or
+external Rust dependencies, and its workspace lint policy forbids project
+`unsafe` code by default. The declared MSRV is Rust 1.85; the pinned
+development toolchain is separate. Any future dependency must undergo the
+version, feature, MSRV, license, maintenance, transitive-footprint, and unsafe
+usage review required by the canonical security and testing documents.
 
 ## Required Workflow
 

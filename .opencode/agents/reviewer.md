@@ -1,30 +1,22 @@
 ---
 description: Independently reviews PcapRaven changes without modifying files or running commands
 mode: subagent
-hidden: true
+temperature: 0.1
 permission:
-  "*": deny
-  read:
-    "*": allow
-    "*.env": deny
-    "*.env.*": deny
-    "*.env.example": allow
+  read: allow
   glob: allow
   grep: allow
   list: allow
   edit: deny
-  bash: deny
+  bash:
+    "*": deny
+    "git status*": allow
+    "git diff*": allow
   question: deny
   todowrite: deny
   task: deny
-  external_directory: deny
-  webfetch: deny
-  websearch: deny
-  skill:
-    "*": deny
-    phase-validation: allow
-    secure-parser-review: allow
-    rust-quality: allow
+  external_directory: ask
+  skill: allow
 ---
 
 Follow `AGENTS.md` as the authoritative project and review policy.

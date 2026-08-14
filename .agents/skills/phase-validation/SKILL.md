@@ -1,0 +1,61 @@
+---
+name: phase-validation
+description: Use before completing any PcapRaven phase or change to verify roadmap scope, required artifacts, canonical-document consistency, paths, validation evidence, and absence of premature functionality.
+---
+
+# Phase Validation
+
+## Procedure
+
+1. Read `AGENTS.md`, `MANIFEST.md`, the current entry in `docs/ROADMAP.md`, and
+   all canonical documents affected by the change.
+2. Build a checklist from the user's requirements and phase deliverables,
+   exclusions, tests, documentation, and review obligations.
+3. Enumerate repository files and compare them with `MANIFEST.md`. Identify
+   missing, extra, generated, or premature artifacts.
+4. Inspect every changed or created file in full and inspect the complete diff.
+5. Verify referenced repository paths exist unless text explicitly marks them as
+   planned. Resolve relative Markdown links with exact case.
+6. Search for contradictory terminology, crate/dependency direction, phase
+   numbering, security invariants, finding semantics, and present-tense claims
+   about future work.
+7. Run only verification allowed and meaningful for the current phase. Record
+   exact commands and failures; do not claim unrun gates.
+8. Confirm an independent read-only Reviewer pass occurred after Developer
+   verification. Route CRITICAL/HIGH findings through remediation and re-review.
+9. Report changed paths, verification, unavailable commands, and every
+   remaining MEDIUM/LOW observation with rationale.
+
+## Phase 0 Gate
+
+The historical Phase 0 inventory was limited to the documentation and OpenCode
+governance artifacts then listed in `MANIFEST.md`. Its gate rejected
+`Cargo.toml`, `Cargo.lock`, Rust source, `crates/`, fixture trees, CI workflows,
+parsers, packet decoders, flow logic, protocol analysis, detection, reporting,
+and functional CLI behavior. README and all examples had to label future
+capabilities as planned or targeted.
+
+Reject completion when any required path is missing, any internal link is
+broken, the roadmap does not contain exactly Phase 0 through Phase 19 in the
+required order, OpenCode frontmatter or reviewer permissions are invalid, or a
+document contradicts its canonical owner.
+
+## Phase 1 Gate
+
+Phase 1 must contain a virtual Edition 2024, resolver 3 Cargo workspace with
+exactly the six library crates and `pcapraven` binary defined by
+`docs/ARCHITECTURE.md`. Workspace packages use version `0.0.0`, license `MIT`,
+`publish = false`, and explicit Rust version `1.85`. The workspace must have
+workspace-level unsafe-code denial, only the documented internal dependency
+edges, no third-party Rust dependencies, and a tracked `Cargo.lock` generated
+by Cargo.
+
+The six libraries and binary are documented skeletons only. They must not
+contain domain or business types, parsers, protocol analysis, flow logic,
+detection, reporting behavior, or functional CLI behavior. The exact stable
+development toolchain is pinned with the minimal profile and `rustfmt` and
+`clippy` components. Baseline CI and the dependency-free Cargo-metadata
+architecture checker must enforce the Phase 1 topology and quality gates,
+including locked MSRV `1.85.0` verification. Documentation and the repository
+manifest must identify Phase 0 and Phase 1 as complete and Phase 2 as next
+without claiming later functionality is available.

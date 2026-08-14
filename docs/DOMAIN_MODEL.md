@@ -4,7 +4,9 @@
 
 This document defines conceptual, capture-independent records and invariants.
 It does not prescribe final Rust field names, serialization schemas, or storage
-strategy, and none of these records is implemented in Phase 0.
+strategy. Phase 1 contains only documented crate skeletons; none of these
+records is implemented. Domain implementation begins only in a later roadmap
+phase after the capture and normalization contracts are established.
 
 ## Modeling Rules
 

@@ -7,21 +7,25 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
+Phase 0 and Phase 1 are complete. Phase 2, the safe PCAP/PCAPNG capture reader,
+is next. The Phase 1 completion establishes only documented crate skeletons and
+tooling; no capture analysis capability is available yet.
+
 ## Phase 0 - Product definition, architecture and engineering foundation
 
-Define product scope, architecture, domain and detection concepts, security and
+Defined product scope, architecture, domain and detection concepts, security and
 testing policies, contributor governance, repository manifest, agent workflow,
-and the complete roadmap. Deliver documentation and OpenCode configuration
-only. Do not create the Cargo workspace, source code, CI workflows, fixtures,
-or functional CLI.
+and the complete roadmap. Delivered documentation and OpenCode configuration
+only; no Phase 1 implementation was included in this gate.
 
 ## Phase 1 - Cargo workspace, crate skeletons, baseline CI and tooling
 
-Create the Rust Edition 2024 workspace and seven documented crate skeletons.
-Validate dependency versions, features, MSRV requirements, and licenses before
-committing dependencies. Establish formatting, linting, test, documentation,
-dependency-boundary, and baseline CI tooling without implementing capture
-analysis.
+Created the Rust Edition 2024 virtual workspace and seven documented crate
+skeletons. The workspace commits only the documented internal path edges and no
+third-party dependencies or features, declares MSRV 1.85, pins a separate
+stable development toolchain, and establishes formatting, linting, test,
+documentation, dependency-boundary, architecture-checker, lockfile, and
+baseline CI tooling without implementing capture analysis.
 
 ## Phase 2 - Safe PCAP/PCAPNG capture reader
 

@@ -1,0 +1,18 @@
+# Rust build output.
+/target/
+
+# Local credentials and environment overrides.
+.env
+.env.*
+!.env.example
+
+# Editor files.
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating-system files.
+.DS_Store
+Thumbs.db
