@@ -2,20 +2,20 @@
 
 ## Status
 
-Phase 0 documentation and governance work and Phase 1 workspace/tooling work are
-complete. Phase 2 adds synthetic bounded PCAP/PCAPNG reader tests, property
-tests, an excluded public-API fuzz target, and CI build validation. Protocol,
-flow, detection, reporting, CLI, and production-capture fixtures remain future
-phase work.
+Phase 0 documentation and governance work, Phase 1 workspace/tooling work, and
+Phase 2 capture-container ingestion tests are complete. Phase 3 adds unit,
+boundary, property, and fuzz tests for Ethernet, IPv4/IPv6, and TCP/UDP
+normalization in `pcapraven-protocols`. Flow, application decoders, detection,
+reporting, and CLI testing remain future phase work.
 
 ## Testing Pyramid
 
 ### Unit Tests
 
-Unit tests will cover local invariants and transformations: checked length and
-offset calculations, normalization, canonical flow keys, statistics, detector
-thresholds, escaping, filtering, and error classification. Tests should favor
-small exhaustive boundary tables where practical.
+Unit tests cover local invariants and transformations: checked length and
+offset calculations, Ethernet II header normalization, IPv4 options and total
+length checks, IPv6 extension header bounded traversal, TCP/UDP headers and
+flags, payload truncation, and diagnostic emission.
 
 ### Fixture and Golden Tests
 
@@ -27,7 +27,7 @@ pass.
 
 ### Integration Tests
 
-Integration tests will verify crate boundaries and data exchange, including
+Integration tests verify crate boundaries and data exchange, including
 capture ingestion to normalization, normalized packets to flows, observations
 and flows to detectors, and domain results to reporters. Error and partial-data
 paths are first-class cases.
@@ -41,44 +41,27 @@ terminal text handling.
 
 ### Property-Based Tests
 
-Property tests use `proptest` for the Phase 2 reader and will expand with later
-phases. Current and target properties include:
+Property tests use `proptest` for the Phase 2 reader and Phase 3 normalizer.
+Implemented properties include:
 
 - Parsing arbitrary bytes never panics and respects configured limits.
-- Truncating generated valid PCAP and PCAPNG structures at every byte boundary
-  never panics, emits attacker-sized output, or fabricates a complete result.
-- Successful parser steps consume input or transition state; loops always make
-  progress.
-- Declared and captured lengths cannot cause overflow or out-of-bounds access.
-- Timestamp exponents, signed offsets, block lengths, padding, and interface
-  references remain within validated representable and configured bounds.
-- Normalizing an already normalized supported value is stable where the
-  operation is defined as idempotent.
-- Reversing packet direction preserves the canonical bidirectional flow key and
-  swaps only directional statistics.
-- Packet and byte totals equal checked sums of directional values.
-- Flow duration and inter-arrival metrics are never negative.
-- Shuffling independent detector execution does not change canonical findings.
-- Serialization round trips preserve the documented machine-readable domain
-  projection where round trips are supported.
-- Filters are monotonic: raising a minimum threshold cannot add findings.
+- Arbitrary link types are handled deterministically without panics.
+- Truncating valid PCAP/PCAPNG and packet prefixes never panics or claims
+  completeness.
+- Identical input yields strictly identical normalized output (determinism).
+- Retained transport payload never exceeds `maximum_retained_payload_bytes`.
+- Emitted diagnostics never exceed `maximum_diagnostics_per_packet`.
 
-Generators must emphasize zero, one-less-than, exact, and one-more-than limit
-boundaries; truncation at every structural boundary; extreme timestamps and
-lengths; duplicated and reordered events; unknown values; and valid structures
-with adversarial nesting or counts.
+### Fuzzing Strategy
 
-Property regressions are reduced to minimal examples and retained as ordinary
-tests or corpus entries.
-
-## Fuzzing Strategy
-
-Fuzzing begins with the capture reader in Phase 2 using an excluded `fuzz/`
-package and `libfuzzer-sys`; the target calls only the public bounded reader API
-and does not access files or networks. The checked-in CI smoke command is:
+Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with two targets:
+`fuzz_pcap_reader` for capture-container parsing and `fuzz_packet_normalizer`
+for protocol normalization. The targets call only public bounded APIs and do
+not access files or networks. The checked-in CI build commands are:
 
 ```text
-cargo build --manifest-path fuzz/Cargo.toml --bin fuzz_pcap_reader --locked
+cargo +nightly fuzz build fuzz_pcap_reader
+cargo +nightly fuzz build fuzz_packet_normalizer
 ```
 
 Long-running `cargo-fuzz` campaigns and additional structured targets remain

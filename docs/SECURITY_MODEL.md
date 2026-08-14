@@ -5,7 +5,8 @@
 This document defines PcapRaven's technical security posture. Operational
 vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). Phase 2
 contains a bounded library-only PCAP/PCAPNG container reader in
-`pcapraven-pcap`; protocol and analysis crates remain skeletons.
+`pcapraven-pcap`. Phase 3 adds bounded Ethernet, IPv4/IPv6, and TCP/UDP packet
+normalization in `pcapraven-protocols`.
 
 ## Assets
 
@@ -63,32 +64,36 @@ These are release-blocking requirements, not best-effort guidelines.
 
 ## Parser Safety Requirements
 
-The Phase 2 capture reader and future protocol parsers must:
+The Phase 2 capture reader and Phase 3 protocol normalizers must:
 
 - Check all additions, multiplications, conversions, and offset calculations.
 - Validate declared lengths against format minima, enclosing bounds, available
   bytes, configured limits, and representable host sizes before allocation.
 - Borrow bounded slices where practical instead of allocating attacker-sized
   buffers.
+- Strip trailing Ethernet padding from network and transport payloads by
+  bounding strictly to IPv4 `total_length` and IPv6 `payload_length`.
+- Bound IPv6 extension header traversal by explicit count and byte budgets.
+- Classify fragmented packets explicitly and refuse to interpret transport
+  layers without reassembly.
+- Bound retained transport application payloads by `maximum_retained_payload_bytes`.
 - Cap record size, packet size, aggregate retained bytes, option count, nesting depth,
   text length, diagnostic count, emitted records, and total work with documented policies.
 - Reject contradictions and distinguish malformed, unsupported, and incomplete
   input.
 - Guarantee that every successful loop iteration consumes input or makes a
   bounded state transition.
-- Avoid recursive descent controlled by packet nesting unless recursion has a
-  strict low limit or is replaced with bounded iteration.
+- Avoid recursive descent controlled by packet nesting; use bounded iteration.
 - Avoid interpreting unvalidated data as UTF-8; preserve or encode bytes safely.
 - Keep parse errors contextual but bounded, without copying payloads into
   messages.
 - Continue after a malformed record only when resynchronization is specified
   and safe; never scan unbounded input for a guessed boundary.
 
-The Phase 2 reader documents format-specific limits and recovery rules in
-[Architecture](ARCHITECTURE.md#phase-2-capture-container-boundary) and exposes
-only validated finite policies. It uses fixed diagnostic messages and structured
-numeric locations rather than copying attacker-controlled payloads or error
-text.
+The Phase 2 reader and Phase 3 normalizer document specific limits and recovery
+rules in [Architecture](ARCHITECTURE.md) and expose only validated finite policies.
+They use fixed diagnostic messages and structured locations rather than copying
+attacker-controlled payloads or error text into diagnostics.
 
 ## Resource Exhaustion
 

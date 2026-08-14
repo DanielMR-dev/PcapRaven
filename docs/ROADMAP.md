@@ -7,10 +7,10 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, and Phase 2 are complete. Phase 2 delivered the safe, bounded,
-streaming PCAP/PCAPNG capture reader with strictly positional interface identity,
-aggregate packet retention bounds, property tests, and cargo-fuzz validation.
-Phase 3 (protocol normalization) remains next.
+Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 3 delivered bounded
+Ethernet, IPv4/IPv6, and TCP/UDP normalization, explicit fragmentation and
+truncation modeling, padding stripping, property tests, and cargo-fuzz
+validation. Phase 4 (bidirectional flow reconstruction) remains next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -30,14 +30,14 @@ baseline CI tooling without implementing capture analysis.
 
 ## Phase 2 - Safe PCAP/PCAPNG capture reader
 
-Implement bounded capture-container ingestion and capture record metadata for
-the documented PCAP/PCAPNG subset. The current reader accepts a generic `Read`
-source, supports legacy PCAP little/big-endian microsecond and nanosecond
-variants plus PCAPNG section/interface description, enhanced-packet, and
-simple-packet blocks, and preserves section-local timestamp resolution, signed
-offsets, truncation, and unavailable simple-packet timestamps. It emits owned
-bounded packet bytes, capture metadata, stable emitted-record ordinals, bounded
-fixed diagnostics, and explicit complete/partial/failed completion state.
+Implemented bounded capture-container ingestion and capture record metadata for
+the documented PCAP/PCAPNG subset. The reader accepts a generic `Read` source,
+supports legacy PCAP little/big-endian microsecond and nanosecond variants plus
+PCAPNG section/interface description, enhanced-packet, and simple-packet blocks,
+and preserves section-local timestamp resolution, signed offsets, truncation,
+and unavailable simple-packet timestamps. It emits owned bounded packet bytes,
+capture metadata, stable emitted-record ordinals, bounded fixed diagnostics,
+and explicit complete/partial/failed completion state.
 
 The reader validates container boundaries, lengths, timestamps, interface
 references, configured resource limits, and streaming progress. Recoverable
@@ -45,14 +45,18 @@ unsupported or malformed blocks are reported only at parser-validated block
 boundaries; unsafe continuation is terminal. The Phase 2 limits and default
 budgets are documented in `pcapraven-pcap`, with synthetic boundary tests,
 property tests, an excluded public-API fuzz target, and CI build validation.
-The reader does not decode packet protocols or create normalized domain packet
-records.
 
 ## Phase 3 - Ethernet + IPv4/IPv6 + TCP/UDP normalization
 
-Implement bounded normalization for the documented Ethernet, IPv4, IPv6, TCP,
-and UDP subset. Preserve unsupported, fragmented, truncated, and malformed
-states explicitly. Do not reconstruct flows or parse application protocols.
+Implemented bounded normalization for the documented Ethernet II, IPv4, IPv6,
+TCP, and UDP subset. Transformed opaque capture records from `pcapraven-pcap`
+via zero-copy `PacketNormalizationInput` into capture-independent `NormalizedPacket`
+records in `pcapraven-domain`. Implemented `etherparse = 0.21.0` with `default-features = false`
+in `pcapraven-protocols`. Excluded trailing Ethernet padding, bounded IPv6
+extension header traversal and byte budgets, modeled fragmentation explicitly
+without reassembly, bounded transport application payload retention, and emitted
+bounded diagnostics. Delivered exhaustive unit tests, boundary tests, property tests
+with `proptest`, and a new `fuzz_packet_normalizer` target.
 
 ## Phase 4 - Bidirectional flow reconstruction
 

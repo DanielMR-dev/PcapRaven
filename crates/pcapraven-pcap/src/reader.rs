@@ -189,6 +189,46 @@ impl CaptureTimestamp {
             } => seconds.checked_add(i128::from(offset_seconds)),
         }
     }
+
+    /// Converts this capture timestamp into a domain [`pcapraven_domain::PacketTimestamp`].
+    #[must_use]
+    pub fn to_packet_timestamp(self) -> pcapraven_domain::PacketTimestamp {
+        match self {
+            Self::Unavailable => pcapraven_domain::PacketTimestamp::Unavailable,
+            Self::Available {
+                seconds,
+                fractional_units,
+                resolution,
+                offset_seconds,
+            } => pcapraven_domain::PacketTimestamp::Available {
+                seconds,
+                fractional_units,
+                resolution: match resolution {
+                    CaptureTimestampResolution::Decimal {
+                        exponent,
+                        units_per_second,
+                    } => pcapraven_domain::PacketTimestampResolution::Decimal {
+                        exponent,
+                        units_per_second,
+                    },
+                    CaptureTimestampResolution::Binary {
+                        exponent,
+                        units_per_second,
+                    } => pcapraven_domain::PacketTimestampResolution::Binary {
+                        exponent,
+                        units_per_second,
+                    },
+                },
+                offset_seconds,
+            },
+        }
+    }
+}
+
+impl From<CaptureTimestamp> for pcapraven_domain::PacketTimestamp {
+    fn from(timestamp: CaptureTimestamp) -> Self {
+        timestamp.to_packet_timestamp()
+    }
 }
 
 /// Owned packet bytes extracted from a validated capture record.
@@ -960,6 +1000,32 @@ pub struct CaptureRecord {
     pub timestamp: CaptureTimestamp,
     /// Exact owned captured packet bytes without container padding.
     pub packet: CapturedPacket,
+}
+
+impl CaptureRecord {
+    /// Borrows this capture record as a domain [`pcapraven_domain::PacketNormalizationInput`].
+    #[must_use]
+    pub fn as_normalization_input(&self) -> pcapraven_domain::PacketNormalizationInput<'_> {
+        pcapraven_domain::PacketNormalizationInput {
+            reference: pcapraven_domain::PacketReference {
+                capture_record_ordinal: self.ordinal,
+                section_ordinal: self.section_ordinal,
+                interface_ordinal: self.interface_ordinal,
+                captured_len: self.captured_length,
+                original_len: self.original_length,
+                truncated: self.truncated,
+            },
+            timestamp: self.timestamp.to_packet_timestamp(),
+            linktype: self.linktype,
+            data: self.packet.as_slice(),
+        }
+    }
+}
+
+impl<'a> From<&'a CaptureRecord> for pcapraven_domain::PacketNormalizationInput<'a> {
+    fn from(record: &'a CaptureRecord) -> Self {
+        record.as_normalization_input()
+    }
 }
 
 /// Completion state for a capture read.
