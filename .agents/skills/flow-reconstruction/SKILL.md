@@ -9,9 +9,10 @@ description: Use for PcapRaven bidirectional flow reconstruction design, impleme
 
 1. Read `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_MODEL.md`,
    `docs/SECURITY_MODEL.md`, `docs/TESTING.md`, and the current roadmap phase.
-2. Confirm flow reconstruction implementation is allowed. Phase 4 permits
-   deterministic bidirectional flow reconstruction; Phase 5 flow statistics,
-   temporal metrics, application decoders, and detections remain out of scope.
+2. Confirm flow reconstruction implementation is allowed. Phase 4 established
+   deterministic bidirectional flow reconstruction and Phase 5 added checked
+   traffic statistics and exact temporal metrics; application decoders, CLI,
+   and detections remain out of scope.
 3. Verify that input to the flow reconstructor consists strictly of normalized
    domain records (`NormalizedPacket`) without direct raw capture dependencies.
 
@@ -26,7 +27,7 @@ description: Use for PcapRaven bidirectional flow reconstruction design, impleme
   Do not sort or reorder input. Fail deterministically on duplicate/decreasing ordinals.
 - **FlowReference Stability:** Assign monotonic zero-based flow instance ordinals
   using checked arithmetic. Distinguish sequential 5-tuple reuse across lifecycles.
-- **Timestamp Arithmetic & Timeouts:** Use exact integer/fraction arithmetic without
+- **Timestamp Arithmetic & Timeouts:** Use exact integer/rational arithmetic without
   floating-point numbers. Handle decimal and binary timestamp resolutions and signed
   offsets. Unavailable timestamps must never fabricate timeouts.
 - **TCP Lifecycle:**
@@ -45,8 +46,8 @@ description: Use for PcapRaven bidirectional flow reconstruction design, impleme
   `NormalizedPacket`, transport payloads, or raw packet byte vectors.
 - **Deterministic Output:** Finalization must return completed records ordered by
   `FlowReference` ordinal.
-- **Verification Evidence:** Validate with focused unit/boundary tests, `proptest`
-  properties for key reversibility/bounds/determinism, and the `fuzz_flow_reconstructor`
-  fuzz target.
-- **Prohibition:** Strictly forbid packet counters, byte totals, duration, rates,
-  inter-arrival metrics, and temporal statistics (Phase 5 scope).
+- **Error Transactionality:** An `observe()` call returning `Err` must not partially
+  mutate reconstructor state, advance packet ordinals, drop active flows, or allocate
+  flow references.
+- **Metrics Integration:** Refer to `flow-statistics` skill for traffic counters and
+  exact rational temporal metric reviews.

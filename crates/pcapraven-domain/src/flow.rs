@@ -312,10 +312,10 @@ impl fmt::Display for FlowEndReason {
     }
 }
 
-/// Minimal factual record summarizing a completed flow instance.
-///
-/// Phase 4 models flow identity and lifecycle boundaries only.
-/// Packet/byte counters and temporal statistics are deferred to Phase 5.
+use crate::flow_metrics::{FlowTemporalMetrics, FlowTrafficStatistics};
+
+/// Factual record summarizing a completed flow instance, including traffic statistics
+/// and exact temporal metrics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FlowRecord {
     /// Unique flow instance reference.
@@ -328,6 +328,10 @@ pub struct FlowRecord {
     pub last_packet: PacketReference,
     /// Reason the flow instance was closed.
     pub end_reason: FlowEndReason,
+    /// Factual traffic counters across total and directional buckets.
+    pub traffic: FlowTrafficStatistics,
+    /// Exact temporal metrics and inter-arrival series.
+    pub temporal: FlowTemporalMetrics,
 }
 
 impl FlowRecord {
@@ -339,6 +343,8 @@ impl FlowRecord {
         first_packet: PacketReference,
         last_packet: PacketReference,
         end_reason: FlowEndReason,
+        traffic: FlowTrafficStatistics,
+        temporal: FlowTemporalMetrics,
     ) -> Self {
         Self {
             reference,
@@ -346,6 +352,8 @@ impl FlowRecord {
             first_packet,
             last_packet,
             end_reason,
+            traffic,
+            temporal,
         }
     }
 }

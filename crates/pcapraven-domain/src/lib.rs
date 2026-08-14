@@ -5,11 +5,16 @@
 //! flow reconstruction algorithms, detection, reporting, or CLI orchestration.
 
 pub mod flow;
+pub mod flow_metrics;
 pub mod packet;
 
 pub use flow::{
     FlowDirection, FlowEndReason, FlowEndpoint, FlowKey, FlowPacketAssociation, FlowRecord,
     FlowReference, TransportProtocol,
+};
+pub use flow_metrics::{
+    FlowDuration, FlowInterArrivalMetrics, FlowTemporalMetrics, FlowTemporalUnavailableReason,
+    FlowTemporalValue, FlowTimestampCoverage, FlowTrafficCounters, FlowTrafficStatistics,
 };
 pub use packet::{
     EthernetMetadata, FragmentationState, IpAddress, Ipv4Metadata, Ipv6Metadata, MacAddress,

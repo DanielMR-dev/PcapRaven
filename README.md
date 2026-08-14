@@ -10,18 +10,19 @@ findings.
 
 Phase 0 product and governance work, **Phase 1: Cargo workspace, crate
 skeletons, baseline CI, and tooling**, **Phase 2: Safe PCAP/PCAPNG capture reader**,
-**Phase 3: Ethernet + IPv4/IPv6 + TCP/UDP normalization**, and **Phase 4: Deterministic
-bidirectional flow reconstruction** are complete.
+**Phase 3: Ethernet + IPv4/IPv6 + TCP/UDP normalization**, **Phase 4: Deterministic
+bidirectional flow reconstruction**, and **Phase 5: Checked flow statistics and
+exact temporal metrics** are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
-- `pcapraven-domain` defines normalized packet and flow domain models.
+- `pcapraven-domain` defines normalized packet and flow domain models, traffic statistics, and exact temporal metrics.
 - `pcapraven-protocols` provides bounded protocol normalization.
-- `pcapraven-flows` provides stateful bidirectional flow reconstruction and lifecycle management.
+- `pcapraven-flows` provides stateful bidirectional flow reconstruction, checked traffic statistics accumulation, and exact rational temporal metric calculations.
 
 The `pcapraven` binary remains a compile-only skeleton: it accepts no arguments,
-emits no output, and performs no analysis. Flow statistics/temporal metrics (Phase 5),
-application decoders (DNS/HTTP/TLS), detection, reporting, and functional CLI commands
-remain targets for later roadmap phases and are not currently available.
+emits no output, and performs no analysis. Functional CLI commands (Phase 6),
+application decoders (DNS/HTTP/TLS), detection, and reporting remain targets
+for later roadmap phases and are not currently available.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.
@@ -56,7 +57,7 @@ v1 CLI contract.
 - [Repository structure](MANIFEST.md)
 
 Workspace tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-4-quality-gates),
+workspace quality commands in [Testing](docs/TESTING.md#phase-5-quality-gates),
 the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 

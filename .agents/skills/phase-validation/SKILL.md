@@ -120,4 +120,32 @@ defines capture-independent flow identity (`FlowEndpoint`, `FlowKey`, `FlowRefer
   `FlowReference` ordinal.
 - Property tests (`proptest`) and `fuzz_flow_reconstructor` are added and verified.
 - Flow statistics, temporal metrics, application decoders, detections, reporters, and
-  functional CLI behavior remain out of scope.
+  functional CLI behavior remain out of scope. That historical gate is superseded
+  by the current Phase 5 gate below.
+
+## Phase 5 Gate
+
+Phase 5 implements checked flow traffic statistics and exact rational temporal metrics.
+- `pcapraven-domain` defines immutable domain types: `FlowTrafficCounters`,
+  `FlowTrafficStatistics`, `FlowDuration`, `FlowTemporalUnavailableReason`,
+  `FlowTemporalValue`, `FlowTimestampCoverage`, `FlowInterArrivalMetrics`, and
+  `FlowTemporalMetrics`.
+- `pcapraven-flows` computes directional traffic statistics (`total`, `a_to_b`, `b_to_a`,
+  `same_endpoint`) and verifies directional-sum invariants for packet counts, captured bytes,
+  wire bytes, and truncation counts.
+- `FlowDuration` is an exact rational seconds representation (`u128 / u128`) reduced to lowest
+  terms via GCD. Floating-point types (`f32`/`f64`) are strictly forbidden.
+- Timestamp validation handles decimal and binary resolutions and signed offsets.
+- Unavailable, invalid, and non-monotonic timestamps break sequence chains without panic or
+  interval bridging. Non-monotonic transitions never create negative durations.
+- Inter-arrival metrics enforce explicit sample requirements and derive exact mean intervals
+  and mean absolute successive interval deltas.
+- Active flow state uses fixed-size scalar accumulators ($O(1)$ per flow); storing interval
+  vectors, timestamp vectors, or packet payloads is forbidden.
+- Lifecycle attribution integrates statistics cleanly with `IdleTimeout`, `TcpNewInitialSyn`,
+  `TcpReset`, and `EndOfInput`.
+- Observation errors (`observe(...) -> Err`) are strictly transactional.
+- No new production dependencies are added (`proptest` remains dev-only).
+- Comprehensive unit, boundary, lifecycle, property, and strengthened fuzzing tests pass.
+- Application decoders (DNS/HTTP/TLS), CLI commands, threat detection, and reporting remain
+  future roadmap phases.

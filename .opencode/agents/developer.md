@@ -56,10 +56,10 @@ You are the senior Rust developer for PcapRaven.
 
 ## Engineering Rules
 
-Follow the authoritative instructions in `AGENTS.md` and consult:
-
 - `rust-quality` skill for quality gates, formatting, and linting.
 - `secure-parser-review` skill for hostile-input parsing, bounds, and limits.
+- `flow-reconstruction` skill for bidirectional flow reconstruction and lifecycles.
+- `flow-statistics` skill for directional traffic statistics and exact temporal metrics.
 - `phase-validation` skill for phase verification checklists.
 
 ## Role Boundaries

@@ -9,8 +9,9 @@ reference identity, timestamp representation, and layer metadata in
 `pcapraven-domain`. Phase 4 implements the domain flow model and identity
 types (`FlowEndpoint`, `FlowKey`, `FlowDirection`, `FlowReference`,
 `FlowPacketAssociation`, `FlowRecord`, `FlowEndReason`) in `pcapraven-domain`.
-Phase 5 flow statistics, application protocol observations, and threat findings
-remain future work.
+Phase 5 implements checked directional flow traffic statistics and exact rational
+temporal metrics in `pcapraven-domain`. Application protocol observations and threat
+findings remain future work.
 
 ## Modeling Rules
 
@@ -113,16 +114,20 @@ within a defined lifecycle. The implemented Phase 4 domain types include:
 - `FlowReference`: zero-based monotonic flow instance ordinal distinguishing sequential reuse.
 - `FlowPacketAssociation`: compact reference association (`flow`, `packet`, `direction`).
 - `FlowEndReason`: lifecycle closure reason (`EndOfInput`, `IdleTimeout`, `TcpReset`, `TcpNewInitialSyn`).
-- `FlowRecord`: completed minimal record (`reference`, `key`, `first_packet`, `last_packet`, `end_reason`).
+- `FlowRecord`: completed record (`reference`, `key`, `first_packet`, `last_packet`, `end_reason`, `traffic`, `temporal`).
 
-### Phase 5 Planned Flow Statistics
+### Phase 5 Flow Traffic Statistics and Exact Temporal Metrics
 
-Phase 4 defines flow identity and lifecycle boundaries only. Phase 5 will add:
+`pcapraven-domain` defines factual traffic and exact rational temporal domain representations:
 
-- Directional and total packet counts.
-- Directional and total captured and wire byte totals.
-- First and last timestamps and computed flow duration.
-- Temporal metrics (inter-arrival intervals, cadence, jitter, and regularity measures).
+- `FlowTrafficCounters`: records `packet_count`, `captured_bytes`, `wire_bytes`, and `truncated_packet_count`.
+- `FlowTrafficStatistics`: contains directional buckets `total`, `a_to_b`, `b_to_a`, and `same_endpoint`. Enforces the invariant `total == a_to_b + b_to_a + same_endpoint`.
+- `FlowDuration`: exact rational duration (`numerator: u128`, `denominator: u128`) reduced to lowest terms via GCD. `FlowDuration::ZERO` is canonicalized to `0 / 1`. Float types (`f32`/`f64`) are strictly forbidden.
+- `FlowTemporalUnavailableReason`: explains why a temporal metric could not be computed (`InsufficientSamples`, `TimestampUnavailable`, `InvalidTimestamp`, `NonMonotonicTimestamp`, `ArithmeticOverflow`).
+- `FlowTemporalValue<T>`: enum holding `Available(T)` or `Unavailable(FlowTemporalUnavailableReason)`.
+- `FlowTimestampCoverage`: tracks `available_timestamps`, `unavailable_timestamps`, `invalid_timestamps`, and `non_monotonic_transitions`.
+- `FlowInterArrivalMetrics`: tracks `interval_sample_count`, `discontinuity_count`, `minimum_interval`, `maximum_interval`, `mean_interval`, `successive_delta_sample_count`, and `mean_absolute_successive_interval_delta`.
+- `FlowTemporalMetrics`: combines `first_packet_timestamp`, `last_packet_timestamp`, `duration`, `coverage`, `overall_inter_arrival`, `a_to_b_inter_arrival`, `b_to_a_inter_arrival`, and `same_endpoint_inter_arrival`.
 
 ## Protocol Observation Model
 

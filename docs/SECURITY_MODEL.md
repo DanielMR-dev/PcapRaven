@@ -7,7 +7,8 @@ vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). Phase 2
 contains a bounded library-only PCAP/PCAPNG container reader in
 `pcapraven-pcap`. Phase 3 adds bounded Ethernet, IPv4/IPv6, and TCP/UDP packet
 normalization in `pcapraven-protocols`. Phase 4 adds deterministic bidirectional
-flow reconstruction in `pcapraven-flows`.
+flow reconstruction and Phase 5 adds checked flow traffic statistics and exact
+rational temporal metrics in `pcapraven-flows`.
 
 ## Assets
 
@@ -91,19 +92,25 @@ The Phase 2 capture reader and Phase 3 protocol normalizers must:
 - Continue after a malformed record only when resynchronization is specified
   and safe; never scan unbounded input for a guessed boundary.
 
-## Flow Reconstruction Safety Requirements
+## Flow Reconstruction and Metrics Safety Requirements
 
-The Phase 4 bidirectional flow reconstructor in `pcapraven-flows` must:
+The Phase 4 and Phase 5 flow engine in `pcapraven-flows` must:
 
 - Enforce strictly increasing `capture_record_ordinal` sequence without sorting
   or reordering, immediately failing on out-of-order records.
-- Avoid retaining packet payloads or `NormalizedPacket` structs in active flow
-  state; track only scalar keys, references, and timestamps.
-- Use exact integer/fraction cross-multiplication for timeout comparisons without
-  floating-point calculations or rounding inaccuracies.
+- Avoid retaining packet payloads, `NormalizedPacket` structs, or growing collections
+  of timestamps/intervals in active flow state; use only fixed-size scalar accumulators ($O(1)$ memory per active flow).
+- Use exact rational integer arithmetic (`FlowDuration` `u128 / u128` reduced via GCD)
+  for all duration, inter-arrival, mean, delta, and timeout calculations; floating-point
+  types (`f32`/`f64`) are strictly forbidden.
+- Bound and validate all timestamp structures (resolutions and signed offsets); missing,
+  invalid, or non-monotonic timestamps must break sequence chains without panic, negative
+  durations, or interval bridging.
 - Enforce strict resource bounds on `maximum_tracked_flows` and `maximum_flow_instances`,
   failing safely with structured resource errors upon exhaustion rather than performing
   lossy or non-deterministic eviction.
+- Ensure strict transactionality on observation errors: failed observations (`observe(...) -> Err`)
+  must leave active flow state, packet ordinals, and allocated flow references completely unmutated.
 - Order all completed flow records deterministically by monotonic `FlowReference`
   ordinals on finalization.
 
@@ -179,7 +186,7 @@ expand the attack surface.
 - `pcap-parser = 0.17.0` (in `pcapraven-pcap`): normal dependency, default/data/serialize
   features disabled. MIT/Apache-2.0, MSRV 1.65.
 - `etherparse = 0.21.0` (in `pcapraven-protocols`): normal dependency, default features
-  disabled. MIT/Apache-2.0, MSRV 1.61.
+  disabled. Direct dependency `arrayvec` (locked `0.7.8`). MIT/Apache-2.0, MSRV 1.83.0.
 - `pcapraven-flows`: zero third-party production dependencies.
 - `proptest = 1.11.0`: dev-only in test targets, `std` feature only. MIT/Apache-2.0, MSRV 1.85.
 - `libfuzzer-sys = 0.4.13`: separate `fuzz/` package only.

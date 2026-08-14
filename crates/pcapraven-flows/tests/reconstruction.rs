@@ -1149,6 +1149,211 @@ fn midstream_capture_then_initial_syn_lifecycle() {
     assert_eq!(assoc1.flow.ordinal(), 1);
 }
 
+// 8. Part A Hardening Regression Tests
+
+#[test]
+fn idle_timeout_plus_instance_limit_transactional_regression() {
+    let config = FlowReconstructionConfigBuilder::default()
+        .maximum_flow_instances(1)
+        .tcp_idle_timeout_seconds(10)
+        .udp_idle_timeout_seconds(5)
+        .build()
+        .expect("config");
+    let mut reconstructor = FlowReconstructor::new(config).expect("reconstructor");
+
+    let ip_a = [10, 0, 0, 1];
+    let ip_b = [10, 0, 0, 2];
+
+    // Packet 0 -> creates UDP flow 0
+    let p0 = make_ipv4_udp_packet(
+        0,
+        make_timestamp_dec(100, 0, 0),
+        ip_a,
+        ip_b,
+        5000,
+        6000,
+        None,
+    );
+    let s0 = reconstructor.observe(&p0).expect("s0");
+    assert_eq!(
+        match s0.disposition {
+            FlowDisposition::Associated(a) => a.flow.ordinal(),
+            _ => 99,
+        },
+        0
+    );
+    assert_eq!(reconstructor.active_flow_count(), 1);
+    assert_eq!(reconstructor.total_flow_instances(), 1);
+
+    // Packet 1 -> same key, timestamp exceeds idle timeout (100 -> 120, timeout = 5s)
+    // Would require closing flow 0 and creating flow 1, but maximum_flow_instances = 1
+    let p1 = make_ipv4_udp_packet(
+        1,
+        make_timestamp_dec(120, 0, 0),
+        ip_a,
+        ip_b,
+        5000,
+        6000,
+        None,
+    );
+    let err = reconstructor.observe(&p1).unwrap_err();
+    assert!(matches!(
+        err,
+        FlowError::ResourceLimit {
+            limit: "maximum_flow_instances",
+            ..
+        }
+    ));
+
+    // Verify transactionality:
+    // Flow 0 is still active, count is unchanged, total instances is 1, packet 1 ordinal was not committed
+    assert_eq!(reconstructor.active_flow_count(), 1);
+    assert_eq!(reconstructor.total_flow_instances(), 1);
+
+    // Finish returns the accepted-prefix flow 0 with EndOfInput
+    let finished = reconstructor.finish();
+    assert_eq!(finished.len(), 1);
+    assert_eq!(finished[0].reference.ordinal(), 0);
+    assert_eq!(finished[0].end_reason, FlowEndReason::EndOfInput);
+}
+
+#[test]
+fn tcp_new_initial_syn_plus_instance_limit_transactional_regression() {
+    let config = FlowReconstructionConfigBuilder::default()
+        .maximum_flow_instances(1)
+        .build()
+        .expect("config");
+    let mut reconstructor = FlowReconstructor::new(config).expect("reconstructor");
+
+    let ip_a = [10, 0, 0, 1];
+    let ip_b = [10, 0, 0, 2];
+    let syn = TcpFlags::from_bits(0x002);
+    let ack = TcpFlags::from_bits(0x010);
+
+    // Packet 0 -> SYN creates TCP flow 0
+    let p0 = make_ipv4_tcp_packet(
+        0,
+        make_timestamp_dec(100, 0, 0),
+        ip_a,
+        ip_b,
+        1000,
+        80,
+        syn,
+        None,
+    );
+    assert!(reconstructor.observe(&p0).is_ok());
+
+    // Packet 1 -> ACK progresses past initial SYN retransmission phase
+    let p1 = make_ipv4_tcp_packet(
+        1,
+        make_timestamp_dec(101, 0, 0),
+        ip_b,
+        ip_a,
+        80,
+        1000,
+        ack,
+        None,
+    );
+    assert!(reconstructor.observe(&p1).is_ok());
+
+    // Packet 2 -> new initial SYN after activity while maximum_flow_instances = 1
+    let p2 = make_ipv4_tcp_packet(
+        2,
+        make_timestamp_dec(102, 0, 0),
+        ip_a,
+        ip_b,
+        1000,
+        80,
+        syn,
+        None,
+    );
+    let err = reconstructor.observe(&p2).unwrap_err();
+    assert!(matches!(
+        err,
+        FlowError::ResourceLimit {
+            limit: "maximum_flow_instances",
+            ..
+        }
+    ));
+
+    // Verify transactionality:
+    // Flow 0 is still active, count is 1, total instances is 1
+    assert_eq!(reconstructor.active_flow_count(), 1);
+    assert_eq!(reconstructor.total_flow_instances(), 1);
+
+    let finished = reconstructor.finish();
+    assert_eq!(finished.len(), 1);
+    assert_eq!(finished[0].reference.ordinal(), 0);
+    assert_eq!(finished[0].end_reason, FlowEndReason::EndOfInput);
+}
+
+#[test]
+fn error_retry_does_not_advance_packet_ordinal_regression() {
+    let mut reconstructor =
+        FlowReconstructor::new(FlowReconstructionConfig::default()).expect("valid config");
+
+    let ip_a = [10, 0, 0, 1];
+    let ip_b = [10, 0, 0, 2];
+
+    // Packet 0 -> valid
+    let p0 = make_ipv4_udp_packet(0, PacketTimestamp::Unavailable, ip_a, ip_b, 100, 200, None);
+    assert!(reconstructor.observe(&p0).is_ok());
+
+    // Packet 1 -> invalid (captured_len > original_len)
+    let mut p1_bad =
+        make_ipv4_udp_packet(1, PacketTimestamp::Unavailable, ip_a, ip_b, 100, 200, None);
+    p1_bad.reference = PacketReference::new(1, Some(0), Some(0), 100, 50, false);
+    let err = reconstructor.observe(&p1_bad).unwrap_err();
+    assert!(matches!(err, FlowError::InvalidNormalizedPacket { .. }));
+
+    // Retry with corrected packet at the same ordinal (1) -> MUST succeed because failed observation did not advance ordinal
+    let p1_good = make_ipv4_udp_packet(1, PacketTimestamp::Unavailable, ip_a, ip_b, 100, 200, None);
+    let step = reconstructor.observe(&p1_good).expect("retry must succeed");
+    assert!(matches!(step.disposition, FlowDisposition::Associated(_)));
+}
+
+#[test]
+fn unsupported_transport_classification_regression() {
+    let mut reconstructor =
+        FlowReconstructor::new(FlowReconstructionConfig::default()).expect("valid config");
+
+    // Packet with IPv4 protocol 1 (ICMP) and transport_layer: None
+    let p_icmp = NormalizedPacket {
+        reference: make_packet_ref(0),
+        timestamp: PacketTimestamp::Unavailable,
+        link_layer: Some(EthernetMetadata {
+            source: MacAddress::new([0, 1, 2, 3, 4, 5]),
+            destination: MacAddress::new([6, 7, 8, 9, 10, 11]),
+            ethertype: 0x0800,
+            link_header_length: 14,
+        }),
+        network_layer: Some(NetworkLayer::Ipv4(Ipv4Metadata {
+            version: 4,
+            header_length: 20,
+            dscp: 0,
+            ecn: 0,
+            total_length: 64,
+            identification: 1,
+            ttl: 64,
+            protocol: 1, // ICMP
+            source: [10, 0, 0, 1],
+            destination: [10, 0, 0, 2],
+            fragmentation: FragmentationState::NotFragmented,
+        })),
+        transport_layer: None,
+        payload: None,
+        completeness: PacketCompleteness::Unsupported {
+            reason: pcapraven_domain::UnsupportedLayerReason::NetworkProtocol(1),
+        },
+    };
+
+    let step = reconstructor.observe(&p_icmp).expect("observe");
+    assert_eq!(
+        step.disposition,
+        FlowDisposition::Excluded(FlowExclusionReason::UnsupportedTransport)
+    );
+}
+
 // 7. Property-based Testing with proptest
 
 proptest! {

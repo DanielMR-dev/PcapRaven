@@ -4,8 +4,9 @@
 
 Phase 0 documentation and governance work, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion tests, Phase 3 protocol normalization tests,
-and Phase 4 bidirectional flow reconstruction tests are complete. Application
-decoders, detection, reporting, and CLI testing remain future phase work.
+Phase 4 bidirectional flow reconstruction tests, and Phase 5 flow statistics and
+exact temporal metric tests are complete. Application decoders, detection,
+reporting, and CLI testing remain future phase work.
 
 ## Testing Pyramid
 
@@ -56,12 +57,19 @@ Implemented properties include:
 - Arbitrary combinations of TCP flags never cause panics or unexpected crashes.
 - Arbitrary endpoint addresses, port numbers, and timestamp configurations never overflow
   or panic.
+- Directional traffic counter sum invariant: `total == a_to_b + b_to_a + same_endpoint`
+  for packet counts, captured bytes, wire bytes, and truncated packet counts.
+- Rational `FlowDuration` representations are strictly canonicalized (`gcd(num, den) == 1`)
+  with `denominator > 0` and zero canonicalized as `0 / 1`.
+- Inter-arrival sample ordering: `min <= mean <= max` whenever `interval_sample_count > 0`.
+- Missing and non-monotonic timestamps break sequence chains without panic or negative intervals.
 
 ### Fuzzing Strategy
 
 Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with three targets:
 `fuzz_pcap_reader` for capture-container parsing, `fuzz_packet_normalizer` for
-protocol normalization, and `fuzz_flow_reconstructor` for flow reconstruction.
+protocol normalization, and `fuzz_flow_reconstructor` for flow reconstruction
+and traffic/temporal metric invariant validation.
 The targets call only public bounded APIs and do not access files or networks.
 The checked-in CI build commands are:
 
@@ -144,9 +152,9 @@ expected behavior without exposing embargoed vulnerability detail before
 coordinated disclosure. Duplicate corpus cases are consolidated where they
 exercise the same boundary.
 
-## Phase 4 Quality Gates
+## Phase 5 Quality Gates
 
-The Phase 4 Linux quality job runs the following baseline gates with the pinned
+The Phase 5 Linux quality job runs the following baseline gates with the pinned
 development toolchain:
 
 ```text
@@ -207,15 +215,25 @@ Ethernet padding stripping, bounded IPv6 extension header traversal, explicit
 fragmentation handling without reassembly, bounded transport payload retention,
 structured diagnostics, property tests, and the `fuzz_packet_normalizer` target.
 
-## Phase 4 Validation
+## Phase 4 Validation (completed)
 
-Phase 4 validation confirms bidirectional flow key canonicalization, direction
+Phase 4 validation confirmed bidirectional flow key canonicalization, direction
 assignment, monotonic ordinal enforcement, zero packet memory retention, exact
 integer timestamp timeout arithmetic, TCP SYN retransmission retention, new initial
 SYN handling, RST immediate termination, non-forcing FIN policy, bounded resource
 limits, deterministic finalization ordering, property tests, and `fuzz_flow_reconstructor`.
-It also confirms that Phase 5 temporal metrics, flow counters, byte totals, application
-decoders, detectors, reporters, and CLI commands remain absent.
+
+## Phase 5 Validation (completed)
+
+Phase 5 validation confirms checked directional traffic statistics (`total`,
+`a_to_b`, `b_to_a`, `same_endpoint`), directional sum invariants, exact rational
+`FlowDuration` arithmetic (`u128 / u128` canonicalized via GCD), zero-float policy,
+safe timestamp structure validation, sequence chain breaking on unavailable/invalid/non-monotonic
+timestamps without interval bridging, sample requirements on inter-arrival metrics,
+fixed-size online accumulators, transactional error semantics on `observe()`,
+comprehensive property tests, and metric invariant verification in `fuzz_flow_reconstructor`.
+It also confirms that Phase 6 functional CLI commands, application decoders (DNS/HTTP/TLS),
+threat detectors, and reporters remain future work.
 
 ## Dependency Audits
 
@@ -229,11 +247,11 @@ and optional `data` and `serialize` features are disabled. Direct transitive foo
 ### `etherparse = 0.21.0` (Phase 3)
 
 The production protocol parser dependency in `pcapraven-protocols` is exact
-`etherparse = 0.21.0`, licensed MIT/Apache-2.0, with declared MSRV 1.61. Default
-features are disabled. Zero transitive third-party dependencies. No telemetry or
-network behavior.
+`etherparse = 0.21.0`, licensed MIT/Apache-2.0, with declared MSRV 1.83.0. Default
+features are disabled. Direct transitive footprint: `arrayvec = 0.7.8`. No telemetry
+or network behavior.
 
-### `pcapraven-flows` (Phase 4)
+### `pcapraven-flows` (Phase 4 and Phase 5)
 
 `pcapraven-flows` introduces zero third-party production dependencies.
 

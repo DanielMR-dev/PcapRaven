@@ -2,11 +2,12 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 4 contributions implement
-deterministic bidirectional flow reconstruction in `pcapraven-flows` and capture-independent
-flow domain representations in `pcapraven-domain`. Do not add Phase 5 flow statistics/metrics,
-application protocol decoding (DNS/HTTP/TLS), threat detection, reporting, or functional CLI
-commands until their respective roadmap phases begin. Phase 5 is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are complete. Phase 5
+contributions implemented checked flow traffic statistics and exact rational temporal
+metrics in `pcapraven-flows` and capture-independent flow metric domain representations
+in `pcapraven-domain`. Do not add application protocol decoding (DNS/HTTP/TLS), threat
+detection, reporting, or functional CLI commands until their respective roadmap phases
+begin. Phase 6 (functional CLI) is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -50,9 +51,9 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 4 validation uses the reader, normalizer, and flow reconstruction tests,
+Phase 5 validation uses the reader, normalizer, and flow reconstruction tests,
 baseline quality commands, fuzz-target builds, and architecture checker described in
-[Testing](docs/TESTING.md#phase-4-quality-gates). The pinned development
+[Testing](docs/TESTING.md#phase-5-quality-gates). The pinned development
 toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
 the CLI binary emits no output.
 

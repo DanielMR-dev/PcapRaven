@@ -3,9 +3,10 @@
 ## Purpose and Status
 
 This document defines the target contract for detectors and findings. Through
-Phase 4, PcapRaven contains capture ingestion, protocol normalization, and flow
-reconstruction; the detection crate remains a documented skeleton, and capture
-diagnostics and flow exclusions are not security findings.
+Phase 5, PcapRaven contains capture ingestion, protocol normalization, flow
+reconstruction, and checked flow statistics/exact temporal metrics; the detection
+crate remains a documented skeleton, and capture diagnostics and flow exclusions
+are not security findings.
 
 ## Separation from Parsing
 
