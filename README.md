@@ -55,6 +55,21 @@ Phase 1 tooling includes `scripts/check_workspace_architecture.py`, the
 workspace quality commands in [Testing](docs/TESTING.md#phase-1-quality-gates),
 and the CI workflow in `.github/workflows/ci.yml`.
 
+## Development
+
+The development toolchain is controlled by `rust-toolchain.toml`; the project
+MSRV remains Rust 1.85. Phase 1 has no functional PCAP analyzer. Run the six
+baseline checks from the repository root:
+
+```text
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+cargo metadata --format-version 1 --no-deps --locked
+python3 scripts/check_workspace_architecture.py
+```
+
 ## Contributing and Security
 
 Phase-aware contribution guidance is in [CONTRIBUTING.md](CONTRIBUTING.md).

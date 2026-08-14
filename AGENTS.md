@@ -75,7 +75,7 @@ usage review required by the canonical security and testing documents.
 
 The Orchestrator coordinates work; it does not implement or review. The
 Developer implements the assigned phase-scoped change and verifies it. The
-Reviewer independently inspects the result and is strictly read-only.
+Reviewer independently inspects the result and is source-read-only.
 
 ```text
 Orchestrator -> Developer -> Reviewer
@@ -117,8 +117,10 @@ findings may remain only when explicitly reported with rationale.
 
 ### Reviewer
 
-- Remain read-only: do not edit files, execute shell commands, delegate tasks,
-  or use network tools.
+- Remain source-read-only: do not modify project files, repository state, or
+  history. Independently executing explicitly permitted non-mutating
+  verification commands is allowed.
+- Do not delegate tasks or use network tools.
 - Review requirements, correctness, security, phase boundaries, consistency,
   tests, and false implementation claims.
 - Report evidence-based findings first with severity and exact file/section or

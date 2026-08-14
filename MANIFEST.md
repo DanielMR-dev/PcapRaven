@@ -33,7 +33,7 @@ is next; no capture or analysis capability is available yet.
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
-| `.opencode/agents/reviewer.md` | Strictly read-only review subagent. |
+| `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
 | `.agents/skills/secure-parser-review/SKILL.md` | Reusable hostile-input parser review procedure. |

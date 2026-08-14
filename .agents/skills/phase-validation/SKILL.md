@@ -21,8 +21,10 @@ description: Use before completing any PcapRaven phase or change to verify roadm
    about future work.
 7. Run only verification allowed and meaningful for the current phase. Record
    exact commands and failures; do not claim unrun gates.
-8. Confirm an independent read-only Reviewer pass occurred after Developer
-   verification. Route CRITICAL/HIGH findings through remediation and re-review.
+8. Confirm any required independent source-read-only Reviewer pass occurred
+   after Developer verification. The Reviewer may run explicitly permitted
+   non-mutating checks but cannot modify project files. Route CRITICAL/HIGH
+   findings through remediation and re-review.
 9. Report changed paths, verification, unavailable commands, and every
    remaining MEDIUM/LOW observation with rationale.
 
