@@ -9,7 +9,7 @@ permission:
   list: allow
   edit: deny
   bash:
-    "*": deny
+    "*": ask
   question: deny
   todowrite: deny
   lsp: allow
