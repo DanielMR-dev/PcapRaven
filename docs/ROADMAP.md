@@ -7,12 +7,14 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 are complete. Phase 4 delivered
-deterministic bidirectional flow reconstruction, canonical flow keys, relative
-packet directions, monotonic ordinal enforcement, zero packet memory retention,
-integer-only timeout comparisons, TCP SYN/RST/FIN lifecycle management, finite
-resource limits, proptest properties, and cargo-fuzz validation. Phase 5 (flow
-statistics and temporal metrics) remains next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are complete. Phase 5
+delivered checked directional flow traffic statistics, directional-sum invariants,
+exact rational `FlowDuration` arithmetic (`u128 / u128` reduced via GCD), a zero-float
+policy, robust timestamp structure validation, sequence chain breaking on gaps and
+non-monotonic timestamps without interval bridging, inter-arrival metrics with sample
+thresholds, fixed-size online accumulators ($O(1)$ per flow), transactional error semantics,
+comprehensive property tests, and metric invariant verification in `fuzz_flow_reconstructor`.
+Phase 6 (Initial CLI + capture/flow inspection) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -76,9 +78,18 @@ target.
 
 ## Phase 5 - Flow statistics and temporal metrics
 
-Implement checked directional totals and documented temporal metrics with
-explicit units, sample requirements, and incomplete-timestamp behavior. Add
-boundary and property tests.
+Implemented checked directional traffic statistics and exact rational temporal metrics
+in `pcapraven-flows` and `pcapraven-domain`. Computed directional traffic buckets (`total`,
+`a_to_b`, `b_to_a`, `same_endpoint`) for packet counts, captured bytes, wire bytes, and
+truncation counts with strict sum invariant verification. Defined `FlowDuration` as exact
+rational seconds (`u128 / u128`) reduced to lowest terms via GCD with a strict zero-float
+invariant across all durations, means, deltas, and timeouts. Validated decimal and binary
+timestamp resolutions and signed offsets with checked arithmetic. Handled missing, invalid,
+and non-monotonic timestamps by breaking sequence chains without interval bridging or
+negative durations. Implemented inter-arrival metrics with explicit sample requirements,
+fixed-size online accumulators ($O(1)$ memory per active flow), and transactional error
+semantics. Delivered unit, boundary, lifecycle, and property tests with `proptest`, and
+updated `fuzz_flow_reconstructor`.
 
 ## Phase 6 - Initial CLI + capture/flow inspection
 

@@ -2,13 +2,61 @@
 
 use libfuzzer_sys::fuzz_target;
 use pcapraven_domain::{
-    EthernetMetadata, FragmentationState, Ipv4Metadata, Ipv6Metadata, MacAddress, NetworkLayer,
-    NormalizedPacket, PacketCompleteness, PacketReference, PacketTimestamp,
+    EthernetMetadata, FlowRecord, FragmentationState, Ipv4Metadata, Ipv6Metadata, MacAddress,
+    NetworkLayer, NormalizedPacket, PacketCompleteness, PacketReference, PacketTimestamp,
     PacketTimestampResolution, TcpFlags, TcpMetadata, TransportLayer, UdpMetadata,
 };
-use pcapraven_flows::{
-    FlowReconstructionConfigBuilder, FlowReconstructor,
-};
+use pcapraven_flows::{FlowReconstructionConfigBuilder, FlowReconstructor};
+
+fn assert_flow_record_invariants(flow: &FlowRecord) {
+    // 1. Traffic directional invariants
+    assert_eq!(
+        flow.traffic.total.packet_count,
+        flow.traffic.a_to_b.packet_count
+            + flow.traffic.b_to_a.packet_count
+            + flow.traffic.same_endpoint.packet_count
+    );
+    assert_eq!(
+        flow.traffic.total.captured_bytes,
+        flow.traffic.a_to_b.captured_bytes
+            + flow.traffic.b_to_a.captured_bytes
+            + flow.traffic.same_endpoint.captured_bytes
+    );
+    assert_eq!(
+        flow.traffic.total.wire_bytes,
+        flow.traffic.a_to_b.wire_bytes
+            + flow.traffic.b_to_a.wire_bytes
+            + flow.traffic.same_endpoint.wire_bytes
+    );
+    assert_eq!(
+        flow.traffic.total.truncated_packet_count,
+        flow.traffic.a_to_b.truncated_packet_count
+            + flow.traffic.b_to_a.truncated_packet_count
+            + flow.traffic.same_endpoint.truncated_packet_count
+    );
+
+    // 2. Exact temporal invariants
+    if let Some(dur) = flow.temporal.duration.value() {
+        assert!(dur.denominator() > 0);
+    }
+    if let Some(min_d) = flow.temporal.overall_inter_arrival.minimum_interval.value() {
+        assert!(min_d.denominator() > 0);
+    }
+    if let Some(mean_d) = flow.temporal.overall_inter_arrival.mean_interval.value() {
+        assert!(mean_d.denominator() > 0);
+    }
+    if let Some(max_d) = flow.temporal.overall_inter_arrival.maximum_interval.value() {
+        assert!(max_d.denominator() > 0);
+    }
+    if let Some(delta) = flow
+        .temporal
+        .overall_inter_arrival
+        .mean_absolute_successive_interval_delta
+        .value()
+    {
+        assert!(delta.denominator() > 0);
+    }
+}
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 4 {
@@ -32,7 +80,7 @@ fuzz_target!(|data: &[u8]| {
     };
 
     // Synthesize up to 40 normalized packets from data chunks
-    let chunk_size = 16;
+    let chunk_size = 18;
     let max_packets = (data.len() / chunk_size).min(40);
 
     for i in 0..max_packets {
@@ -41,13 +89,23 @@ fuzz_target!(|data: &[u8]| {
         let is_udp = (chunk[0] & 0x02) != 0;
         let has_timestamp = (chunk[0] & 0x04) != 0;
         let is_binary_ts = (chunk[0] & 0x08) != 0;
+        let truncated = (chunk[0] & 0x10) != 0;
 
         let src_port = u16::from_be_bytes([chunk[1], chunk[2]]);
         let dst_port = u16::from_be_bytes([chunk[3], chunk[4]]);
         let raw_flags = u16::from_be_bytes([chunk[5], chunk[6]]);
-        let ts_sec = i64::from_be_bytes([chunk[7], chunk[8], chunk[9], chunk[10], 0, 0, 0, 0]) as i128;
+        let ts_sec =
+            i64::from_be_bytes([chunk[7], chunk[8], chunk[9], chunk[10], 0, 0, 0, 0]) as i128;
         let ts_frac = u32::from_be_bytes([chunk[11], chunk[12], chunk[13], chunk[14]]) as u64;
         let offset = (chunk[15] as i8) as i64;
+
+        let raw_wire_len = u16::from_be_bytes([chunk[16], chunk[17]]) as u32;
+        let original_len = raw_wire_len.max(40);
+        let captured_len = if truncated {
+            original_len.min(60)
+        } else {
+            original_len
+        };
 
         let timestamp = if has_timestamp {
             if is_binary_ts {
@@ -137,7 +195,14 @@ fuzz_target!(|data: &[u8]| {
         };
 
         let packet = NormalizedPacket {
-            reference: PacketReference::new(i as u64, Some(0), Some(0), 64, 64, false),
+            reference: PacketReference::new(
+                i as u64,
+                Some(0),
+                Some(0),
+                captured_len,
+                original_len,
+                truncated,
+            ),
             timestamp,
             link_layer: Some(EthernetMetadata {
                 source: MacAddress::new([0, 1, 2, 3, 4, 5]),
@@ -151,8 +216,15 @@ fuzz_target!(|data: &[u8]| {
             completeness: PacketCompleteness::Complete,
         };
 
-        let _ = reconstructor.observe(&packet);
+        if let Ok(step) = reconstructor.observe(&packet) {
+            for closed in &step.closed_flows {
+                assert_flow_record_invariants(closed);
+            }
+        }
     }
 
-    let _ = reconstructor.finish();
+    let finalized = reconstructor.finish();
+    for closed in &finalized {
+        assert_flow_record_invariants(closed);
+    }
 });

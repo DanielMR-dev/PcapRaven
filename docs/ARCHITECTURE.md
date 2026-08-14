@@ -3,13 +3,14 @@
 ## Status
 
 Phase 0 product and architecture definition, Phase 1 workspace/tooling work,
-Phase 2 capture-container ingestion, Phase 3 packet normalization, and Phase 4
-bidirectional flow reconstruction are complete. `pcapraven-domain` defines
-normalized packet and flow models, `pcapraven-pcap` provides capture ingestion,
+Phase 2 capture-container ingestion, Phase 3 packet normalization, Phase 4
+bidirectional flow reconstruction, and Phase 5 checked flow statistics and exact
+temporal metrics are complete. `pcapraven-domain` defines normalized packet, flow,
+statistics, and temporal models, `pcapraven-pcap` provides capture ingestion,
 `pcapraven-protocols` provides packet normalization, and `pcapraven-flows`
-provides stateful bidirectional flow reconstruction. Phase 5 flow statistics,
-application decoders (DNS/HTTP/TLS), threat detection, reporting, and
-user-facing CLI behavior remain future work.
+provides stateful flow reconstruction, traffic statistics, and exact rational
+temporal metrics. Phase 6 functional CLI commands, application decoders
+(DNS/HTTP/TLS), threat detection, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -148,8 +149,35 @@ packet domain facts (`NormalizedPacket`) into deterministic flow identities:
 - **Resource Bounds:** Finite limits on `maximum_tracked_flows` (default 65,536, hard cap 1,000,000)
   and `maximum_flow_instances` (default 1,000,000, hard cap 10,000,000).
 
-Phase 4 adds no new production dependencies; `proptest = 1.11.0` is dev-only.
+Phase 4 established deterministic flow reconstruction with dev-only `proptest = 1.11.0`.
 `pcapraven-flows` depends only on `pcapraven-domain`.
+
+## Phase 5 Checked Flow Statistics and Exact Temporal Metrics Boundary
+
+`pcapraven-flows` extends active flow reconstruction with checked traffic accumulation
+and exact rational temporal metric calculations:
+
+- **Domain Types:** `pcapraven-domain` defines `FlowTrafficCounters`,
+  `FlowTrafficStatistics`, `FlowDuration`, `FlowTemporalUnavailableReason`,
+  `FlowTemporalValue`, `FlowTimestampCoverage`, `FlowInterArrivalMetrics`, and
+  `FlowTemporalMetrics`.
+- **Directional Counters:** Accumulates `packet_count`, `captured_bytes`, `wire_bytes`,
+  and `truncated_packet_count` across `total`, `a_to_b`, `b_to_a`, and `same_endpoint`
+  buckets. Enforces the invariant `total == a_to_b + b_to_a + same_endpoint`.
+- **Exact Rational Duration:** All flow durations, intervals, means, successive deltas,
+  and timeouts are represented as exact rational numbers (`FlowDuration` with
+  `numerator: u128`, `denominator: u128`) reduced to lowest terms by GCD. Floats
+  (`f32`/`f64`) are strictly forbidden.
+- **Timestamp Arithmetic:** Supports decimal and binary timestamp resolutions and signed
+  offsets. Missing, invalid, and non-monotonic timestamps break sequence chains without
+  bridging intervals or producing negative durations.
+- **Fixed-Size Online Accumulators:** Active flow state uses scalar accumulators
+  ($O(1)$ memory per active flow). Vector collections of timestamps, intervals, or
+  payload bytes in active state are forbidden.
+- **Error Transactionality:** An `observe()` call that fails (`Err`) leaves active flows,
+  packet ordinals, and allocated references completely unmodified.
+
+Phase 5 adds no new production dependencies; `proptest = 1.11.0` remains dev-only.
 
 ## Crate Responsibilities
 
@@ -162,7 +190,9 @@ metadata (`NormalizedPacket`, `EthernetMetadata`, `Ipv4Metadata`, `Ipv6Metadata`
 `TcpMetadata`, `UdpMetadata`, `FragmentationState`, `TcpFlags`), endpoints
 (`FlowEndpoint`), flow keys (`FlowKey`), flow references (`FlowReference`),
 directions (`FlowDirection`), associations (`FlowPacketAssociation`), completed
-records (`FlowRecord`), end reasons (`FlowEndReason`), protocol observations,
+records (`FlowRecord`), end reasons (`FlowEndReason`), traffic statistics
+(`FlowTrafficStatistics`, `FlowTrafficCounters`), temporal metrics (`FlowDuration`,
+`FlowTemporalMetrics`, `FlowInterArrivalMetrics`), protocol observations,
 evidence, findings, severity, confidence, diagnostics, and analysis result metadata.
 It contains no capture parser, protocol parser, CLI, terminal, filesystem orchestration,
 detector implementation, or serializer-specific logic.
@@ -187,8 +217,8 @@ security findings, serialize reports, or implement CLI behavior.
 ### `pcapraven-flows`
 
 Owns bidirectional communication reconstruction, canonical flow keys,
-direction assignment, lifecycle state management, and packet associations.
-Phase 5 will add packet/byte counters and temporal statistics. It consumes
+direction assignment, lifecycle state management, checked traffic counter
+accumulation, and exact rational temporal metric calculations. It consumes
 normalized domain packet metadata and does not parse capture containers or
 application protocols, produce security findings, serialize reports, or
 interact with users.

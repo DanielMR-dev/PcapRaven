@@ -2,10 +2,12 @@
 
 use crate::config::FlowReconstructionConfig;
 use crate::error::FlowError;
+use crate::metrics::{TemporalAccumulator, TrafficAccumulator, exact_duration_between};
 use pcapraven_domain::{
-    FlowEndReason, FlowEndpoint, FlowKey, FlowPacketAssociation, FlowRecord, FlowReference,
-    IpAddress, NetworkLayer, NormalizedPacket, PacketReference, PacketTimestamp, TransportLayer,
-    TransportProtocol,
+    FlowDuration, FlowEndReason, FlowEndpoint, FlowKey, FlowPacketAssociation, FlowRecord,
+    FlowReference, IpAddress, NetworkLayer, NormalizedPacket, PacketCompleteness, PacketReference,
+    PacketTimestamp, PacketTruncationReason, TransportLayer, TransportProtocol,
+    UnsupportedLayerReason,
 };
 use std::collections::BTreeMap;
 
@@ -62,6 +64,8 @@ struct ActiveFlowState {
     last_packet: PacketReference,
     last_timestamp: Option<PacketTimestamp>,
     syn_retransmission_allowed: bool,
+    traffic: TrafficAccumulator,
+    temporal: TemporalAccumulator,
 }
 
 /// Stateful streaming engine for deterministic bidirectional flow reconstruction.
@@ -124,12 +128,19 @@ impl FlowReconstructor {
                 });
             }
         }
-        self.last_seen_ordinal = Some(current_ordinal);
 
-        // 2. Evaluate flow eligibility
+        // 2. Validate domain packet reference integrity
+        if packet.reference.captured_len > packet.reference.original_len {
+            return Err(FlowError::InvalidNormalizedPacket {
+                detail: "captured_len exceeds original_len in PacketReference",
+            });
+        }
+
+        // 3. Evaluate flow eligibility
         let net = match &packet.network_layer {
             Some(net) => net,
             None => {
+                self.last_seen_ordinal = Some(current_ordinal);
                 return Ok(FlowReconstructionStep {
                     disposition: FlowDisposition::Excluded(
                         FlowExclusionReason::MissingNetworkLayer,
@@ -142,11 +153,31 @@ impl FlowReconstructor {
         let transport = match &packet.transport_layer {
             Some(transport) => transport,
             None => {
-                let reason = if net.fragmentation().is_fragmented() {
+                let reason = if net.fragmentation().is_fragmented()
+                    || matches!(
+                        packet.completeness,
+                        PacketCompleteness::Partial {
+                            reason: PacketTruncationReason::Fragmented,
+                        }
+                    ) {
                     FlowExclusionReason::FragmentedWithoutTransport
+                } else if matches!(
+                    packet.completeness,
+                    PacketCompleteness::Unsupported {
+                        reason: UnsupportedLayerReason::NetworkProtocol(_)
+                            | UnsupportedLayerReason::TransportProtocol(_),
+                    }
+                ) || (match net {
+                    NetworkLayer::Ipv4(ip) => ip.protocol != 6 && ip.protocol != 17,
+                    NetworkLayer::Ipv6(ip) => {
+                        ip.effective_protocol != 6 && ip.effective_protocol != 17
+                    }
+                }) {
+                    FlowExclusionReason::UnsupportedTransport
                 } else {
                     FlowExclusionReason::MissingTransportLayer
                 };
+                self.last_seen_ordinal = Some(current_ordinal);
                 return Ok(FlowReconstructionStep {
                     disposition: FlowDisposition::Excluded(reason),
                     closed_flows: Vec::new(),
@@ -154,10 +185,10 @@ impl FlowReconstructor {
             }
         };
 
-        // 3. Validate domain consistency between network layer and transport layer
+        // 4. Validate domain consistency between network layer and transport layer
         validate_domain_consistency(net, transport)?;
 
-        // 4. Extract canonical flow key and endpoints
+        // 5. Extract canonical flow key and endpoints
         let (src_ip, dst_ip) = match net {
             NetworkLayer::Ipv4(ip) => (IpAddress::Ipv4(ip.source), IpAddress::Ipv4(ip.destination)),
             NetworkLayer::Ipv6(ip) => (IpAddress::Ipv6(ip.source), IpAddress::Ipv6(ip.destination)),
@@ -197,79 +228,161 @@ impl FlowReconstructor {
             TransportProtocol::Udp => self.config.udp_idle_timeout_seconds,
         };
 
-        // 5. Check if an active flow exists for this key
-        if let Some(active) = self.active_flows.get_mut(&flow_key) {
+        // 6. Check if an active flow exists for this key
+        if let Some(active) = self.active_flows.get(&flow_key) {
             // A. Check idle timeout
             let timed_out = match (&active.last_timestamp, &packet.timestamp) {
                 (Some(anchor), current) => has_timed_out(anchor, current, timeout_secs),
                 _ => false,
             };
 
-            if timed_out {
-                // Close the existing flow with IdleTimeout
-                let closed_record = FlowRecord::new(
-                    active.reference,
-                    active.key,
-                    active.first_packet,
-                    active.last_packet,
-                    FlowEndReason::IdleTimeout,
-                );
-                closed_flows.push(closed_record);
-                self.active_flows.remove(&flow_key);
-            } else if proto == TransportProtocol::Tcp
+            let is_new_syn = proto == TransportProtocol::Tcp
                 && is_initial_syn
-                && !active.syn_retransmission_allowed
-            {
-                // New initial SYN observed after activity -> close prior flow with TcpNewInitialSyn
+                && !active.syn_retransmission_allowed;
+
+            if timed_out || is_new_syn {
+                // Preflight: closing the current flow and opening a new one on the same key
+                // requires a new flow instance. Verify that maximum_flow_instances permits this
+                // BEFORE modifying or removing the existing active flow.
+                if self.total_flow_instances >= self.config.maximum_flow_instances {
+                    return Err(FlowError::ResourceLimit {
+                        limit: "maximum_flow_instances",
+                        value: self.total_flow_instances,
+                        max: self.config.maximum_flow_instances,
+                    });
+                }
+                let next_ordinal =
+                    self.next_flow_ordinal
+                        .checked_add(1)
+                        .ok_or(FlowError::InternalInvariant {
+                            detail: "flow reference ordinal overflow",
+                        })?;
+                let next_instances = self.total_flow_instances.checked_add(1).ok_or(
+                    FlowError::InternalInvariant {
+                        detail: "total flow instances overflow",
+                    },
+                )?;
+
+                // Initialize accumulators for the new flow instance (preflight checks)
+                let new_traffic = TrafficAccumulator::new(direction, &packet.reference)?;
+                let new_temporal = TemporalAccumulator::new(direction, &packet.timestamp);
+
+                // Now execute the transition atomically
+                let end_reason = if timed_out {
+                    FlowEndReason::IdleTimeout
+                } else {
+                    FlowEndReason::TcpNewInitialSyn
+                };
+                let closed_active = self
+                    .active_flows
+                    .remove(&flow_key)
+                    .expect("active flow key confirmed");
                 let closed_record = FlowRecord::new(
-                    active.reference,
-                    active.key,
-                    active.first_packet,
-                    active.last_packet,
-                    FlowEndReason::TcpNewInitialSyn,
+                    closed_active.reference,
+                    closed_active.key,
+                    closed_active.first_packet,
+                    closed_active.last_packet,
+                    end_reason,
+                    closed_active.traffic.finalize(),
+                    closed_active.temporal.finalize(),
                 );
                 closed_flows.push(closed_record);
-                self.active_flows.remove(&flow_key);
-            } else {
-                // Stay in existing flow
-                let flow_ref = active.reference;
-                active.last_packet = packet.reference;
-                active.last_timestamp = if packet.timestamp.is_available() {
-                    Some(packet.timestamp)
-                } else {
-                    None
-                };
 
-                // Update TCP SYN retransmission allowance
-                if let Some(flags) = tcp_flags {
-                    if (flags.ack && !flags.syn) || flags.rst || flags.fin || has_payload {
-                        active.syn_retransmission_allowed = false;
-                    }
-                }
+                let flow_ref = FlowReference::new(self.next_flow_ordinal);
+                self.next_flow_ordinal = next_ordinal;
+                self.total_flow_instances = next_instances;
 
                 let association = FlowPacketAssociation::new(flow_ref, packet.reference, direction);
 
                 if is_rst {
-                    // RST packet belongs to this flow, then terminates it immediately
-                    let closed_record = FlowRecord::new(
-                        active.reference,
-                        active.key,
-                        active.first_packet,
-                        active.last_packet,
+                    let rst_closed_record = FlowRecord::new(
+                        flow_ref,
+                        flow_key,
+                        packet.reference,
+                        packet.reference,
                         FlowEndReason::TcpReset,
+                        new_traffic.finalize(),
+                        new_temporal.finalize(),
                     );
-                    closed_flows.push(closed_record);
-                    self.active_flows.remove(&flow_key);
+                    closed_flows.push(rst_closed_record);
+                } else {
+                    let active_state = ActiveFlowState {
+                        reference: flow_ref,
+                        key: flow_key,
+                        first_packet: packet.reference,
+                        last_packet: packet.reference,
+                        last_timestamp: if packet.timestamp.is_available() {
+                            Some(packet.timestamp)
+                        } else {
+                            None
+                        },
+                        syn_retransmission_allowed: is_initial_syn,
+                        traffic: new_traffic,
+                        temporal: new_temporal,
+                    };
+                    self.active_flows.insert(flow_key, active_state);
                 }
 
+                self.last_seen_ordinal = Some(current_ordinal);
                 return Ok(FlowReconstructionStep {
                     disposition: FlowDisposition::Associated(association),
                     closed_flows,
                 });
             }
+
+            // Packet belongs to existing active flow instance
+            let active = self
+                .active_flows
+                .get_mut(&flow_key)
+                .expect("active flow key confirmed");
+
+            // Update traffic and temporal accumulators (preflights checked arithmetic)
+            active.traffic.observe(direction, &packet.reference)?;
+            active.temporal.observe(direction, &packet.timestamp);
+
+            let flow_ref = active.reference;
+            active.last_packet = packet.reference;
+            active.last_timestamp = if packet.timestamp.is_available() {
+                Some(packet.timestamp)
+            } else {
+                None
+            };
+
+            // Update TCP SYN retransmission allowance
+            if let Some(flags) = tcp_flags {
+                if (flags.ack && !flags.syn) || flags.rst || flags.fin || has_payload {
+                    active.syn_retransmission_allowed = false;
+                }
+            }
+
+            let association = FlowPacketAssociation::new(flow_ref, packet.reference, direction);
+
+            if is_rst {
+                // RST packet belongs to this flow, then terminates it immediately
+                let closed_active = self
+                    .active_flows
+                    .remove(&flow_key)
+                    .expect("active flow key confirmed");
+                let closed_record = FlowRecord::new(
+                    closed_active.reference,
+                    closed_active.key,
+                    closed_active.first_packet,
+                    closed_active.last_packet,
+                    FlowEndReason::TcpReset,
+                    closed_active.traffic.finalize(),
+                    closed_active.temporal.finalize(),
+                );
+                closed_flows.push(closed_record);
+            }
+
+            self.last_seen_ordinal = Some(current_ordinal);
+            return Ok(FlowReconstructionStep {
+                disposition: FlowDisposition::Associated(association),
+                closed_flows,
+            });
         }
 
-        // 6. Create new flow instance
+        // 7. Create brand new flow instance on a new key
         if self.active_flows.len() >= self.config.maximum_tracked_flows {
             return Err(FlowError::ResourceLimit {
                 limit: "maximum_tracked_flows",
@@ -285,31 +398,37 @@ impl FlowReconstructor {
             });
         }
 
-        let flow_ref = FlowReference::new(self.next_flow_ordinal);
-        self.next_flow_ordinal =
+        let next_ordinal =
             self.next_flow_ordinal
                 .checked_add(1)
                 .ok_or(FlowError::InternalInvariant {
                     detail: "flow reference ordinal overflow",
                 })?;
-        self.total_flow_instances =
+        let next_instances =
             self.total_flow_instances
                 .checked_add(1)
                 .ok_or(FlowError::InternalInvariant {
                     detail: "total flow instances overflow",
                 })?;
 
+        let traffic = TrafficAccumulator::new(direction, &packet.reference)?;
+        let temporal = TemporalAccumulator::new(direction, &packet.timestamp);
+
+        let flow_ref = FlowReference::new(self.next_flow_ordinal);
+        self.next_flow_ordinal = next_ordinal;
+        self.total_flow_instances = next_instances;
+
         let association = FlowPacketAssociation::new(flow_ref, packet.reference, direction);
 
         if is_rst {
-            // If the very first packet of this new flow has RST, it associates with the flow
-            // and then closes it immediately with TcpReset
             let closed_record = FlowRecord::new(
                 flow_ref,
                 flow_key,
                 packet.reference,
                 packet.reference,
                 FlowEndReason::TcpReset,
+                traffic.finalize(),
+                temporal.finalize(),
             );
             closed_flows.push(closed_record);
         } else {
@@ -324,10 +443,13 @@ impl FlowReconstructor {
                     None
                 },
                 syn_retransmission_allowed: is_initial_syn,
+                traffic,
+                temporal,
             };
             self.active_flows.insert(flow_key, active_state);
         }
 
+        self.last_seen_ordinal = Some(current_ordinal);
         Ok(FlowReconstructionStep {
             disposition: FlowDisposition::Associated(association),
             closed_flows,
@@ -347,6 +469,8 @@ impl FlowReconstructor {
                 active.first_packet,
                 active.last_packet,
                 FlowEndReason::EndOfInput,
+                active.traffic.finalize(),
+                active.temporal.finalize(),
             ));
         }
         closed_flows.sort_by_key(|f| f.reference.ordinal());
@@ -394,68 +518,8 @@ pub fn has_timed_out(
     current: &PacketTimestamp,
     timeout_seconds: u32,
 ) -> bool {
-    let (s1, f1, r1, o1) = match *anchor {
-        PacketTimestamp::Available {
-            seconds,
-            fractional_units,
-            resolution,
-            offset_seconds,
-        } => (seconds, fractional_units, resolution, offset_seconds),
-        PacketTimestamp::Unavailable => return false,
-    };
-
-    let (s2, f2, r2, o2) = match *current {
-        PacketTimestamp::Available {
-            seconds,
-            fractional_units,
-            resolution,
-            offset_seconds,
-        } => (seconds, fractional_units, resolution, offset_seconds),
-        PacketTimestamp::Unavailable => return false,
-    };
-
-    let eff_s1 = match s1.checked_add(i128::from(o1)) {
-        Some(s) => s,
-        None => return false,
-    };
-    let eff_s2 = match s2.checked_add(i128::from(o2)) {
-        Some(s) => s,
-        None => return false,
-    };
-
-    // Non-monotonic backward timestamp
-    if eff_s2 < eff_s1 {
-        return false;
+    match exact_duration_between(anchor, current) {
+        Ok(duration) => duration >= FlowDuration::from_secs(u64::from(timeout_seconds)),
+        Err(_) => false,
     }
-
-    let diff_seconds = eff_s2.saturating_sub(eff_s1);
-    let timeout = i128::from(timeout_seconds);
-
-    if diff_seconds > timeout {
-        return true;
-    }
-
-    if diff_seconds < timeout {
-        return false;
-    }
-
-    // Exact whole-second difference == timeout_seconds. Compare fractional units.
-    let units1 = u128::from(r1.units_per_second());
-    let units2 = u128::from(r2.units_per_second());
-
-    if units1 == 0 || units2 == 0 {
-        return false;
-    }
-
-    // f2 / units2 >= f1 / units1  <=>  f2 * units1 >= f1 * units2
-    let scaled_f2 = match u128::from(f2).checked_mul(units1) {
-        Some(v) => v,
-        None => return false,
-    };
-    let scaled_f1 = match u128::from(f1).checked_mul(units2) {
-        Some(v) => v,
-        None => return false,
-    };
-
-    scaled_f2 >= scaled_f1
 }
