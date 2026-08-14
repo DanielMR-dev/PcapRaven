@@ -4,6 +4,9 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
+[package.metadata]
+cargo-fuzz = true
+
 [dependencies]
 libfuzzer-sys = { version = "=0.4.13" }
 pcapraven-pcap = { path = "../crates/pcapraven-pcap", version = "0.0.0" }

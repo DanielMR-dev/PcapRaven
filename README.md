@@ -8,9 +8,10 @@ security findings.
 
 ## Early Development Status
 
-Phase 0 product and governance work and **Phase 1: Cargo workspace, crate
-skeletons, baseline CI, and tooling** are complete. Phase 2 now provides a
-library-first, bounded PCAP/PCAPNG container reader in `pcapraven-pcap`.
+Phase 0 product and governance work, **Phase 1: Cargo workspace, crate
+skeletons, baseline CI, and tooling**, and **Phase 2: Safe PCAP/PCAPNG capture reader**
+are complete. `pcapraven-pcap` provides the library-first, bounded, streaming
+capture reader.
 
 The reader accepts a generic `std::io::Read` source and supports the documented
 legacy PCAP and PCAPNG subset: both endiannesses, PCAP microsecond/nanosecond

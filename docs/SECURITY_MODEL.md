@@ -70,8 +70,8 @@ The Phase 2 capture reader and future protocol parsers must:
   bytes, configured limits, and representable host sizes before allocation.
 - Borrow bounded slices where practical instead of allocating attacker-sized
   buffers.
-- Cap record size, packet size, option count, nesting depth, text length,
-  diagnostic count, retained records, and total work with documented policies.
+- Cap record size, packet size, aggregate retained bytes, option count, nesting depth,
+  text length, diagnostic count, emitted records, and total work with documented policies.
 - Reject contradictions and distinguish malformed, unsupported, and incomplete
   input.
 - Guarantee that every successful loop iteration consumes input or makes a

@@ -7,10 +7,10 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0 and Phase 1 are complete. Phase 2 is the current implementation phase
-for the safe PCAP/PCAPNG capture reader. The reader and its focused tests are
-present on this branch; phase acceptance still requires the documented quality,
-security, documentation, and independent review gates. Phase 3 remains next.
+Phase 0, Phase 1, and Phase 2 are complete. Phase 2 delivered the safe, bounded,
+streaming PCAP/PCAPNG capture reader with strictly positional interface identity,
+aggregate packet retention bounds, property tests, and cargo-fuzz validation.
+Phase 3 (protocol normalization) remains next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 

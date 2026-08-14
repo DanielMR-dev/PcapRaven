@@ -166,7 +166,13 @@ cargo test --workspace --all-features --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 cargo metadata --format-version 1 --no-deps --locked
 python3 scripts/check_workspace_architecture.py
-cargo build --manifest-path fuzz/Cargo.toml --bin fuzz_pcap_reader --locked
+```
+
+The separate CI fuzz build job verifies the excluded fuzz harness using the
+nightly toolchain and pinned `cargo-fuzz = 0.13.2`:
+
+```text
+cargo +nightly fuzz build fuzz_pcap_reader
 ```
 
 The CI job uses locked dependency resolution for workspace quality, metadata,
@@ -178,7 +184,7 @@ lightweight `cargo check --workspace --locked` runs on Linux, Windows, and
 macOS. The architecture checker rejects unexpected packages, roles, external
 dependencies, and dependency directions. The workspace lint policy rejects
 project `unsafe` code by default. The fuzz package is excluded from the seven
-package main workspace and is validated by its separate locked build command.
+package main workspace and is validated by its separate locked fuzz build command.
 Phase-appropriate fixtures and long-running fuzz campaigns remain future work.
 
 ## Phase 0 Validation (completed)

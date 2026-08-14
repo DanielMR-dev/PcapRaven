@@ -3,10 +3,9 @@
 ## Purpose and Phase Status
 
 This is a human-readable inventory and governance document, not a Cargo
-manifest. Phase 0 product and governance work and Phase 1 workspace/tooling work
-are complete. Phase 2 contains the bounded PCAP/PCAPNG container reader and its
-tests, dependency audit, and initial fuzz target. Protocol and analysis
-capabilities remain future work.
+manifest. Phase 0 product and governance work, Phase 1 workspace/tooling work,
+and Phase 2 safe PCAP/PCAPNG container reader work are complete. Protocol and
+analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 

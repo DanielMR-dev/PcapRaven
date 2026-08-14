@@ -8,8 +8,9 @@ mod reader;
 
 pub use reader::{
     ByteOrder, CaptureCompletion, CaptureDiagnostic, CaptureDiagnosticKind, CaptureDiagnosticStage,
-    CaptureFormat, CaptureGlobalMetadata, CaptureInterface, CaptureLocation, CaptureMetadata,
-    CaptureReadOutcome, CaptureReader, CaptureReaderError, CaptureReaderErrorKind, CaptureRecord,
-    CaptureSection, CaptureTimestamp, CaptureTimestampResolution, CapturedPacket, MalformedCapture,
-    ReaderLimit, ReaderLimits, ReaderLimitsBuilder, UnsupportedCapture, read_capture,
+    CaptureFormat, CaptureGlobalMetadata, CaptureInterface, CaptureInterfaceSlot, CaptureLocation,
+    CaptureMetadata, CaptureReadOutcome, CaptureReader, CaptureReaderError, CaptureReaderErrorKind,
+    CaptureRecord, CaptureSection, CaptureTimestamp, CaptureTimestampResolution, CapturedPacket,
+    MalformedCapture, ReaderLimit, ReaderLimits, ReaderLimitsBuilder, UnsupportedCapture,
+    read_capture,
 };

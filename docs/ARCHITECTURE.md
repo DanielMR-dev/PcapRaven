@@ -67,17 +67,25 @@ explicit complete, partial, or failed-before-useful-records state.
 The supported Phase 2 subset is legacy PCAP in both byte orders with
 microsecond/nanosecond precision, and PCAPNG section headers, interface
 descriptions, enhanced packet blocks, and simple packet blocks. PCAPNG interface
-timestamp resolution and signed offsets are section-local. Unsupported valid
-blocks are skipped only after the low-level parser establishes their boundary;
-malformed or incomplete input is never guessed through.
+descriptions are assigned positional slots within each section; malformed IDBs
+are recorded as unusable slots so that subsequent interface indexing and EPB/SPB
+resolution remain strictly deterministic without shift. PCAPNG interface
+timestamp resolution and signed offsets are section-local, and section
+boundaries reset interface state. Unsupported valid blocks are skipped only
+after the low-level parser establishes their boundary; malformed or incomplete
+input is never guessed through.
 
 The default finite limits are: 64 KiB initial buffer, 4 MiB maximum buffer and
-block, 1 MiB retained packet, 1,024 interfaces per section, 1,024 sections, 256
-diagnostics, 100,000 emitted records, and 1,000,000 processed blocks. Validation
-also enforces nonzero limits, `initial_buffer_size <= maximum_buffer_size`, and
+block, 1 MiB individual packet bytes, 16 MiB aggregate retained packet bytes for
+collection, 1,024 interfaces per section, 1,024 sections, 256 diagnostics,
+100,000 emitted records, and 1,000,000 processed blocks. Validation also enforces
+nonzero limits, `initial_buffer_size <= maximum_buffer_size`, and
 `maximum_packet_bytes <= maximum_block_size <= maximum_buffer_size`; hard caps
-prevent callers from raising these budgets beyond 64 MiB for byte/block limits,
-65,536 sections/interfaces, 1,000,000 diagnostics, or 10,000,000 records/blocks.
+prevent callers from raising these budgets beyond 64 MiB for byte/block/retention
+limits, 65,536 sections/interfaces, 1,000,000 diagnostics, or 10,000,000
+records/blocks. `CaptureReader` is strictly streaming and emits records without
+internal accumulation; convenience collection functions enforce the aggregate
+retained packet byte budget.
 
 Phase 2 uses `pcap-parser = 0.17.0` as a normal dependency with default,
 `data`, and `serialize` features disabled. The parser dependency is kept behind

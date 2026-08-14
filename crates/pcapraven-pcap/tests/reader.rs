@@ -282,7 +282,13 @@ fn reads_pcapng_big_endian_and_negative_timestamp_offset() {
     let outcome = read_capture(input.as_slice(), default_limits());
     assert!(outcome.is_complete());
     assert_eq!(outcome.metadata.sections[0].byte_order, ByteOrder::Big);
-    assert_eq!(outcome.metadata.sections[0].interfaces[0].linktype, 101);
+    assert_eq!(
+        outcome.metadata.sections[0].interfaces[0]
+            .as_valid()
+            .unwrap()
+            .linktype,
+        101
+    );
     assert_eq!(outcome.records[0].timestamp.effective_seconds(), Some(-1));
     assert_eq!(outcome.records[0].timestamp.fractional_units(), Some(1));
 }
@@ -651,7 +657,279 @@ fn reader_api_exposes_terminal_error_after_emitted_records() {
         .next_record()
         .expect_err("record limit must be terminal");
     assert_eq!(error.kind(), CaptureReaderErrorKind::ResourceLimit);
-    assert_eq!(reader.records().len(), 1);
+    assert_eq!(reader.records_emitted(), 1);
+}
+
+#[test]
+fn pcapng_positional_interface_identity_case_a_multi_interface_malformed_middle() {
+    let packet_valid = [1u8, 2, 3, 4];
+    let packet_skipped = [5u8, 6, 7, 8];
+    let input = pcapng(
+        ByteOrder::Little,
+        &[
+            idb(ByteOrder::Little, 1, 64, Some(6), None), // IDB 0: Valid, linktype 1
+            idb(ByteOrder::Little, 12, 64, Some(0xff), None), // IDB 1: Malformed timestamp resolution
+            idb(ByteOrder::Little, 101, 128, Some(6), None),  // IDB 2: Valid, linktype 101
+            epb(ByteOrder::Little, 2, 1000, &packet_valid, 4), // EPB referencing interface 2
+            epb(ByteOrder::Little, 1, 2000, &packet_skipped, 4), // EPB referencing unusable interface 1
+        ],
+    );
+    let outcome = read_capture(input.as_slice(), default_limits());
+    assert!(matches!(
+        outcome.completion,
+        CaptureCompletion::Partial { .. }
+    ));
+    assert_eq!(outcome.metadata.sections.len(), 1);
+    let section = &outcome.metadata.sections[0];
+    assert_eq!(section.interfaces.len(), 3);
+    assert!(section.interfaces[0].is_valid());
+    assert_eq!(section.interfaces[0].as_valid().unwrap().linktype, 1);
+    assert_eq!(section.interfaces[0].interface_ordinal(), 0);
+    assert!(!section.interfaces[1].is_valid());
+    assert_eq!(section.interfaces[1].interface_ordinal(), 1);
+    assert!(section.interfaces[2].is_valid());
+    assert_eq!(section.interfaces[2].as_valid().unwrap().linktype, 101);
+    assert_eq!(section.interfaces[2].interface_ordinal(), 2);
+
+    assert_eq!(outcome.records.len(), 1);
+    assert_eq!(outcome.records[0].ordinal, 0);
+    assert_eq!(outcome.records[0].interface_ordinal, Some(2));
+    assert_eq!(outcome.records[0].linktype, 101);
+    assert_eq!(outcome.records[0].packet.as_slice(), packet_valid);
+    assert!(outcome.diagnostics.iter().any(|d| {
+        d.kind == CaptureDiagnosticKind::InvalidReference
+            && d.message
+                .contains("enhanced packet references an unavailable interface")
+    }));
+}
+
+#[test]
+fn pcapng_positional_interface_identity_case_b_first_idb_malformed() {
+    let packet = [10u8, 20, 30];
+    let input = pcapng(
+        ByteOrder::Little,
+        &[
+            idb(ByteOrder::Little, 1, 64, Some(0xff), None), // IDB 0: Malformed
+            idb(ByteOrder::Little, 1, 64, Some(6), None),    // IDB 1: Valid
+            epb(ByteOrder::Little, 0, 100, &packet, 3),      // EPB referencing unusable if 0
+            epb(ByteOrder::Little, 1, 200, &packet, 3),      // EPB referencing valid if 1
+            spb(ByteOrder::Little, &packet, 3),              // SPB referencing if 0
+        ],
+    );
+    let outcome = read_capture(input.as_slice(), default_limits());
+    assert!(matches!(
+        outcome.completion,
+        CaptureCompletion::Partial { .. }
+    ));
+    let section = &outcome.metadata.sections[0];
+    assert_eq!(section.interfaces.len(), 2);
+    assert!(!section.interfaces[0].is_valid());
+    assert!(section.interfaces[1].is_valid());
+    assert_eq!(section.interfaces[1].interface_ordinal(), 1);
+
+    assert_eq!(outcome.records.len(), 1);
+    assert_eq!(outcome.records[0].interface_ordinal, Some(1));
+    assert!(outcome.diagnostics.iter().any(|d| {
+        d.kind == CaptureDiagnosticKind::InvalidReference
+            && d.message
+                .contains("simple packet has no section-local interface zero")
+    }));
+}
+
+#[test]
+fn pcapng_positional_interface_identity_case_c_spb_with_unusable_interface_zero() {
+    let packet = [42u8; 8];
+    let input = pcapng(
+        ByteOrder::Little,
+        &[
+            idb(ByteOrder::Little, 1, 64, Some(0xfe), None), // IDB 0: Malformed
+            idb(ByteOrder::Little, 1, 64, Some(6), None),    // IDB 1: Valid
+            spb(ByteOrder::Little, &packet, 8),
+        ],
+    );
+    let outcome = read_capture(input.as_slice(), default_limits());
+    assert!(matches!(
+        outcome.completion,
+        CaptureCompletion::Partial { .. }
+    ));
+    assert!(outcome.records.is_empty());
+    assert!(outcome.diagnostics.iter().any(|d| {
+        d.kind == CaptureDiagnosticKind::InvalidReference
+            && d.message
+                .contains("simple packet has no section-local interface zero")
+    }));
+}
+
+#[test]
+fn pcapng_positional_interface_identity_case_d_multi_section_interface_isolation() {
+    let packet = [1u8, 2, 3];
+    let mut input = shb(ByteOrder::Little);
+    input.extend_from_slice(&idb(ByteOrder::Little, 1, 64, None, None)); // Sec 0, IDB 0
+    input.extend_from_slice(&idb(ByteOrder::Little, 101, 64, None, None)); // Sec 0, IDB 1
+    input.extend_from_slice(&epb(ByteOrder::Little, 1, 100, &packet, 3)); // Sec 0, EPB 1 -> OK
+
+    input.extend_from_slice(&shb(ByteOrder::Little)); // Sec 1 begins
+    input.extend_from_slice(&idb(ByteOrder::Little, 12, 64, None, None)); // Sec 1, IDB 0
+    input.extend_from_slice(&epb(ByteOrder::Little, 1, 200, &packet, 3)); // Sec 1, EPB 1 -> InvalidReference
+
+    let outcome = read_capture(input.as_slice(), default_limits());
+    assert!(matches!(
+        outcome.completion,
+        CaptureCompletion::Partial { .. }
+    ));
+    assert_eq!(outcome.metadata.sections.len(), 2);
+    assert_eq!(outcome.metadata.sections[0].interfaces.len(), 2);
+    assert_eq!(outcome.metadata.sections[1].interfaces.len(), 1);
+    assert_eq!(outcome.records.len(), 1);
+    assert_eq!(outcome.records[0].section_ordinal, Some(0));
+    assert_eq!(outcome.records[0].interface_ordinal, Some(1));
+    assert!(outcome.diagnostics.iter().any(|d| {
+        d.kind == CaptureDiagnosticKind::InvalidReference
+            && d.location.section_ordinal == Some(1)
+            && d.location.interface_ordinal == Some(1)
+    }));
+}
+
+#[test]
+fn pcapng_positional_interface_identity_case_e_malformed_options_preserve_slot_indexing() {
+    let packet = [7u8, 8, 9];
+    let mut malformed_opt_body = Vec::new();
+    push_u16(&mut malformed_opt_body, 1, ByteOrder::Little); // linktype
+    push_u16(&mut malformed_opt_body, 0, ByteOrder::Little); // reserved
+    push_u32(&mut malformed_opt_body, 64, ByteOrder::Little); // snaplen
+    // Add invalid length option: IfTsresol with len 2 instead of 1
+    malformed_opt_body.extend_from_slice(&option(ByteOrder::Little, 9, &[6, 0]));
+    malformed_opt_body.extend_from_slice(&option(ByteOrder::Little, 0, &[]));
+    let malformed_idb = ng_block(ByteOrder::Little, 1, &malformed_opt_body);
+
+    let input = pcapng(
+        ByteOrder::Little,
+        &[
+            malformed_idb,                                  // IDB 0: malformed option length
+            idb(ByteOrder::Little, 101, 64, Some(6), None), // IDB 1: Valid
+            epb(ByteOrder::Little, 1, 1000, &packet, 3),    // EPB 1: References IDB 1
+        ],
+    );
+    let outcome = read_capture(input.as_slice(), default_limits());
+    assert!(matches!(
+        outcome.completion,
+        CaptureCompletion::Partial { .. }
+    ));
+    let section = &outcome.metadata.sections[0];
+    assert_eq!(section.interfaces.len(), 2);
+    assert!(!section.interfaces[0].is_valid());
+    assert!(section.interfaces[1].is_valid());
+    assert_eq!(section.interfaces[1].as_valid().unwrap().linktype, 101);
+    assert_eq!(outcome.records.len(), 1);
+    assert_eq!(outcome.records[0].interface_ordinal, Some(1));
+    assert_eq!(outcome.records[0].linktype, 101);
+}
+
+#[test]
+fn streaming_reader_does_not_retain_records_internally() {
+    let packet = [0xabu8, 0xcd, 0xef];
+    let packets: Vec<(u32, u32, &[u8], u32)> =
+        (0..50).map(|i| (i, 0, packet.as_slice(), 3)).collect();
+    let input = pcap(ByteOrder::Little, false, 64, 1, &packets);
+    let limits = default_limits();
+    let mut reader = CaptureReader::new(input.as_slice(), limits).expect("reader creation");
+    let mut count = 0u64;
+    while let Ok(Some(record)) = reader.next_record() {
+        assert_eq!(record.ordinal, count);
+        assert_eq!(record.packet.as_slice(), packet);
+        count += 1;
+        assert_eq!(reader.records_emitted(), count);
+    }
+    assert_eq!(count, 50);
+    assert_eq!(reader.records_emitted(), 50);
+}
+
+#[test]
+fn aggregate_retained_packet_bytes_limit_enforced_strictly() {
+    let packet40 = [1u8; 40];
+    let two_packets = pcap(
+        ByteOrder::Little,
+        false,
+        64,
+        1,
+        &[(1, 0, &packet40, 40), (2, 0, &packet40, 40)],
+    );
+    let three_packets = pcap(
+        ByteOrder::Little,
+        false,
+        64,
+        1,
+        &[
+            (1, 0, &packet40, 40),
+            (2, 0, &packet40, 40),
+            (3, 0, &packet40, 40),
+        ],
+    );
+    let limits = ReaderLimits::builder()
+        .maximum_retained_packet_bytes(100)
+        .maximum_packet_bytes(60)
+        .build()
+        .expect("valid limits");
+
+    // 2 packets * 40 bytes = 80 <= 100 -> Complete
+    let outcome_two = read_capture(two_packets.as_slice(), limits);
+    assert!(outcome_two.is_complete());
+    assert_eq!(outcome_two.records.len(), 2);
+
+    // 3 packets * 40 bytes = 120 > 100 -> Partial with 2 records retained
+    let outcome_three = read_capture(three_packets.as_slice(), limits);
+    assert!(matches!(
+        outcome_three.completion,
+        CaptureCompletion::Partial {
+            terminal_error: Some(_)
+        }
+    ));
+    assert_eq!(
+        outcome_three.completion.terminal_error_kind(),
+        Some(CaptureReaderErrorKind::ResourceLimit)
+    );
+    assert_eq!(outcome_three.records.len(), 2);
+
+    // 1 packet of 120 bytes when limit is 100 -> FailedBeforeUsefulRecords
+    let packet120 = [2u8; 120];
+    let one_large = pcap(ByteOrder::Little, false, 200, 1, &[(1, 0, &packet120, 120)]);
+    let large_limits = ReaderLimits::builder()
+        .maximum_retained_packet_bytes(100)
+        .maximum_packet_bytes(150)
+        .build()
+        .expect("valid limits");
+    let outcome_large = read_capture(one_large.as_slice(), large_limits);
+    assert!(matches!(
+        outcome_large.completion,
+        CaptureCompletion::FailedBeforeUsefulRecords { .. }
+    ));
+    assert_eq!(
+        outcome_large.completion.failed_error_kind(),
+        Some(CaptureReaderErrorKind::ResourceLimit)
+    );
+    assert!(outcome_large.records.is_empty());
+}
+
+#[test]
+fn reader_limits_builder_validates_maximum_retained_packet_bytes() {
+    assert!(
+        ReaderLimits::builder()
+            .maximum_retained_packet_bytes(0)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_retained_packet_bytes(64 * 1024 * 1024 + 1)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_retained_packet_bytes(16 * 1024 * 1024)
+            .build()
+            .is_ok()
+    );
 }
 
 #[derive(Clone)]
@@ -823,5 +1101,25 @@ proptest! {
         for record in &outcome.records {
             prop_assert!(record.packet.len() <= 128);
         }
+    }
+
+    #[test]
+    fn arbitrary_input_respects_retained_byte_bound(bytes in prop::collection::vec(any::<u8>(), 0..512)) {
+        let limits = ReaderLimits::builder()
+            .initial_buffer_size(16)
+            .maximum_buffer_size(512)
+            .maximum_block_size(256)
+            .maximum_packet_bytes(64)
+            .maximum_retained_packet_bytes(128)
+            .maximum_records(32)
+            .maximum_blocks(64)
+            .maximum_diagnostics(16)
+            .build()
+            .expect("property limits are valid");
+        let outcome = read_capture(TinyReader::new(bytes, 7), limits);
+        let total_retained: usize = outcome.records.iter().map(|r| r.packet.len()).sum();
+        prop_assert!(total_retained <= 128);
+        prop_assert!(outcome.records.len() <= 32);
+        prop_assert!(outcome.diagnostics.len() <= 16);
     }
 }

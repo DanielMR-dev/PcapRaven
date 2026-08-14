@@ -20,6 +20,7 @@ const INITIAL_PROBE_SIZE: usize = PCAPNG_SHB_MIN_SIZE;
 const MAX_ALLOWED_BUFFER_SIZE: usize = 64 * 1024 * 1024;
 const MAX_ALLOWED_BLOCK_SIZE: usize = 64 * 1024 * 1024;
 const MAX_ALLOWED_PACKET_SIZE: usize = 64 * 1024 * 1024;
+const MAX_ALLOWED_RETAINED_PACKET_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ALLOWED_INTERFACES: usize = 65_536;
 const MAX_ALLOWED_SECTIONS: usize = 65_536;
 const MAX_ALLOWED_DIAGNOSTICS: usize = 1_000_000;
@@ -265,6 +266,55 @@ pub struct CaptureInterface {
     pub timestamp_offset_seconds: i64,
 }
 
+/// The declaration status of a PCAPNG section-local interface slot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CaptureInterfaceSlot {
+    /// A usable interface description.
+    Valid(CaptureInterface),
+    /// An unusable or malformed interface slot that maintains positional identity.
+    Unusable {
+        /// Zero-based section ordinal.
+        section_ordinal: u32,
+        /// Zero-based positional interface ordinal within its section.
+        interface_ordinal: u32,
+    },
+}
+
+impl CaptureInterfaceSlot {
+    /// Returns the zero-based section ordinal for this interface slot.
+    pub const fn section_ordinal(&self) -> u32 {
+        match self {
+            Self::Valid(interface) => interface.section_ordinal,
+            Self::Unusable {
+                section_ordinal, ..
+            } => *section_ordinal,
+        }
+    }
+
+    /// Returns the zero-based positional interface ordinal within its section.
+    pub const fn interface_ordinal(&self) -> u32 {
+        match self {
+            Self::Valid(interface) => interface.interface_ordinal,
+            Self::Unusable {
+                interface_ordinal, ..
+            } => *interface_ordinal,
+        }
+    }
+
+    /// Returns the valid interface description, if available.
+    pub const fn as_valid(&self) -> Option<&CaptureInterface> {
+        match self {
+            Self::Valid(interface) => Some(interface),
+            Self::Unusable { .. } => None,
+        }
+    }
+
+    /// Returns whether this interface slot is usable.
+    pub const fn is_valid(&self) -> bool {
+        matches!(self, Self::Valid(_))
+    }
+}
+
 /// Metadata for one PCAPNG section, including its section-local interfaces.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CaptureSection {
@@ -279,7 +329,7 @@ pub struct CaptureSection {
     /// Declared section length, or the format's unspecified sentinel.
     pub section_length: i64,
     /// Interfaces declared in this section, in declaration order.
-    pub interfaces: Vec<CaptureInterface>,
+    pub interfaces: Vec<CaptureInterfaceSlot>,
 }
 
 /// Capture-level metadata returned by the reader.
@@ -415,15 +465,17 @@ pub enum ReaderLimit {
     MaximumBufferSize,
     /// Maximum validated capture block size.
     MaximumBlockSize,
-    /// Maximum retained packet bytes.
+    /// Maximum individual packet bytes.
     MaximumPacketBytes,
+    /// Maximum aggregate retained packet bytes for collection.
+    MaximumRetainedPacketBytes,
     /// Maximum accepted interfaces in one section.
     MaximumInterfacesPerSection,
     /// Maximum accepted PCAPNG sections.
     MaximumSections,
     /// Maximum retained diagnostics.
     MaximumDiagnostics,
-    /// Maximum retained emitted records.
+    /// Maximum emitted records.
     MaximumRecords,
     /// Maximum processed capture blocks.
     MaximumBlocks,
@@ -578,6 +630,7 @@ pub struct ReaderLimits {
     maximum_buffer_size: usize,
     maximum_block_size: usize,
     maximum_packet_bytes: usize,
+    maximum_retained_packet_bytes: usize,
     maximum_interfaces_per_section: usize,
     maximum_sections: usize,
     maximum_diagnostics: usize,
@@ -592,6 +645,7 @@ impl Default for ReaderLimits {
             maximum_buffer_size: 4 * 1024 * 1024,
             maximum_block_size: 4 * 1024 * 1024,
             maximum_packet_bytes: 1024 * 1024,
+            maximum_retained_packet_bytes: 16 * 1024 * 1024,
             maximum_interfaces_per_section: 1024,
             maximum_sections: 1024,
             maximum_diagnostics: 256,
@@ -614,6 +668,7 @@ impl ReaderLimits {
         maximum_buffer_size: usize,
         maximum_block_size: usize,
         maximum_packet_bytes: usize,
+        maximum_retained_packet_bytes: usize,
         maximum_interfaces_per_section: usize,
         maximum_sections: usize,
         maximum_diagnostics: usize,
@@ -625,6 +680,7 @@ impl ReaderLimits {
             maximum_buffer_size,
             maximum_block_size,
             maximum_packet_bytes,
+            maximum_retained_packet_bytes,
             maximum_interfaces_per_section,
             maximum_sections,
             maximum_diagnostics,
@@ -655,6 +711,11 @@ impl ReaderLimits {
         self.maximum_packet_bytes
     }
 
+    /// Maximum aggregate retained packet bytes for convenience collection.
+    pub const fn maximum_retained_packet_bytes(&self) -> usize {
+        self.maximum_retained_packet_bytes
+    }
+
     /// Maximum accepted interfaces in each PCAPNG section.
     pub const fn maximum_interfaces_per_section(&self) -> usize {
         self.maximum_interfaces_per_section
@@ -670,7 +731,7 @@ impl ReaderLimits {
         self.maximum_diagnostics
     }
 
-    /// Maximum retained emitted packet records.
+    /// Maximum emitted packet records.
     pub const fn maximum_records(&self) -> usize {
         self.maximum_records
     }
@@ -719,6 +780,14 @@ impl ReaderLimits {
                 value: self.maximum_packet_bytes,
             });
         }
+        if self.maximum_retained_packet_bytes == 0
+            || self.maximum_retained_packet_bytes > MAX_ALLOWED_RETAINED_PACKET_BYTES
+        {
+            return Err(CaptureReaderError::InvalidLimits {
+                limit: ReaderLimit::MaximumRetainedPacketBytes,
+                value: self.maximum_retained_packet_bytes,
+            });
+        }
         if self.maximum_interfaces_per_section == 0
             || self.maximum_interfaces_per_section > MAX_ALLOWED_INTERFACES
         {
@@ -763,6 +832,7 @@ pub struct ReaderLimitsBuilder {
     maximum_buffer_size: usize,
     maximum_block_size: usize,
     maximum_packet_bytes: usize,
+    maximum_retained_packet_bytes: usize,
     maximum_interfaces_per_section: usize,
     maximum_sections: usize,
     maximum_diagnostics: usize,
@@ -778,6 +848,7 @@ impl Default for ReaderLimitsBuilder {
             maximum_buffer_size: limits.maximum_buffer_size,
             maximum_block_size: limits.maximum_block_size,
             maximum_packet_bytes: limits.maximum_packet_bytes,
+            maximum_retained_packet_bytes: limits.maximum_retained_packet_bytes,
             maximum_interfaces_per_section: limits.maximum_interfaces_per_section,
             maximum_sections: limits.maximum_sections,
             maximum_diagnostics: limits.maximum_diagnostics,
@@ -806,9 +877,15 @@ impl ReaderLimitsBuilder {
         self
     }
 
-    /// Sets the maximum retained packet bytes.
+    /// Sets the maximum individual packet bytes.
     pub const fn maximum_packet_bytes(mut self, value: usize) -> Self {
         self.maximum_packet_bytes = value;
+        self
+    }
+
+    /// Sets the maximum aggregate retained packet bytes for collection.
+    pub const fn maximum_retained_packet_bytes(mut self, value: usize) -> Self {
+        self.maximum_retained_packet_bytes = value;
         self
     }
 
@@ -830,7 +907,7 @@ impl ReaderLimitsBuilder {
         self
     }
 
-    /// Sets the maximum retained emitted records.
+    /// Sets the maximum emitted records.
     pub const fn maximum_records(mut self, value: usize) -> Self {
         self.maximum_records = value;
         self
@@ -849,6 +926,7 @@ impl ReaderLimitsBuilder {
             self.maximum_buffer_size,
             self.maximum_block_size,
             self.maximum_packet_bytes,
+            self.maximum_retained_packet_bytes,
             self.maximum_interfaces_per_section,
             self.maximum_sections,
             self.maximum_diagnostics,
@@ -951,10 +1029,10 @@ pub struct CaptureReader<'a> {
     format: CaptureFormat,
     state: ReaderState,
     metadata: CaptureMetadata,
-    records: Vec<CaptureRecord>,
     diagnostics: Vec<CaptureDiagnostic>,
     buffer_size: usize,
     blocks_seen: usize,
+    records_emitted: u64,
     partial: bool,
     finished: bool,
     terminal_error: Option<CaptureReaderError>,
@@ -994,10 +1072,10 @@ impl<'a> CaptureReader<'a> {
                 legacy: None,
                 sections: Vec::new(),
             },
-            records: Vec::new(),
             diagnostics: Vec::new(),
             buffer_size: capacity,
             blocks_seen: 0,
+            records_emitted: 0,
             partial: false,
             finished: false,
             terminal_error: None,
@@ -1014,9 +1092,9 @@ impl<'a> CaptureReader<'a> {
         &self.diagnostics
     }
 
-    /// Returns retained records accumulated so far.
-    pub fn records(&self) -> &[CaptureRecord] {
-        &self.records
+    /// Returns the number of packet records emitted so far.
+    pub fn records_emitted(&self) -> u64 {
+        self.records_emitted
     }
 
     /// Reads until the next emitted packet, clean EOF, or terminal error.
@@ -1050,7 +1128,7 @@ impl<'a> CaptureReader<'a> {
                     let view = ReaderView {
                         state: &self.state,
                         metadata: &self.metadata,
-                        records: &self.records,
+                        records_emitted: self.records_emitted,
                         limits: &self.limits,
                     };
                     let event = view.extract_block(block, location);
@@ -1064,7 +1142,17 @@ impl<'a> CaptureReader<'a> {
                     self.parser.consume(offset);
                     match event {
                         Ok(BlockEvent::Packet(record)) => {
-                            self.records.push(record.clone());
+                            let next_emitted = match self.records_emitted.checked_add(1) {
+                                Some(count) => count,
+                                None => {
+                                    let error = CaptureReaderError::ResourceLimit {
+                                        limit: ReaderLimit::MaximumRecords,
+                                        location,
+                                    };
+                                    return Err(self.set_terminal(error));
+                                }
+                            };
+                            self.records_emitted = next_emitted;
                             return Ok(Some(record));
                         }
                         Ok(BlockEvent::Header(header)) => {
@@ -1087,7 +1175,11 @@ impl<'a> CaptureReader<'a> {
                                 }
                             }
                         }
-                        Ok(BlockEvent::Interface { section, interface }) => {
+                        Ok(BlockEvent::Interface {
+                            section,
+                            slot,
+                            diagnostic,
+                        }) => {
                             let section_index = match usize::try_from(section) {
                                 Ok(index) => index,
                                 Err(_) => {
@@ -1098,10 +1190,16 @@ impl<'a> CaptureReader<'a> {
                             if let Some(capture_section) =
                                 self.metadata.sections.get_mut(section_index)
                             {
-                                capture_section.interfaces.push(interface);
+                                capture_section.interfaces.push(slot);
                             } else {
                                 let error = CaptureReaderError::Internal { location };
                                 return Err(self.set_terminal(error));
+                            }
+                            if let Some(diag) = diagnostic {
+                                self.partial = true;
+                                if let Err(error) = self.push_diagnostic(diag) {
+                                    return Err(self.set_terminal(error));
+                                }
                             }
                         }
                         Ok(BlockEvent::Diagnostic {
@@ -1135,20 +1233,49 @@ impl<'a> CaptureReader<'a> {
         }
     }
 
-    /// Consumes the reader and reads until a clean end or terminal error.
+    /// Consumes the reader and reads until a clean end or terminal error,
+    /// collecting emitted records up to the configured aggregate retention limit.
     pub fn read_to_end(mut self) -> CaptureReadOutcome {
-        while self.next_record().is_ok_and(|record| record.is_some()) {}
-        self.into_outcome()
+        let mut records = Vec::new();
+        let mut retained_packet_bytes: usize = 0;
+        loop {
+            match self.next_record() {
+                Ok(Some(record)) => {
+                    let packet_len = record.packet.len();
+                    let next_retained = match retained_packet_bytes.checked_add(packet_len) {
+                        Some(sum) => sum,
+                        None => {
+                            let error = CaptureReaderError::ResourceLimit {
+                                limit: ReaderLimit::MaximumRetainedPacketBytes,
+                                location: CaptureLocation::new(record.offset),
+                            };
+                            self.set_terminal(error);
+                            break;
+                        }
+                    };
+                    if next_retained > self.limits.maximum_retained_packet_bytes {
+                        let error = CaptureReaderError::ResourceLimit {
+                            limit: ReaderLimit::MaximumRetainedPacketBytes,
+                            location: CaptureLocation::new(record.offset),
+                        };
+                        self.set_terminal(error);
+                        break;
+                    }
+                    retained_packet_bytes = next_retained;
+                    records.push(record);
+                }
+                Ok(None) => break,
+                Err(_) => break,
+            }
+        }
+        self.into_outcome_with_records(records)
     }
 
-    /// Consumes the reader and returns the state observed so far.
-    pub fn into_outcome(self) -> CaptureReadOutcome {
+    fn into_outcome_with_records(self, records: Vec<CaptureRecord>) -> CaptureReadOutcome {
         let completion = match self.terminal_error.clone() {
-            Some(error) if self.records.is_empty() => {
-                CaptureCompletion::FailedBeforeUsefulRecords {
-                    terminal_error: error,
-                }
-            }
+            Some(error) if records.is_empty() => CaptureCompletion::FailedBeforeUsefulRecords {
+                terminal_error: error,
+            },
             Some(error) => CaptureCompletion::Partial {
                 terminal_error: Some(error),
             },
@@ -1159,10 +1286,15 @@ impl<'a> CaptureReader<'a> {
         };
         CaptureReadOutcome {
             metadata: self.metadata,
-            records: self.records,
+            records,
             diagnostics: self.diagnostics,
             completion,
         }
+    }
+
+    /// Consumes the reader and returns the state observed so far with no collected records.
+    pub fn into_outcome(self) -> CaptureReadOutcome {
+        self.into_outcome_with_records(Vec::new())
     }
 
     fn current_location(&self) -> CaptureLocation {
@@ -1181,7 +1313,7 @@ impl<'a> CaptureReader<'a> {
 struct ReaderView<'a> {
     state: &'a ReaderState,
     metadata: &'a CaptureMetadata,
-    records: &'a [CaptureRecord],
+    records_emitted: u64,
     limits: &'a ReaderLimits,
 }
 
@@ -1299,13 +1431,10 @@ impl ReaderView<'_> {
                         location,
                     });
                 }
-                let ordinal = u64::try_from(self.records.len()).map_err(|_| {
-                    CaptureReaderError::ResourceLimit {
-                        limit: ReaderLimit::MaximumRecords,
-                        location,
-                    }
-                })?;
-                if self.records.len() >= self.limits.maximum_records {
+                let ordinal = self.records_emitted;
+                if usize::try_from(ordinal)
+                    .map_or(true, |count| count >= self.limits.maximum_records)
+                {
                     return Err(CaptureReaderError::ResourceLimit {
                         limit: ReaderLimit::MaximumRecords,
                         location,
@@ -1394,18 +1523,31 @@ impl ReaderView<'_> {
                         location,
                     });
                 }
+                let interface_ordinal =
+                    u32::try_from(section_data.interfaces.len()).map_err(|_| {
+                        CaptureReaderError::ResourceLimit {
+                            limit: ReaderLimit::MaximumInterfacesPerSection,
+                            location,
+                        }
+                    })?;
+                location.interface_ordinal = Some(interface_ordinal);
+
                 let linktype = match u32::try_from(interface.linktype.0) {
                     Ok(linktype) => linktype,
                     Err(_) => {
-                        return Ok(BlockEvent::Diagnostic {
-                            diagnostic: diagnostic(
+                        return Ok(BlockEvent::Interface {
+                            section,
+                            slot: CaptureInterfaceSlot::Unusable {
+                                section_ordinal: section,
+                                interface_ordinal,
+                            },
+                            diagnostic: Some(diagnostic(
                                 CaptureDiagnosticKind::Malformed,
                                 CaptureDiagnosticStage::Interface,
                                 "interface link type is not representable",
                                 location,
                                 true,
-                            ),
-                            partial: true,
+                            )),
                         });
                     }
                 };
@@ -1417,43 +1559,44 @@ impl ReaderView<'_> {
                     match interface_timestamp_options(&interface.options, byte_order) {
                         Ok(options) => options,
                         Err(()) => {
-                            return Ok(BlockEvent::Diagnostic {
-                                diagnostic: diagnostic(
+                            return Ok(BlockEvent::Interface {
+                                section,
+                                slot: CaptureInterfaceSlot::Unusable {
+                                    section_ordinal: section,
+                                    interface_ordinal,
+                                },
+                                diagnostic: Some(diagnostic(
                                     CaptureDiagnosticKind::Malformed,
                                     CaptureDiagnosticStage::Interface,
                                     "interface timestamp option is malformed",
                                     location,
                                     true,
-                                ),
-                                partial: true,
+                                )),
                             });
                         }
                     };
                 let timestamp_resolution = match timestamp_resolution(raw_resolution) {
                     Some(resolution) => resolution,
                     None => {
-                        return Ok(BlockEvent::Diagnostic {
-                            diagnostic: diagnostic(
+                        return Ok(BlockEvent::Interface {
+                            section,
+                            slot: CaptureInterfaceSlot::Unusable {
+                                section_ordinal: section,
+                                interface_ordinal,
+                            },
+                            diagnostic: Some(diagnostic(
                                 CaptureDiagnosticKind::Malformed,
                                 CaptureDiagnosticStage::Interface,
                                 "interface timestamp resolution is unsupported",
                                 location,
                                 true,
-                            ),
-                            partial: true,
+                            )),
                         });
                     }
                 };
-                let interface_ordinal =
-                    u32::try_from(section_data.interfaces.len()).map_err(|_| {
-                        CaptureReaderError::ResourceLimit {
-                            limit: ReaderLimit::MaximumInterfacesPerSection,
-                            location,
-                        }
-                    })?;
                 Ok(BlockEvent::Interface {
                     section,
-                    interface: CaptureInterface {
+                    slot: CaptureInterfaceSlot::Valid(CaptureInterface {
                         section_ordinal: section,
                         interface_ordinal,
                         linktype,
@@ -1461,7 +1604,8 @@ impl ReaderView<'_> {
                         byte_order,
                         timestamp_resolution,
                         timestamp_offset_seconds,
-                    },
+                    }),
+                    diagnostic: None,
                 })
             }
             Block::EnhancedPacket(packet) => {
@@ -1636,12 +1780,14 @@ impl ReaderView<'_> {
                     .map_err(|_| CaptureReaderError::InvalidReference { location })?,
             )
             .ok_or(CaptureReaderError::InvalidReference { location })?;
-        section
+        let slot = section
             .interfaces
             .get(
                 usize::try_from(interface)
                     .map_err(|_| CaptureReaderError::InvalidReference { location })?,
             )
+            .ok_or(CaptureReaderError::InvalidReference { location })?;
+        slot.as_valid()
             .ok_or(CaptureReaderError::InvalidReference { location })
     }
 
@@ -1707,7 +1853,8 @@ impl ReaderView<'_> {
         timestamp: CaptureTimestamp,
         captured: &[u8],
     ) -> Result<BlockEvent, CaptureReaderError> {
-        if self.records.len() >= self.limits.maximum_records {
+        let ordinal = self.records_emitted;
+        if usize::try_from(ordinal).map_or(true, |count| count >= self.limits.maximum_records) {
             return Err(CaptureReaderError::ResourceLimit {
                 limit: ReaderLimit::MaximumRecords,
                 location,
@@ -1724,11 +1871,6 @@ impl ReaderView<'_> {
                 location,
             });
         }
-        let ordinal =
-            u64::try_from(self.records.len()).map_err(|_| CaptureReaderError::ResourceLimit {
-                limit: ReaderLimit::MaximumRecords,
-                location,
-            })?;
         Ok(BlockEvent::Packet(CaptureRecord {
             ordinal,
             offset: location.offset,
@@ -1873,7 +2015,8 @@ enum BlockEvent {
     Section(CaptureSection),
     Interface {
         section: u32,
-        interface: CaptureInterface,
+        slot: CaptureInterfaceSlot,
+        diagnostic: Option<CaptureDiagnostic>,
     },
     Packet(CaptureRecord),
     Diagnostic {
