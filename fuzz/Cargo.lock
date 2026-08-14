@@ -9,6 +9,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+
+[[package]]
 name = "cc"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -31,6 +37,15 @@ name = "circular"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fc239e0f6cb375d2402d48afb92f76f5404fd1df208a41930ec81eda078bea"
+
+[[package]]
+name = "etherparse"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17304d06addb3283cdc4bd528e42dd95e73c8ee2d6492ffce415e93660885449"
+dependencies = [
+ "arrayvec",
+]
 
 [[package]]
 name = "find-msvc-tools"
@@ -110,7 +125,9 @@ name = "pcapraven-fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "pcapraven-domain",
  "pcapraven-pcap",
+ "pcapraven-protocols",
 ]
 
 [[package]]
@@ -118,6 +135,14 @@ name = "pcapraven-pcap"
 version = "0.0.0"
 dependencies = [
  "pcap-parser",
+ "pcapraven-domain",
+]
+
+[[package]]
+name = "pcapraven-protocols"
+version = "0.0.0"
+dependencies = [
+ "etherparse",
  "pcapraven-domain",
 ]
 

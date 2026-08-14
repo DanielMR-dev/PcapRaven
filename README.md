@@ -9,22 +9,16 @@ security findings.
 ## Early Development Status
 
 Phase 0 product and governance work, **Phase 1: Cargo workspace, crate
-skeletons, baseline CI, and tooling**, and **Phase 2: Safe PCAP/PCAPNG capture reader**
-are complete. `pcapraven-pcap` provides the library-first, bounded, streaming
-capture reader.
-
-The reader accepts a generic `std::io::Read` source and supports the documented
-legacy PCAP and PCAPNG subset: both endiannesses, PCAP microsecond/nanosecond
-timestamps, PCAPNG SHB/IDB/EPB/SPB blocks, multiple sections and interfaces,
-section-local timestamp metadata, signed offsets, and explicit unavailable SPB
-timestamps. It emits owned, bounded packet bytes, capture metadata, and bounded
-diagnostics with explicit complete/partial/failed completion state.
+skeletons, baseline CI, and tooling**, **Phase 2: Safe PCAP/PCAPNG capture reader**,
+and **Phase 3: Ethernet + IPv4/IPv6 + TCP/UDP normalization** are complete.
+`pcapraven-pcap` provides the streaming capture reader, `pcapraven-domain`
+defines normalized packet representations, and `pcapraven-protocols` provides
+bounded protocol normalization.
 
 The `pcapraven` binary remains a compile-only skeleton: it accepts no arguments,
-emits no output, and performs no analysis. Ethernet/IP/TCP/UDP normalization,
-flow analysis, protocol observations, detection, reporting, and functional CLI
-commands remain targets for later roadmap phases and are not currently
-available.
+emits no output, and performs no analysis. Flow reconstruction, application
+decoders (DNS/HTTP/TLS), detection, reporting, and functional CLI commands
+remain targets for later roadmap phases and are not currently available.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.

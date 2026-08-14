@@ -176,3 +176,6 @@ jobs:
 
       - name: Build bounded PCAP reader fuzz target
         run: cargo +nightly fuzz build fuzz_pcap_reader
+
+      - name: Build bounded packet normalizer fuzz target
+        run: cargo +nightly fuzz build fuzz_packet_normalizer

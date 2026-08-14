@@ -10,7 +10,8 @@ description: Use for PcapRaven capture or protocol parser design and changes inv
 1. Read `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_MODEL.md`,
    `docs/SECURITY_MODEL.md`, `docs/TESTING.md`, and the current roadmap phase.
 2. Confirm parser implementation is allowed. Phase 2 permits the bounded
-   capture-container reader; protocol decoding remains out of scope.
+   capture-container reader; Phase 3 permits Ethernet, IP, TCP, and UDP packet
+   normalization; later protocol decoding and flows remain out of scope.
 3. Identify each attacker-controlled length, count, offset, text value, nesting
    level, and loop bound.
 

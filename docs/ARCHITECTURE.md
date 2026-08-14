@@ -2,11 +2,12 @@
 
 ## Status
 
-Phase 0 product and architecture definition and Phase 1 workspace/tooling work
-are complete. Phase 2 adds bounded capture-container ingestion to
-`pcapraven-pcap`; the other analysis crates and the CLI remain skeletons.
-Protocol normalization, domain records, flow analysis, detection, reporting,
-and user-facing behavior remain future work.
+Phase 0 product and architecture definition, Phase 1 workspace/tooling work,
+and Phase 2 capture-container ingestion are complete. Phase 3 adds bounded
+Ethernet, IPv4/IPv6, and TCP/UDP packet normalization to `pcapraven-domain` and
+`pcapraven-protocols`; the other analysis crates and the CLI remain skeletons.
+Flow reconstruction, application decoders (DNS/HTTP/TLS), threat detection,
+reporting, and user-facing CLI behavior remain future work.
 
 ## Architectural Principles
 
@@ -47,14 +48,13 @@ six packages each have one library target.
 The workspace is virtual, uses resolver 3, and applies version `0.0.0`, license
 `MIT`, `publish = false`, and Rust `1.85` as workspace package metadata. The
 development toolchain is pinned separately in `rust-toolchain.toml` and is
-intentionally newer than the declared MSRV. Phase 1 commits no third-party Rust
-dependencies or dependency features; the only dependencies are the documented
-path edges below. Every member opts into the workspace lint policy, which
-forbids project `unsafe` code by default.
+intentionally newer than the declared MSRV. The only dependencies are the
+documented path edges below and the audited external dependencies. Every member
+opts into the workspace lint policy, which forbids project `unsafe` code by default.
 
-The Phase 1 source files for the domain, protocols, flows, detection, reporting,
-and CLI packages remain compile-only documentation skeletons. They do not define
-business behavior or implement analysis.
+The source files for flows, detection, reporting, and CLI packages remain
+compile-only documentation skeletons. They do not define business behavior or
+implement analysis.
 
 ## Phase 2 Capture-Container Boundary
 
@@ -92,35 +92,63 @@ Phase 2 uses `pcap-parser = 0.17.0` as a normal dependency with default,
 the capture crate boundary. `proptest = 1.11.0` is dev-only for capture tests.
 The excluded `fuzz/` package is not part of the seven-package production graph.
 
+## Phase 3 Protocol Normalization Boundary
+
+`pcapraven-protocols` transforms opaque packet bytes into capture-independent
+domain facts defined in `pcapraven-domain`. It accepts borrowed
+`PacketNormalizationInput` records and normalizes:
+
+- Link layer: `LINKTYPE_ETHERNET = 1` and standard Ethernet II headers.
+- Network layer: IPv4 (with header length, DSCP/ECN, total length bounds,
+  fragmentation classification, and Ethernet padding exclusion) and IPv6 (with
+  traffic class, flow label, bounded extension header traversal, fragmentation
+  classification, and padding exclusion).
+- Transport layer: TCP (ports, seq/ack numbers, flags, options length, checksum,
+  and bounded application payload) and UDP (ports, length validation, checksum,
+  and bounded application payload).
+- Explicit diagnostics and completeness states (`Complete`, `Partial`, or
+  `Unsupported`) without panicking or guessing.
+
+Default finite limits for normalization: 4 KiB maximum retained transport
+application payload bytes (hard cap 64 MiB), 16 maximum diagnostics per packet
+(hard cap 1,024), 8 maximum IPv6 extension headers (hard cap 64), and 2 KiB
+maximum IPv6 extension bytes (hard cap 64 KiB).
+
+Phase 3 uses `etherparse = 0.21.0` as a normal dependency in `pcapraven-protocols`
+with default features disabled. `proptest = 1.11.0` is dev-only. `pcapraven-protocols`
+depends only on `pcapraven-domain` and does not depend on `pcapraven-pcap`.
+
 ## Crate Responsibilities
 
-The crates have the following responsibilities. Phase 2 implements only the
-capture-container subset described for `pcapraven-pcap`; the other analysis
+The crates have the following responsibilities. Phase 3 implements only the
+capture-container subset in `pcapraven-pcap` and the Ethernet/IP/TCP/UDP
+normalization in `pcapraven-domain` and `pcapraven-protocols`; the other analysis
 responsibilities remain documented future work.
 
 ### `pcapraven-domain`
 
 Owns capture-independent domain types and invariants: normalized packet
-metadata, endpoints, flow identities and summaries, protocol observations,
-evidence, findings, severity, confidence, diagnostics, and analysis result
-metadata. It contains no capture parser, protocol parser, CLI, terminal,
-filesystem orchestration, detector implementation, or serializer-specific
-logic.
+metadata (`NormalizedPacket`, `EthernetMetadata`, `Ipv4Metadata`, `Ipv6Metadata`,
+`TcpMetadata`, `UdpMetadata`, `FragmentationState`, `TcpFlags`), endpoints,
+flow identities and summaries, protocol observations, evidence, findings,
+severity, confidence, diagnostics, and analysis result metadata. It contains
+no capture parser, protocol parser, CLI, terminal, filesystem orchestration,
+detector implementation, or serializer-specific logic.
 
 ### `pcapraven-pcap`
 
 Owns capture ingestion only: safe reading of PCAP/PCAPNG containers, capture
 record metadata, bounded extraction of packet bytes, interface/link metadata,
-and capture-level diagnostics. Phase 2 exposes a generic streaming `Read` API,
-owned packet bytes, explicit complete/partial/failed completion, and bounded
-fixed diagnostics. It does not decode Ethernet, IP, TCP, UDP, DNS, HTTP, or TLS;
-reconstruct flows; detect threats; format reports; or interact with users.
+and capture-level diagnostics. It exposes a zero-allocation adapter converting
+`CaptureRecord` into `pcapraven_domain::PacketNormalizationInput`. It does not
+decode Ethernet, IP, TCP, UDP, DNS, HTTP, or TLS; reconstruct flows; detect
+threats; format reports; or interact with users.
 
 ### `pcapraven-protocols`
 
-Owns normalization of supported network and application protocol data. It will
-decode the supported link/network/transport layers and produce normalized
-packet metadata, then derive DNS, HTTP/1.x, and TLS handshake observations from
+Owns normalization of supported network and application protocol data. Phase 3
+normalizes Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations.
+Future phases will derive DNS, HTTP/1.x, and TLS handshake observations from
 normalized data. It does not read capture container files, reconstruct global
 flow state, assign security findings, serialize reports, or implement CLI
 behavior.

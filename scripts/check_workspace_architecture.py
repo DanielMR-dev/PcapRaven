@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the Phase 2 Cargo package roles and audited dependency topology."""
+"""Check the Phase 3 Cargo package roles and audited dependency topology."""
 
 from __future__ import annotations
 
@@ -48,6 +48,7 @@ EXPECTED = {
 EXPECTED_NAMES = set(EXPECTED)
 EXPECTED_TEST_TARGETS = {
     "pcapraven-pcap": {"reader"},
+    "pcapraven-protocols": {"normalization"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 EXPECTED_EXTERNAL = {
@@ -64,7 +65,21 @@ EXPECTED_EXTERNAL = {
             "features": ["std"],
             "uses_default_features": False,
         },
-    }
+    },
+    "pcapraven-protocols": {
+        "etherparse": {
+            "req": "=0.21.0",
+            "kind": None,
+            "features": [],
+            "uses_default_features": False,
+        },
+        "proptest": {
+            "req": "=1.11.0",
+            "kind": "dev",
+            "features": ["std"],
+            "uses_default_features": False,
+        },
+    },
 }
 
 

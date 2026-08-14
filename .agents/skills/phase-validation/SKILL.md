@@ -78,4 +78,23 @@ It must not add protocol decoding, normalized domain packet types, flow logic,
 detection, reporting, or functional CLI behavior. Documentation must describe
 the reader as present while keeping Phase 3 protocol normalization and all later
 phases future work. The main workspace remains seven packages; excluded fuzz
-tooling is not a production workspace member.
+tooling is not a production workspace member. That historical gate is superseded
+by the current Phase 3 gate below.
+
+## Phase 3 Gate
+
+Phase 3 implements bounded Ethernet II, IPv4, IPv6, TCP, and UDP packet
+normalization. `pcapraven-domain` defines normalized packet metadata, reference
+identity, timestamp representations, and layer diagnostics. `pcapraven-protocols`
+normalizes borrowed `PacketNormalizationInput` into `NormalizedPacket` using audited
+`etherparse = 0.21.0` with `default-features = false`. It excludes trailing Ethernet
+padding from network and transport payloads, bounds IPv6 extension header traversal
+and byte budgets, models fragmentation explicitly without reassembly, bounds
+application payload retention by `maximum_retained_payload_bytes`, and limits
+diagnostic emission.
+
+Phase 3 adds comprehensive unit, boundary, property (`proptest`), and fuzzing
+(`fuzz_packet_normalizer`) tests. It must not add flow reconstruction, application
+decoders (DNS/HTTP/TLS), threat detectors, reporting, or functional CLI commands.
+The architecture checker must enforce the seven-package graph and audited external
+dependencies.

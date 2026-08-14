@@ -3,11 +3,11 @@
 ## Purpose and Status
 
 This document defines conceptual, capture-independent records and invariants.
-It does not prescribe final Rust field names, serialization schemas, or storage
-strategy. Phase 2 implements capture-container metadata and owned packet records
-in `pcapraven-pcap`; those capture-specific types are not the normalized domain
-packet model defined here. Domain implementation begins in a later roadmap phase
-after capture and protocol-normalization contracts are established.
+Phase 2 implements capture-container metadata and owned packet records in
+`pcapraven-pcap`. Phase 3 implements the normalized domain packet model,
+reference identity, timestamp representation, and layer metadata in
+`pcapraven-domain`. Flow models, application protocol observations, and
+threat findings remain future work.
 
 ## Modeling Rules
 
@@ -30,9 +30,11 @@ section and interface declarations, link type, snap length, captured/original
 lengths, container timestamps, and capture-level diagnostics. It preserves
 unavailable timestamps and truncation explicitly, assigns ordinals only to
 emitted records, and retains packet bytes only within validated configured
-limits. These values must be translated into normalized domain facts by a later
-phase; they must not be treated as decoded network addresses, transport roles,
-protocol observations, or security evidence.
+limits.
+
+`CaptureRecord` provides a zero-allocation borrowed adapter into
+`pcapraven_domain::PacketNormalizationInput` for consumption by Phase 3
+protocol normalization.
 
 ### Capture Context
 
@@ -46,8 +48,8 @@ a later phase explicitly computes one.
 
 A packet reference is stable within one analysis result. It identifies the
 capture record ordinal and, for PCAPNG, the interface or section context needed
-to resolve that record. It may include a normalized timestamp and original
-captured/wire lengths as supporting context.
+to resolve that record. It includes original captured/wire lengths and truncation
+flags as supporting context.
 
 Packet references never claim that a malformed record decoded successfully.
 One capture record can yield no normalized packet when unsupported or malformed.
@@ -55,24 +57,24 @@ One capture record can yield no normalized packet when unsupported or malformed.
 ### Time
 
 Capture timestamps represent recorded event time, not processing time. The
-model preserves available resolution and defines a deterministic ordering for
-equal or absent timestamps using capture record order. Negative durations and
-arithmetic overflow are invalid. Metrics that require missing or unreliable
-timestamps are unavailable rather than fabricated as zero.
+model preserves available resolution (Decimal or Binary fractional units) and
+defines a deterministic ordering for equal or absent timestamps using capture
+record order. Negative durations and arithmetic overflow are invalid. Metrics
+that require missing or unreliable timestamps are unavailable rather than
+fabricated as zero.
 
 ## Normalized Packet Model
 
-A normalized packet is an observation derived safely from one capture record.
-Its conceptual fields include:
+A normalized packet is an observation derived safely from one capture record
+(`NormalizedPacket` in `pcapraven-domain`). Its concrete fields include:
 
-- Packet reference and timestamp state.
-- Interface and supported link-layer context.
-- Source and destination network addresses.
-- Transport protocol and source/destination ports where applicable.
-- Captured length and original wire length.
-- Fragmentation, truncation, and decode-completeness state.
-- Bounded transport payload metadata needed by later protocol analysis.
-- Diagnostics associated with normalization.
+- `reference`: `PacketReference` identifying the source capture record.
+- `timestamp`: `PacketTimestamp` (`Available` or `Unavailable`).
+- `link_layer`: `Option<EthernetMetadata>` with MAC addresses, EtherType, and header length.
+- `network_layer`: `Option<NetworkLayer>` (`Ipv4(Ipv4Metadata)` or `Ipv6(Ipv6Metadata)`).
+- `transport_layer`: `Option<TransportLayer>` (`Tcp(TcpMetadata)` or `Udp(UdpMetadata)`).
+- `payload`: `Option<Vec<u8>>` bounded to configured payload retention limit.
+- `completeness`: `PacketCompleteness` (`Complete`, `Partial { reason }`, or `Unsupported { reason }`).
 
 An absent port is distinct from port zero. Unknown transport is distinct from
 malformed transport. Original packet direction is retained exactly as observed.
