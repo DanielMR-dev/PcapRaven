@@ -4,9 +4,10 @@
 
 This document defines conceptual, capture-independent records and invariants.
 It does not prescribe final Rust field names, serialization schemas, or storage
-strategy. Phase 1 contains only documented crate skeletons; none of these
-records is implemented. Domain implementation begins only in a later roadmap
-phase after the capture and normalization contracts are established.
+strategy. Phase 2 implements capture-container metadata and owned packet records
+in `pcapraven-pcap`; those capture-specific types are not the normalized domain
+packet model defined here. Domain implementation begins in a later roadmap phase
+after capture and protocol-normalization contracts are established.
 
 ## Modeling Rules
 
@@ -21,6 +22,17 @@ phase after the capture and normalization contracts are established.
 - Avoid placeholder values that could be mistaken for observed facts.
 
 ## Capture and Packet Identity
+
+### Phase 2 Capture Boundary
+
+The Phase 2 reader owns format-specific facts such as PCAP/PCAPNG byte order,
+section and interface declarations, link type, snap length, captured/original
+lengths, container timestamps, and capture-level diagnostics. It preserves
+unavailable timestamps and truncation explicitly, assigns ordinals only to
+emitted records, and retains packet bytes only within validated configured
+limits. These values must be translated into normalized domain facts by a later
+phase; they must not be treated as decoded network addresses, transport roles,
+protocol observations, or security evidence.
 
 ### Capture Context
 

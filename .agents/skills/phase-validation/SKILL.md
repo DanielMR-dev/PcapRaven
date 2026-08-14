@@ -59,5 +59,23 @@ development toolchain is pinned with the minimal profile and `rustfmt` and
 `clippy` components. Baseline CI and the dependency-free Cargo-metadata
 architecture checker must enforce the Phase 1 topology and quality gates,
 including locked MSRV `1.85.0` verification. Documentation and the repository
-manifest must identify Phase 0 and Phase 1 as complete and Phase 2 as next
-without claiming later functionality is available.
+manifest had to identify Phase 0 and Phase 1 as complete and Phase 2 as next
+without claiming later functionality was available. That historical gate is
+superseded by the current Phase 2 gate below.
+
+## Phase 2 Gate
+
+Phase 2 must keep the exact seven-package main workspace graph and add capture
+ingestion only to `pcapraven-pcap`. The reader must accept a generic bounded
+streaming input, support only the documented PCAP/PCAPNG container subset, keep
+packet bytes owned and bounded, expose capture metadata and explicit completion
+state, distinguish malformed, unsupported, incomplete, invalid-reference, I/O,
+and resource-limit conditions, and recover only at validated block boundaries.
+
+Phase 2 may add the audited exact-version parser dependency, focused synthetic
+tests, property tests, and an excluded fuzz target using the public reader API.
+It must not add protocol decoding, normalized domain packet types, flow logic,
+detection, reporting, or functional CLI behavior. Documentation must describe
+the reader as present while keeping Phase 3 protocol normalization and all later
+phases future work. The main workspace remains seven packages; excluded fuzz
+tooling is not a production workspace member.

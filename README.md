@@ -8,16 +8,23 @@ security findings.
 
 ## Early Development Status
 
-Phase 0 product and governance work is complete, and **Phase 1: Cargo
-workspace, crate skeletons, baseline CI, and tooling** is complete. The
-repository now contains the virtual workspace, seven documented compile-only
-crates, a pinned toolchain, an architecture checker, and baseline CI. The
-`pcapraven` binary is only a skeleton: it accepts no arguments, emits no output,
-and performs no analysis. Phase 2, the safe capture reader, is next.
+Phase 0 product and governance work, **Phase 1: Cargo workspace, crate
+skeletons, baseline CI, and tooling**, and **Phase 2: Safe PCAP/PCAPNG capture reader**
+are complete. `pcapraven-pcap` provides the library-first, bounded, streaming
+capture reader.
 
-Capture parsing, protocol normalization, flow analysis, detection, reporting,
-and functional CLI commands remain targets for later roadmap phases and are not
-currently available.
+The reader accepts a generic `std::io::Read` source and supports the documented
+legacy PCAP and PCAPNG subset: both endiannesses, PCAP microsecond/nanosecond
+timestamps, PCAPNG SHB/IDB/EPB/SPB blocks, multiple sections and interfaces,
+section-local timestamp metadata, signed offsets, and explicit unavailable SPB
+timestamps. It emits owned, bounded packet bytes, capture metadata, and bounded
+diagnostics with explicit complete/partial/failed completion state.
+
+The `pcapraven` binary remains a compile-only skeleton: it accepts no arguments,
+emits no output, and performs no analysis. Ethernet/IP/TCP/UDP normalization,
+flow analysis, protocol observations, detection, reporting, and functional CLI
+commands remain targets for later roadmap phases and are not currently
+available.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.
@@ -51,15 +58,16 @@ v1 CLI contract.
 - [Roadmap through v1.0.0](docs/ROADMAP.md)
 - [Repository structure](MANIFEST.md)
 
-Phase 1 tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-1-quality-gates),
-and the CI workflow in `.github/workflows/ci.yml`.
+Phase 2 tooling includes `scripts/check_workspace_architecture.py`, the
+workspace quality commands in [Testing](docs/TESTING.md#phase-2-quality-gates),
+the independent `fuzz/fuzz_targets/fuzz_pcap_reader.rs` target, and the CI workflow in
+`.github/workflows/ci.yml`.
 
 ## Development
 
 The development toolchain is controlled by `rust-toolchain.toml`; the project
-MSRV remains Rust 1.85. Phase 1 has no functional PCAP analyzer. Run the six
-baseline checks from the repository root:
+MSRV remains Rust 1.85. The CLI is not implemented yet. Run the baseline checks
+from the repository root:
 
 ```text
 cargo fmt --all -- --check

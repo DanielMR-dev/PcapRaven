@@ -3,9 +3,9 @@
 ## Scope and Status
 
 This document defines PcapRaven's technical security posture. Operational
-vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). Phase 1
-contains no capture-processing implementation; the workspace members are
-compile-only skeletons and Phase 2 begins capture reading.
+vulnerability reporting is covered by [SECURITY.md](../SECURITY.md). Phase 2
+contains a bounded library-only PCAP/PCAPNG container reader in
+`pcapraven-pcap`; protocol and analysis crates remain skeletons.
 
 ## Assets
 
@@ -63,15 +63,15 @@ These are release-blocking requirements, not best-effort guidelines.
 
 ## Parser Safety Requirements
 
-Future parsers must:
+The Phase 2 capture reader and future protocol parsers must:
 
 - Check all additions, multiplications, conversions, and offset calculations.
 - Validate declared lengths against format minima, enclosing bounds, available
   bytes, configured limits, and representable host sizes before allocation.
 - Borrow bounded slices where practical instead of allocating attacker-sized
   buffers.
-- Cap record size, packet size, option count, nesting depth, text length,
-  diagnostic count, retained records, and total work with documented policies.
+- Cap record size, packet size, aggregate retained bytes, option count, nesting depth,
+  text length, diagnostic count, emitted records, and total work with documented policies.
 - Reject contradictions and distinguish malformed, unsupported, and incomplete
   input.
 - Guarantee that every successful loop iteration consumes input or makes a
@@ -84,8 +84,11 @@ Future parsers must:
 - Continue after a malformed record only when resynchronization is specified
   and safe; never scan unbounded input for a guessed boundary.
 
-Format-specific limits and recovery rules must be documented with the Phase 2
-reader before implementation.
+The Phase 2 reader documents format-specific limits and recovery rules in
+[Architecture](ARCHITECTURE.md#phase-2-capture-container-boundary) and exposes
+only validated finite policies. It uses fixed diagnostic messages and structured
+numeric locations rather than copying attacker-controlled payloads or error
+text.
 
 ## Resource Exhaustion
 
@@ -154,13 +157,19 @@ not establish attribution. The canonical policy is in
 
 Project unsafe code follows the exception process in
 [Architecture](ARCHITECTURE.md#unsafe-rust-policy). Third-party dependencies
-expand the attack surface. During Phase 1, every proposed dependency's version,
-enabled features, MSRV, license, maintenance posture, transitive footprint, and
-unsafe usage must be reviewed before commitment. Phase 1 commits only the
-documented internal path dependencies and no third-party Rust dependencies or
-features. Future dependencies are kept minimal, features are narrowed, and no
-dependency may introduce default telemetry or network behavior that contradicts
-this model.
+expand the attack surface. For Phase 2, `pcap-parser = 0.17.0` is the only
+production third-party dependency, with default, `data`, and `serialize`
+features disabled. It is licensed MIT/Apache-2.0, declares MSRV 1.65, and has
+the direct transitive footprint `circular 0.3`, `nom 8`, and
+`rusticata-macros 5`. Its source and the transitive unsafe pointer-copy helper
+were reviewed; this does not permit unsafe project code. `proptest = 1.11.0` is
+dev-only, licensed MIT/Apache-2.0, declares MSRV 1.85, and is used with only its
+`std` feature. The excluded fuzz package uses separately audited
+`libfuzzer-sys = 0.4.13` and is not part of production builds. Full version,
+feature, license, MSRV, maintenance, transitive-footprint, unsafe-use, and
+offline-behavior notes are recorded in
+[Testing](TESTING.md#phase-2-dependency-audit). No dependency may introduce
+default telemetry or network behavior that contradicts this model.
 
 ## Fixtures and Development Data
 

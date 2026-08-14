@@ -2,9 +2,9 @@
 
 ## Purpose and Status
 
-This document defines the target contract for detectors and findings. Phase 1
-contains no detector or detection engine; the detection crate is a documented
-skeleton only.
+This document defines the target contract for detectors and findings. Phase 2
+contains no detector or detection engine; the detection crate remains a
+documented skeleton and capture-reader diagnostics are not findings.
 
 ## Separation from Parsing
 

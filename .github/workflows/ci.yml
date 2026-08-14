@@ -160,3 +160,19 @@ jobs:
 
       - name: Check workspace skeleton
         run: cargo check --workspace --locked
+
+  fuzz-target:
+    name: Linux fuzz-target build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly --profile minimal --no-self-update
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+
+      - name: Build bounded PCAP reader fuzz target
+        run: cargo +nightly fuzz build fuzz_pcap_reader

@@ -2,10 +2,11 @@
 
 ## Supported Versions
 
-PcapRaven has completed Phase 0 and Phase 1 and has no released or supported
-software versions. This policy covers vulnerabilities in repository
-configuration, documentation, the Phase 1 workspace skeletons, and future code
-as it is introduced. Supported release ranges will be published before v1.0.0.
+PcapRaven has completed Phase 0 and Phase 1 and is implementing Phase 2; it has
+no released or supported software versions. This policy covers vulnerabilities
+in repository configuration, documentation, the bounded Phase 2 capture reader,
+the remaining workspace skeletons, and future code as it is introduced.
+Supported release ranges will be published before v1.0.0.
 
 ## Reporting a Vulnerability
 

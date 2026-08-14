@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the Phase 1 Cargo package roles and dependency topology."""
+"""Check the Phase 2 Cargo package roles and audited dependency topology."""
 
 from __future__ import annotations
 
@@ -46,6 +46,26 @@ EXPECTED = {
 }
 
 EXPECTED_NAMES = set(EXPECTED)
+EXPECTED_TEST_TARGETS = {
+    "pcapraven-pcap": {"reader"},
+}
+REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+EXPECTED_EXTERNAL = {
+    "pcapraven-pcap": {
+        "pcap-parser": {
+            "req": "=0.17.0",
+            "kind": None,
+            "features": [],
+            "uses_default_features": False,
+        },
+        "proptest": {
+            "req": "=1.11.0",
+            "kind": "dev",
+            "features": ["std"],
+            "uses_default_features": False,
+        },
+    }
+}
 
 
 def has_exact_string(value: object, expected: str) -> bool:
@@ -234,9 +254,36 @@ def main() -> int:
             return report_failure(f"{name} declares unexpected features")
 
         targets = package.get("targets")
-        if type(targets) is not list or len(targets) != 1:
-            return report_failure(f"{name} does not have exactly one target")
-        target = targets[0]
+        if type(targets) is not list:
+            return report_failure(f"{name} has no valid target list")
+        primary_targets = []
+        test_targets = set()
+        for candidate in targets:
+            if type(candidate) is not dict:
+                return report_failure(f"{name} has an invalid target")
+            candidate_kind = candidate.get("kind")
+            if (
+                type(candidate_kind) is not list
+                or len(candidate_kind) != 1
+                or type(candidate_kind[0]) is not str
+            ):
+                return report_failure(f"{name} has an invalid target kind")
+            if candidate_kind[0] == expected["role"]:
+                primary_targets.append(candidate)
+            elif candidate_kind[0] == "test":
+                test_name = candidate.get("name")
+                if type(test_name) is not str or not test_name:
+                    return report_failure(f"{name} has an invalid test target")
+                if test_name in test_targets:
+                    return report_failure(f"{name} has duplicate test targets")
+                test_targets.add(test_name)
+            else:
+                return report_failure(f"{name} has an unexpected target kind")
+        if len(primary_targets) != 1:
+            return report_failure(f"{name} does not have exactly one primary target")
+        if test_targets != EXPECTED_TEST_TARGETS.get(name, set()):
+            return report_failure(f"{name} has an unexpected test-target set")
+        target = primary_targets[0]
         if type(target) is not dict:
             return report_failure(f"{name} has an invalid target")
         target_kind = target.get("kind")
@@ -267,8 +314,43 @@ def main() -> int:
             if dependency_name in dependency_names:
                 return report_failure(f"{name} has a duplicate dependency edge")
             dependency_names.add(dependency_name)
+            external = EXPECTED_EXTERNAL.get(name, {}).get(dependency_name)
+            if dependency_name not in EXPECTED_NAMES and external is None:
+                return report_failure(f"{name} has an unexpected external dependency")
             if dependency_name not in EXPECTED_NAMES:
-                return report_failure(f"{name} has an external dependency")
+                if dependency.get("source") != REGISTRY_SOURCE:
+                    return report_failure(
+                        f"{name} external dependency has an unexpected source"
+                    )
+                if not has_exact_string(dependency.get("req"), external["req"]):
+                    return report_failure(
+                        f"{name} external dependency has an unexpected version"
+                    )
+                if dependency.get("kind") != external["kind"]:
+                    return report_failure(
+                        f"{name} external dependency has an unexpected kind"
+                    )
+                if dependency.get("features") != external["features"]:
+                    return report_failure(
+                        f"{name} external dependency has unexpected features"
+                    )
+                if (
+                    dependency.get("uses_default_features")
+                    is not external["uses_default_features"]
+                ):
+                    return report_failure(
+                        f"{name} external dependency has an unexpected default-feature policy"
+                    )
+                if (
+                    dependency.get("optional") is not False
+                    or dependency.get("target") is not None
+                    or dependency.get("rename") is not None
+                    or dependency.get("package") is not None
+                ):
+                    return report_failure(
+                        f"{name} external dependency has unexpected declaration fields"
+                    )
+                continue
             if dependency_name not in expected["dependencies"]:
                 return report_failure(f"{name} has an unexpected dependency edge")
             if "source" not in dependency or dependency["source"] is not None:
@@ -334,14 +416,26 @@ def main() -> int:
             if "target" not in dependency or dependency["target"] is not None:
                 return report_failure(f"{name} has a target-specific dependency")
 
-        if dependency_names != expected["dependencies"]:
+        expected_dependency_names = expected["dependencies"] | set(
+            EXPECTED_EXTERNAL.get(name, {})
+        )
+        if dependency_names != expected_dependency_names:
             actual = ", ".join(sorted(dependency_names)) or "none"
-            wanted = ", ".join(sorted(expected["dependencies"])) or "none"
+            wanted = ", ".join(sorted(expected_dependency_names)) or "none"
             return report_failure(
                 f"{name} dependency mismatch (actual: {actual}; expected: {wanted})"
             )
 
-    print("workspace architecture: OK (7 packages; no external dependencies)")
+    expected_external_names = {
+        dependency_name
+        for dependencies in EXPECTED_EXTERNAL.values()
+        for dependency_name in dependencies
+    }
+    print(
+        "workspace architecture: OK (7 packages; audited external dependencies: "
+        + ", ".join(sorted(expected_external_names))
+        + ")"
+    )
     return 0
 
 

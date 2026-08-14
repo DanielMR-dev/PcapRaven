@@ -2,11 +2,11 @@
 
 ## Status
 
-Phase 0 product and architecture definition is complete. Phase 1 is complete
-with the virtual Cargo workspace, the seven documented crate skeletons, the
-pinned development toolchain, and the dependency-boundary checks described here.
-Capture analysis, domain records, and user-facing behavior remain future work;
-Phase 2 is next.
+Phase 0 product and architecture definition and Phase 1 workspace/tooling work
+are complete. Phase 2 adds bounded capture-container ingestion to
+`pcapraven-pcap`; the other analysis crates and the CLI remain skeletons.
+Protocol normalization, domain records, flow analysis, detection, reporting,
+and user-facing behavior remain future work.
 
 ## Architectural Principles
 
@@ -52,14 +52,51 @@ dependencies or dependency features; the only dependencies are the documented
 path edges below. Every member opts into the workspace lint policy, which
 forbids project `unsafe` code by default.
 
-The Phase 1 source files are compile-only documentation skeletons. They do not
-define domain or business types, parse captures, analyze protocols, reconstruct
-flows, run detectors, serialize reports, or implement CLI commands.
+The Phase 1 source files for the domain, protocols, flows, detection, reporting,
+and CLI packages remain compile-only documentation skeletons. They do not define
+business behavior or implement analysis.
+
+## Phase 2 Capture-Container Boundary
+
+`pcapraven-pcap` is the only package that reads capture-container bytes. Its
+public reader accepts a generic `std::io::Read + Send` source and does not access
+the filesystem or expose `pcap-parser` types. It returns owned packet bytes,
+capture metadata, fixed diagnostic messages with structured locations, and an
+explicit complete, partial, or failed-before-useful-records state.
+
+The supported Phase 2 subset is legacy PCAP in both byte orders with
+microsecond/nanosecond precision, and PCAPNG section headers, interface
+descriptions, enhanced packet blocks, and simple packet blocks. PCAPNG interface
+descriptions are assigned positional slots within each section; malformed IDBs
+are recorded as unusable slots so that subsequent interface indexing and EPB/SPB
+resolution remain strictly deterministic without shift. PCAPNG interface
+timestamp resolution and signed offsets are section-local, and section
+boundaries reset interface state. Unsupported valid blocks are skipped only
+after the low-level parser establishes their boundary; malformed or incomplete
+input is never guessed through.
+
+The default finite limits are: 64 KiB initial buffer, 4 MiB maximum buffer and
+block, 1 MiB individual packet bytes, 16 MiB aggregate retained packet bytes for
+collection, 1,024 interfaces per section, 1,024 sections, 256 diagnostics,
+100,000 emitted records, and 1,000,000 processed blocks. Validation also enforces
+nonzero limits, `initial_buffer_size <= maximum_buffer_size`, and
+`maximum_packet_bytes <= maximum_block_size <= maximum_buffer_size`; hard caps
+prevent callers from raising these budgets beyond 64 MiB for byte/block/retention
+limits, 65,536 sections/interfaces, 1,000,000 diagnostics, or 10,000,000
+records/blocks. `CaptureReader` is strictly streaming and emits records without
+internal accumulation; convenience collection functions enforce the aggregate
+retained packet byte budget.
+
+Phase 2 uses `pcap-parser = 0.17.0` as a normal dependency with default,
+`data`, and `serialize` features disabled. The parser dependency is kept behind
+the capture crate boundary. `proptest = 1.11.0` is dev-only for capture tests.
+The excluded `fuzz/` package is not part of the seven-package production graph.
 
 ## Crate Responsibilities
 
-The skeletons document the following future responsibilities without
-implementing them.
+The crates have the following responsibilities. Phase 2 implements only the
+capture-container subset described for `pcapraven-pcap`; the other analysis
+responsibilities remain documented future work.
 
 ### `pcapraven-domain`
 
@@ -74,9 +111,10 @@ logic.
 
 Owns capture ingestion only: safe reading of PCAP/PCAPNG containers, capture
 record metadata, bounded extraction of packet bytes, interface/link metadata,
-and capture-level diagnostics. It does not decode Ethernet, IP, TCP, UDP, DNS,
-HTTP, or TLS; reconstruct flows; detect threats; format reports; or interact
-with users.
+and capture-level diagnostics. Phase 2 exposes a generic streaming `Read` API,
+owned packet bytes, explicit complete/partial/failed completion, and bounded
+fixed diagnostics. It does not decode Ethernet, IP, TCP, UDP, DNS, HTTP, or TLS;
+reconstruct flows; detect threats; format reports; or interact with users.
 
 ### `pcapraven-protocols`
 
@@ -145,7 +183,8 @@ must preserve acyclicity, and must update this table before implementation.
 Forbidden directions include any library depending on `pcapraven-cli`, domain
 depending on a parser or serializer, detection depending on parser crates, and
 reporting invoking detection. `scripts/check_workspace_architecture.py` checks
-the Phase 1 package set and graph from Cargo metadata.
+the seven-package graph, documented internal edges, and audited Phase 2 direct
+dependencies from Cargo metadata.
 
 ## Target Data Flow
 
@@ -175,9 +214,9 @@ pcapraven-flows       domain observation store
 pcapraven-cli configures and orchestrates each stage.
 ```
 
-Records can be streamed or retained according to later phase design, but every
-boundary must carry bounded data and explicit diagnostics. This diagram is a
-logical contract for later analysis phases, not a Phase 1 implementation.
+Capture records are streamed by the Phase 2 reader. Later boundaries must carry
+bounded data and explicit diagnostics. The protocol, flow, detection, reporting,
+and CLI stages in this diagram remain a logical contract for later phases.
 
 ## Domain Boundary
 
@@ -189,7 +228,7 @@ all downstream processing.
 
 ## Error-Handling Policy
 
-PcapRaven distinguishes four conditions:
+PcapRaven distinguishes these conditions:
 
 - **Fatal error:** safe analysis cannot begin or continue, such as an unreadable
   file or invalid capture-container structure that prevents bounded progress.
@@ -199,6 +238,12 @@ PcapRaven distinguishes four conditions:
   link type, or protocol is not supported; this is not automatically malformed.
 - **Incomplete input:** expected bytes or capture context are absent, commonly
   because of truncation; consumers must know results may be partial.
+- **Invalid reference:** a structurally parsed packet block names unavailable
+  section-local state; the block is skipped only when the next boundary is safe.
+- **Resource limit:** a validated finite budget prevents safe continuation; the
+  result records the limit rather than silently dropping the boundary.
+- **I/O failure:** the caller's streaming source returns an error; no payload or
+  reader error text is copied into diagnostics.
 
 Errors crossing crate boundaries use structured categories with operation and
 capture-local context where available. External input must not reach
@@ -218,9 +263,9 @@ sensitive data in diagnostics.
 ## Logging Policy
 
 Later analysis phases will use structured `tracing` diagnostics. No tracing
-dependency or logging behavior is present in the Phase 1 skeletons; the
+dependency or logging behavior is present in the current library reader; the
 detailed dependency choice remains subject to the dependency review required
-when that behavior is introduced.
+when CLI/logging behavior is introduced.
 
 - Stdout is reserved for requested result output.
 - Logs, warnings, progress, and diagnostics go to stderr.
