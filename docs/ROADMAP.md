@@ -7,10 +7,12 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 3 delivered bounded
-Ethernet, IPv4/IPv6, and TCP/UDP normalization, explicit fragmentation and
-truncation modeling, padding stripping, property tests, and cargo-fuzz
-validation. Phase 4 (bidirectional flow reconstruction) remains next.
+Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 are complete. Phase 4 delivered
+deterministic bidirectional flow reconstruction, canonical flow keys, relative
+packet directions, monotonic ordinal enforcement, zero packet memory retention,
+integer-only timeout comparisons, TCP SYN/RST/FIN lifecycle management, finite
+resource limits, proptest properties, and cargo-fuzz validation. Phase 5 (flow
+statistics and temporal metrics) remains next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -60,9 +62,17 @@ with `proptest`, and a new `fuzz_packet_normalizer` target.
 
 ## Phase 4 - Bidirectional flow reconstruction
 
-Implement canonical flow keys, direction assignment, lifecycle boundaries, and
-deterministic packet association from normalized packet records. Do not add
-detections.
+Implemented deterministic bidirectional flow reconstruction and lifecycle management
+in `pcapraven-flows` over normalized packet streams. Canonicalized `FlowKey` endpoints
+via binary total ordering (`endpoint_a <= endpoint_b`), classified directional flow
+relations (`AToB`, `BToA`, `SameEndpoint`), assigned stable zero-based `FlowReference`
+ordinals, enforced strict `capture_record_ordinal` sequence monotonicity, managed
+integer-only idle timeouts without float conversions, tracked TCP initial SYN retransmissions
+and new initial SYNs, handled immediate RST closures, applied non-forcing FIN policies,
+enforced strict finite state bounds (`maximum_tracked_flows`, `maximum_flow_instances`),
+and ensured zero memory retention of packet payloads in active state. Delivered unit
+and boundary tests, property-based tests with `proptest`, and the `fuzz_flow_reconstructor`
+target.
 
 ## Phase 5 - Flow statistics and temporal metrics
 

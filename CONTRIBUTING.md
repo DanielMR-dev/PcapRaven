@@ -2,12 +2,11 @@
 
 ## Current Phase
 
-Phase 0 and Phase 1 are complete. Phase 2 contributions may modify the bounded
-PCAP/PCAPNG reader in `pcapraven-pcap`, its synthetic tests, audited Cargo
-manifests, architecture checker, initial fuzz target, CI validation, and related
-documentation. Do not add Ethernet/IP/TCP/UDP normalization, flow logic,
-application protocol handling, detectors, reporters, or functional CLI behavior
-until the relevant later roadmap phase begins. Phase 3 is next.
+Phase 0, Phase 1, Phase 2, and Phase 3 are complete. Phase 4 contributions implement
+deterministic bidirectional flow reconstruction in `pcapraven-flows` and capture-independent
+flow domain representations in `pcapraven-domain`. Do not add Phase 5 flow statistics/metrics,
+application protocol decoding (DNS/HTTP/TLS), threat detection, reporting, or functional CLI
+commands until their respective roadmap phases begin. Phase 5 is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -40,9 +39,9 @@ public contribution process.
 
 ## Architecture and Security
 
-All future capture input is hostile. Contributions must preserve the mandatory
+All capture input is hostile. Contributions must preserve the mandatory
 invariants in [Security Model](docs/SECURITY_MODEL.md), one-way crate boundaries
-in [Architecture](docs/ARCHITECTURE.md), parser/detector separation, bounded
+in [Architecture](docs/ARCHITECTURE.md), parser/flow/detector separation, bounded
 resource use, and the unsafe-code exception policy.
 
 Architecture changes must update the relevant canonical documentation in the
@@ -51,25 +50,24 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 2 validation uses the reader-focused tests, baseline commands, fuzz-target
-build, and architecture checker described in
-[Testing](docs/TESTING.md#phase-2-quality-gates). The pinned development
-toolchain is separate from the Rust 1.85 MSRV. The capture reader is
-library-only; the binary emits no output.
+Phase 4 validation uses the reader, normalizer, and flow reconstruction tests,
+baseline quality commands, fuzz-target builds, and architecture checker described in
+[Testing](docs/TESTING.md#phase-4-quality-gates). The pinned development
+toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
+the CLI binary emits no output.
 
 The baseline gates are formatting, Clippy with warnings denied, workspace tests,
 documentation generation, Cargo metadata, and the architecture checker. Locked
-MSRV check/build/test and lightweight Linux, Windows, and macOS skeleton checks
-run in CI. New behavior must add the level of unit, fixture, integration,
-end-to-end, property, fuzz, or regression coverage appropriate to its roadmap
-phase.
+MSRV check/build/test and cross-platform checks run in CI. New behavior must add
+the level of unit, fixture, integration, end-to-end, property, fuzz, or regression
+coverage appropriate to its roadmap phase.
 
 ## Fixtures and Sensitive Data
 
 Do not commit real organizational captures, credentials, personal data, or
 third-party traffic without explicit authorization and redistribution rights.
-Future fixtures should be minimal, synthetic, locally generated, sanitized,
-and redistributable according to the [fixture policy](docs/TESTING.md#fixture-policy).
+Fixtures should be minimal, synthetic, locally generated, sanitized, and
+redistributable according to the [fixture policy](docs/TESTING.md#fixture-policy).
 
 ## Licensing Contributions
 

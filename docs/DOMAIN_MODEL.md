@@ -6,8 +6,11 @@ This document defines conceptual, capture-independent records and invariants.
 Phase 2 implements capture-container metadata and owned packet records in
 `pcapraven-pcap`. Phase 3 implements the normalized domain packet model,
 reference identity, timestamp representation, and layer metadata in
-`pcapraven-domain`. Flow models, application protocol observations, and
-threat findings remain future work.
+`pcapraven-domain`. Phase 4 implements the domain flow model and identity
+types (`FlowEndpoint`, `FlowKey`, `FlowDirection`, `FlowReference`,
+`FlowPacketAssociation`, `FlowRecord`, `FlowEndReason`) in `pcapraven-domain`.
+Phase 5 flow statistics, application protocol observations, and threat findings
+remain future work.
 
 ## Modeling Rules
 
@@ -101,40 +104,25 @@ request/response roles.
 ### Identity and Direction
 
 A flow represents normalized packets sharing one canonical bidirectional key
-within a defined lifetime. Each packet is assigned direction A-to-B or B-to-A
-relative to the canonical endpoints. If later phases infer initiator or
-responder roles, those are separate, evidence-backed attributes.
+within a defined lifecycle. The implemented Phase 4 domain types include:
 
-A flow reference is stable within one analysis result. Flow identity must also
-account for lifecycle boundaries so sequential communications with the same
-endpoint tuple are not necessarily merged forever. Timeout and TCP lifecycle
-rules are deferred to Phase 4 and must be deterministic and documented there.
+- `TransportProtocol`: `Tcp` or `Udp`.
+- `FlowEndpoint`: binary `IpAddress` and `u16` transport port with total ordering.
+- `FlowKey`: canonical `(protocol, endpoint_a, endpoint_b)` where `endpoint_a <= endpoint_b`.
+- `FlowDirection`: relative packet direction (`AToB`, `BToA`, or `SameEndpoint`).
+- `FlowReference`: zero-based monotonic flow instance ordinal distinguishing sequential reuse.
+- `FlowPacketAssociation`: compact reference association (`flow`, `packet`, `direction`).
+- `FlowEndReason`: lifecycle closure reason (`EndOfInput`, `IdleTimeout`, `TcpReset`, `TcpNewInitialSyn`).
+- `FlowRecord`: completed minimal record (`reference`, `key`, `first_packet`, `last_packet`, `end_reason`).
 
-### Flow Contents
+### Phase 5 Planned Flow Statistics
 
-A flow conceptually contains:
+Phase 4 defines flow identity and lifecycle boundaries only. Phase 5 will add:
 
-- Flow reference and canonical key.
-- First and last reliable timestamps and duration availability.
-- First and last packet references.
 - Directional and total packet counts.
-- Directional and total captured/wire byte counts with explicit semantics.
-- Transport lifecycle or completeness state where observable.
-- Ordered or bounded packet references sufficient for evidence.
-- Temporal metrics added in Phase 5.
-- Diagnostics indicating gaps, truncation, or ambiguous ordering.
-
-Counters use checked arithmetic and may report limit exhaustion instead of
-wrapping. Flow summaries must not imply full TCP stream reassembly; that is not
-part of the defined v1 architecture unless separately proposed and approved.
-
-### Temporal Metrics
-
-Future temporal metrics may include inter-arrival distributions, active span,
-idle intervals, directional cadence, and regularity measures. Every metric must
-define units, minimum sample count, timestamp assumptions, and behavior for
-ties, gaps, and incomplete captures. "Not computable" is distinct from numeric
-zero.
+- Directional and total captured and wire byte totals.
+- First and last timestamps and computed flow duration.
+- Temporal metrics (inter-arrival intervals, cadence, jitter, and regularity measures).
 
 ## Protocol Observation Model
 

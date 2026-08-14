@@ -60,6 +60,21 @@ pub enum PacketTimestampResolution {
     },
 }
 
+impl PacketTimestampResolution {
+    /// Returns the number of fractional units per second.
+    #[must_use]
+    pub const fn units_per_second(&self) -> u64 {
+        match *self {
+            Self::Decimal {
+                units_per_second, ..
+            }
+            | Self::Binary {
+                units_per_second, ..
+            } => units_per_second,
+        }
+    }
+}
+
 /// Capture-independent packet timestamp state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum PacketTimestamp {

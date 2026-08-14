@@ -1,23 +1,26 @@
 # PcapRaven
 
-PcapRaven is a planned offline-first network forensics and threat-hunting CLI
-written in Rust. Its intended purpose is to analyze PCAP and PCAPNG captures,
-normalize network traffic, reconstruct bidirectional flows, extract selected
-DNS, HTTP/1.x, and TLS handshake metadata, and produce explainable heuristic
-security findings.
+PcapRaven is an offline-first network forensics and threat-hunting CLI written
+in Rust. Its intended purpose is to analyze PCAP and PCAPNG captures, normalize
+network traffic, reconstruct bidirectional flows, extract selected DNS,
+HTTP/1.x, and TLS handshake metadata, and produce explainable heuristic security
+findings.
 
 ## Early Development Status
 
 Phase 0 product and governance work, **Phase 1: Cargo workspace, crate
 skeletons, baseline CI, and tooling**, **Phase 2: Safe PCAP/PCAPNG capture reader**,
-and **Phase 3: Ethernet + IPv4/IPv6 + TCP/UDP normalization** are complete.
-`pcapraven-pcap` provides the streaming capture reader, `pcapraven-domain`
-defines normalized packet representations, and `pcapraven-protocols` provides
-bounded protocol normalization.
+**Phase 3: Ethernet + IPv4/IPv6 + TCP/UDP normalization**, and **Phase 4: Deterministic
+bidirectional flow reconstruction** are complete.
+
+- `pcapraven-pcap` provides the streaming capture reader.
+- `pcapraven-domain` defines normalized packet and flow domain models.
+- `pcapraven-protocols` provides bounded protocol normalization.
+- `pcapraven-flows` provides stateful bidirectional flow reconstruction and lifecycle management.
 
 The `pcapraven` binary remains a compile-only skeleton: it accepts no arguments,
-emits no output, and performs no analysis. Flow reconstruction, application
-decoders (DNS/HTTP/TLS), detection, reporting, and functional CLI commands
+emits no output, and performs no analysis. Flow statistics/temporal metrics (Phase 5),
+application decoders (DNS/HTTP/TLS), detection, reporting, and functional CLI commands
 remain targets for later roadmap phases and are not currently available.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
@@ -52,9 +55,9 @@ v1 CLI contract.
 - [Roadmap through v1.0.0](docs/ROADMAP.md)
 - [Repository structure](MANIFEST.md)
 
-Phase 2 tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-2-quality-gates),
-the independent `fuzz/fuzz_targets/fuzz_pcap_reader.rs` target, and the CI workflow in
+Workspace tooling includes `scripts/check_workspace_architecture.py`, the
+workspace quality commands in [Testing](docs/TESTING.md#phase-4-quality-gates),
+the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 
 ## Development

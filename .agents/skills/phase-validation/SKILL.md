@@ -97,4 +97,27 @@ Phase 3 adds comprehensive unit, boundary, property (`proptest`), and fuzzing
 (`fuzz_packet_normalizer`) tests. It must not add flow reconstruction, application
 decoders (DNS/HTTP/TLS), threat detectors, reporting, or functional CLI commands.
 The architecture checker must enforce the seven-package graph and audited external
-dependencies.
+dependencies. That historical gate is superseded by the current Phase 4 gate below.
+
+## Phase 4 Gate
+
+Phase 4 implements deterministic bidirectional flow reconstruction. `pcapraven-domain`
+defines capture-independent flow identity (`FlowEndpoint`, `FlowKey`, `FlowReference`,
+`FlowDirection`, `FlowPacketAssociation`, `FlowRecord`, `FlowEndReason`).
+`pcapraven-flows` reconstructs flows statefully from `NormalizedPacket` streams:
+- `FlowKey` endpoints are canonicalized by total ordering (`endpoint_a <= endpoint_b`).
+- `FlowDirection` explicitly distinguishes `AToB`, `BToA`, and `SameEndpoint`.
+- Monotonic `capture_record_ordinal` ordering is strictly enforced without reordering.
+- Sequential five-tuple reuse across lifecycles is disambiguated by `FlowReference`.
+- Integer-only timestamp arithmetic governs exact idle timeouts without floats.
+- TCP lifecycle tracks initial SYN retransmissions without false splits, terminates
+  prior flows on new initial SYN after activity (`TcpNewInitialSyn`), associates and
+  terminates on RST (`TcpReset`), and treats FIN conservatively without premature split.
+- UDP lifecycle tracks key continuity and idle timeouts.
+- Active state is finite and bounded (`maximum_tracked_flows`, `maximum_flow_instances`)
+  without arbitrary eviction or packet payload retention.
+- Completed flow records stream out upon closure and `finish()` orders records by
+  `FlowReference` ordinal.
+- Property tests (`proptest`) and `fuzz_flow_reconstructor` are added and verified.
+- Flow statistics, temporal metrics, application decoders, detections, reporters, and
+  functional CLI behavior remain out of scope.

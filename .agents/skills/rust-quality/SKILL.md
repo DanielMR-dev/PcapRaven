@@ -65,5 +65,4 @@ python3 scripts/check_workspace_architecture.py
 Run narrower relevant tests first when useful, but do not substitute them for
 required gates. Inspect the final diff and report every command that could not
 run. During the historical Phase 0 documentation-only gate, these Rust checks
-could not be claimed; they are applicable to the current Phase 3 workspace,
-reader, and protocol normalization changes.
+could not be claimed; they are applicable to current Rust implementation phases.

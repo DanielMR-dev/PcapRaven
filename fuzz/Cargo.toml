@@ -12,6 +12,7 @@ libfuzzer-sys = { version = "=0.4.13" }
 pcapraven-domain = { path = "../crates/pcapraven-domain", version = "0.0.0" }
 pcapraven-pcap = { path = "../crates/pcapraven-pcap", version = "0.0.0" }
 pcapraven-protocols = { path = "../crates/pcapraven-protocols", version = "0.0.0" }
+pcapraven-flows = { path = "../crates/pcapraven-flows", version = "0.0.0" }
 
 [[bin]]
 name = "fuzz_pcap_reader"
@@ -23,6 +24,13 @@ bench = false
 [[bin]]
 name = "fuzz_packet_normalizer"
 path = "fuzz_targets/fuzz_packet_normalizer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_flow_reconstructor"
+path = "fuzz_targets/fuzz_flow_reconstructor.rs"
 test = false
 doc = false
 bench = false

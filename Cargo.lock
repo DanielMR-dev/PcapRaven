@@ -122,6 +122,7 @@ name = "pcapraven-flows"
 version = "0.0.0"
 dependencies = [
  "pcapraven-domain",
+ "proptest",
 ]
 
 [[package]]
