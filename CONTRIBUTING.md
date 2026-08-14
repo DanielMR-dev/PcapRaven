@@ -2,12 +2,11 @@
 
 ## Current Phase
 
-PcapRaven is currently in Phase 0. Contributions in this phase must be limited
-to product definition, architecture, documentation, security and testing
-policy, repository governance, and agent configuration. Do not add a Cargo
-workspace, Rust source, CI workflow, fixtures, parser, protocol handling, flow
-logic, detector, reporter, or functional CLI until the relevant roadmap phase
-begins.
+Phase 0 is complete and Phase 1 is complete. Contributions currently remain
+limited to the Phase 1 workspace, documented crate skeletons, dependency-boundary
+tooling, CI, governance, and documentation. Do not add capture readers,
+protocol handling, flow logic, detectors, reporters, fixtures, or functional CLI
+behavior until the relevant later roadmap phase begins. Phase 2 is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -51,15 +50,17 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 0 validation is documentation-only and is described in
-[Testing](docs/TESTING.md#phase-0-validation). Cargo commands are not currently
-runnable because the workspace intentionally does not exist.
+Phase 1 validation uses the baseline commands and architecture checker described
+in [Testing](docs/TESTING.md#phase-1-quality-gates). The pinned development
+toolchain is separate from the Rust 1.85 MSRV. The seven skeleton crates contain
+no behavior, and the binary emits no output.
 
-Once introduced in Phase 1, the baseline gates will be formatting, Clippy with
-warnings denied, workspace tests, and documentation generation as listed in
-[Future CI Quality Gates](docs/TESTING.md#future-ci-quality-gates). New behavior
-must add the level of unit, fixture, integration, end-to-end, property, fuzz, or
-regression coverage appropriate to its roadmap phase.
+The baseline gates are formatting, Clippy with warnings denied, workspace tests,
+documentation generation, Cargo metadata, and the architecture checker. Locked
+MSRV check/build/test and lightweight Linux, Windows, and macOS skeleton checks
+run in CI. New behavior must add the level of unit, fixture, integration,
+end-to-end, property, fuzz, or regression coverage appropriate to its roadmap
+phase.
 
 ## Fixtures and Sensitive Data
 
@@ -70,8 +71,7 @@ and redistributable according to the [fixture policy](docs/TESTING.md#fixture-po
 
 ## Licensing Contributions
 
-PcapRaven is licensed under Apache-2.0. Unless explicitly stated otherwise,
-intentional contributions submitted for inclusion are provided under that same
-license as described in Section 5 of [LICENSE](LICENSE). Do not contribute code,
-documentation, fixtures, or generated artifacts you do not have the right to
-license.
+PcapRaven is licensed under MIT. Unless explicitly stated otherwise, intentional
+contributions submitted for inclusion are provided under that same license as
+described in [LICENSE](LICENSE). Do not contribute code, documentation, fixtures,
+or generated artifacts you do not have the right to license.

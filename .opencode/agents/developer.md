@@ -1,9 +1,8 @@
 ---
 description: Implements assigned PcapRaven changes and remediates review findings
 mode: subagent
-hidden: true
+temperature: 0.2
 permission:
-  "*": deny
   read:
     "*": allow
     "*.env": deny
@@ -13,17 +12,75 @@ permission:
   grep: allow
   list: allow
   edit: allow
-  bash: allow
+  bash:
+    "*": ask
+    "cargo --version*": allow
+    "cargo fmt*": allow
+    "cargo check*": allow
+    "cargo build*": allow
+    "cargo test*": allow
+    "cargo clippy*": allow
+    "cargo doc*": allow
+    "cargo metadata*": allow
+    "cargo tree*": allow
+    "cargo generate-lockfile*": allow
+    "cargo +* fmt*": allow
+    "cargo +* check*": allow
+    "cargo +* build*": allow
+    "cargo +* test*": allow
+    "cargo +* clippy*": allow
+    "cargo +* doc*": allow
+    "cargo +* metadata*": allow
+    "cargo +* tree*": allow
+    "cargo +* generate-lockfile*": allow
+    "rustc": allow
+    "rustc *": allow
+    "rustdoc": allow
+    "rustdoc *": allow
+    "rustup --version*": allow
+    "rustup show*": allow
+    "rustup toolchain list*": allow
+    "rustup component list*": allow
+    "rustup which*": allow
+    "rustup run * rustc --version*": allow
+    "rustup run * rustfmt --version*": allow
+    "rustup run * cargo clippy --version*": allow
+    "python": allow
+    "python *": allow
+    "python3": allow
+    "python3 *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git branch": allow
+    "git branch --show-current*": allow
+    "git branch --list*": allow
+    "git branch -a": allow
+    "git branch -r": allow
+    "git branch -v": allow
+    "git branch -vv": allow
+    "git branch --all": allow
+    "git branch --remotes": allow
+    "git branch --verbose": allow
+    "git show*": allow
+    "git rev-parse*": allow
+    "git ls-files*": allow
+    "git ls-tree*": allow
+    "git check-ignore*": allow
+    "git grep*": allow
+    "git describe*": allow
+    "git shortlog*": allow
+    "git tag": allow
+    "git tag -l*": allow
+    "git tag --list*": allow
+    "git remote -v*": allow
+    "git stash list*": allow
+    "git stash show*": allow
   question: allow
   todowrite: allow
-  external_directory: deny
-  webfetch: ask
-  websearch: ask
-  skill:
-    "*": deny
-    phase-validation: allow
-    secure-parser-review: allow
-    rust-quality: allow
+  lsp: allow
+  external_directory: ask
+  skill: allow
   task: deny
 ---
 

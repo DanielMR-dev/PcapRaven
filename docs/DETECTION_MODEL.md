@@ -2,8 +2,9 @@
 
 ## Purpose and Status
 
-This document defines the target contract for detectors and findings. No
-detector or detection engine exists in Phase 0.
+This document defines the target contract for detectors and findings. Phase 1
+contains no detector or detection engine; the detection crate is a documented
+skeleton only.
 
 ## Separation from Parsing
 

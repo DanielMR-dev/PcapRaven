@@ -1,24 +1,22 @@
 ---
 description: Coordinates phase-scoped PcapRaven implementation and independent review
 mode: primary
+temperature: 0.3
 permission:
-  "*": deny
-  read:
-    "*": allow
-    "*.env": deny
-    "*.env.*": deny
-    "*.env.example": allow
+  read: allow
   glob: allow
   grep: allow
   list: allow
+  edit: deny
   question: allow
   todowrite: allow
-  skill:
-    "*": allow
+  skill: allow
   task:
     "*": deny
     developer: allow
     reviewer: allow
+  bash:
+    "*": ask
 ---
 
 Follow `AGENTS.md` as the authoritative project and workflow policy.

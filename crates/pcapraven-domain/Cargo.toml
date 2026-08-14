@@ -1,0 +1,11 @@
+[package]
+name = "pcapraven-domain"
+description = "Capture-independent PcapRaven domain boundary skeleton"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,29 @@
+[workspace]
+members = [
+    "crates/pcapraven-domain",
+    "crates/pcapraven-pcap",
+    "crates/pcapraven-protocols",
+    "crates/pcapraven-flows",
+    "crates/pcapraven-detection",
+    "crates/pcapraven-reporting",
+    "crates/pcapraven-cli",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+rust-version = "1.85"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.dependencies]
+pcapraven-domain = { path = "crates/pcapraven-domain", version = "0.0.0" }
+pcapraven-pcap = { path = "crates/pcapraven-pcap", version = "0.0.0" }
+pcapraven-protocols = { path = "crates/pcapraven-protocols", version = "0.0.0" }
+pcapraven-flows = { path = "crates/pcapraven-flows", version = "0.0.0" }
+pcapraven-detection = { path = "crates/pcapraven-detection", version = "0.0.0" }
+pcapraven-reporting = { path = "crates/pcapraven-reporting", version = "0.0.0" }

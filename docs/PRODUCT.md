@@ -5,8 +5,10 @@
 PcapRaven is a new, independent, offline-first network forensics and
 threat-hunting command-line application written in Rust.
 
-PcapRaven is in Phase 0. This repository currently defines the product and its
-engineering foundation; it does not yet contain a working application.
+Phase 0 product definition and engineering foundation are complete. Phase 1 is
+complete with the virtual Cargo workspace, documented crate skeletons, and
+baseline quality tooling. The repository still does not contain a working
+analysis application; Phase 2, the bounded capture reader, is next.
 
 ## Problem Statement
 
@@ -61,7 +63,7 @@ not replace analyst judgment.
 - Compatibility with NetSentinel APIs, data formats, architecture, or source
   code.
 - Implementation of any parser, flow, protocol, detection, reporting, or CLI
-  feature during Phase 0.
+  feature during Phase 1. The Phase 1 binary is a compile-only skeleton.
 
 ## Product Principles
 
@@ -94,7 +96,8 @@ Heuristic behavior is described as possible or suspicious, not as proof.
 ## Target v1 CLI Contract
 
 The CLI described here is a target for later roadmap phases. None of these
-commands or options is implemented in Phase 0.
+commands or options is implemented in Phase 1; the binary skeleton accepts no
+arguments and emits no output.
 
 ```text
 pcapraven analyze <capture>

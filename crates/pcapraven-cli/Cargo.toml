@@ -1,0 +1,23 @@
+[package]
+name = "pcapraven-cli"
+description = "PcapRaven command-line orchestration boundary skeleton"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "pcapraven"
+path = "src/main.rs"
+
+[dependencies]
+pcapraven-domain = { workspace = true }
+pcapraven-pcap = { workspace = true }
+pcapraven-protocols = { workspace = true }
+pcapraven-flows = { workspace = true }
+pcapraven-detection = { workspace = true }
+pcapraven-reporting = { workspace = true }
