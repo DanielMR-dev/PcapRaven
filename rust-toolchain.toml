@@ -1,5 +1,5 @@
 # The development toolchain is pinned separately from the workspace MSRV.
 [toolchain]
-channel = "1.97.0"
+channel = "1.97.1"
 profile = "minimal"
 components = ["rustfmt", "clippy"]

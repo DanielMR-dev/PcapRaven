@@ -16,20 +16,20 @@ description: Use for Rust source, Cargo workspace, dependency, lint, test, docum
 
 ### Developer
 
-The Developer may edit the assigned phase-scoped Rust or Cargo files and run
-the applicable quality gates. The Developer owns execution evidence: record
-the exact command, result, unavailable tool, and failure for every required
-gate. The Developer must keep the dependency graph, unsafe-code policy, and
-phase boundary from `AGENTS.md`, inspect the complete diff, and report all
-limitations to the Orchestrator.
+The Developer runs every applicable required gate and owns its execution
+evidence: record each exact command, result, unavailable tool, and failure. The
+Developer must keep the dependency graph, unsafe-code policy, and phase boundary
+from `AGENTS.md`, inspect the complete diff, and report all limitations to the
+Orchestrator.
 
 ### Reviewer
 
-The Reviewer is strictly read-only inspection. The Reviewer inspects the
-Developer's validation evidence, workspace policy, dependency graph,
-unsafe-code posture, and changed files without editing files, running shell
-commands, or replacing the required gates with an independent execution. Any
-finding is reported to the Orchestrator with an exact path and reference.
+The Reviewer remains source-read-only and cannot modify project files. The
+Reviewer inspects the Developer's evidence, workspace policy, dependency graph,
+unsafe-code posture, and changed files, and may independently rerun explicitly
+permitted non-mutating gates to compare their results with that evidence. Any
+discrepancy or finding is reported to the Orchestrator with an exact path and
+reference; Reviewer execution does not replace Developer gate evidence.
 
 ## Review and Implementation Checklist
 
