@@ -10,8 +10,11 @@ reference identity, timestamp representation, and layer metadata in
 types (`FlowEndpoint`, `FlowKey`, `FlowDirection`, `FlowReference`,
 `FlowPacketAssociation`, `FlowRecord`, `FlowEndReason`) in `pcapraven-domain`.
 Phase 5 implements checked directional flow traffic statistics and exact rational
-temporal metrics in `pcapraven-domain`. Application protocol observations and threat
-findings remain future work.
+temporal metrics in `pcapraven-domain`. Phase 7 implements normalized DNS observation
+models (`DnsTransport`, `DnsMessageKind`, `DnsFlags`, `DnsName`, `DnsQuestion`,
+`DnsSection`, `DnsRdataMetadata`, `DnsResourceRecord`, `DnsEdnsMetadata`, `DnsObservation`,
+`DnsDiagnostic`) in `pcapraven-domain`. HTTP/1.x, TLS handshake metadata, and threat findings
+remain future work.
 
 ## Modeling Rules
 
@@ -145,12 +148,13 @@ observation has:
 
 ### DNS Observations
 
-Planned DNS observations represent message metadata such as query/response
-role, transaction identifier, opcode/status, bounded question names and types,
-record counts, and selected bounded answer metadata. Names retain enough
-normalized structure for analysis without asserting that they are trustworthy
-host identities. Unsupported record types remain distinguishable from malformed
-messages.
+Phase 7 DNS observations (`DnsObservation` in `pcapraven-domain`) represent factual
+message metadata: transport (`UDP`/`TCP`), query/response role (`Query`/`Response`),
+transaction ID, flags, opcode, base and effective response codes, declared section counts,
+bounded questions, parsed resource records (A, AAAA, CNAME, NS, PTR, MX, and unknown types),
+EDNS(0) pseudo-record metadata (UDP payload size, extended RCODE, DO bit, options), and explicit
+completeness status (`Complete` or `Partial`). Domain names retain raw wire label fidelity
+with RFC 1035 bounds (label length <= 63, wire length <= 255) and terminal-safe escaping.
 
 ### HTTP Observations
 

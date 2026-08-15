@@ -186,7 +186,7 @@ fn test_help_command() {
     assert_eq!(code, 0);
     assert!(stdout.contains("validate"));
     assert!(stdout.contains("flows"));
-    assert!(!stdout.contains("  dns"));
+    assert!(stdout.contains("dns"));
     assert!(!stdout.contains("  http"));
     assert!(!stdout.contains("  tls"));
     assert!(!stdout.contains("  findings"));
@@ -612,5 +612,124 @@ fn test_path_robustness() {
     let (code, stdout, stderr) = run_cli(&["validate", &temp.path_str()]);
     assert_eq!(code, 0);
     assert!(stdout.contains("Capture"));
+    assert!(stderr.is_empty());
+}
+
+fn encode_dns_name(name: &str) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    if name == "." || name.is_empty() {
+        bytes.push(0);
+        return bytes;
+    }
+    for label in name.split('.') {
+        if !label.is_empty() {
+            bytes.push(label.len() as u8);
+            bytes.extend_from_slice(label.as_bytes());
+        }
+    }
+    bytes.push(0);
+    bytes
+}
+
+fn make_dns_query_udp_packet(src_ip: [u8; 4], dst_ip: [u8; 4], id: u16, name: &str) -> Vec<u8> {
+    let mut dns_msg = Vec::new();
+    dns_msg.extend_from_slice(&id.to_be_bytes()); // ID
+    dns_msg.extend_from_slice(&0x0100u16.to_be_bytes()); // Flags: RD
+    dns_msg.extend_from_slice(&1u16.to_be_bytes()); // QDCOUNT = 1
+    dns_msg.extend_from_slice(&0u16.to_be_bytes()); // ANCOUNT = 0
+    dns_msg.extend_from_slice(&0u16.to_be_bytes()); // NSCOUNT = 0
+    dns_msg.extend_from_slice(&0u16.to_be_bytes()); // ARCOUNT = 0
+    dns_msg.extend_from_slice(&encode_dns_name(name));
+    dns_msg.extend_from_slice(&1u16.to_be_bytes()); // QTYPE = A (1)
+    dns_msg.extend_from_slice(&1u16.to_be_bytes()); // QCLASS = IN (1)
+
+    make_ipv4_udp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        src_ip,
+        dst_ip,
+        53535,
+        53,
+        &dns_msg,
+    )
+}
+
+#[test]
+fn test_dns_help_subcommand() {
+    let (code, stdout, stderr) = run_cli(&["dns", "--help"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("Inspect normalized DNS observations"));
+    assert!(stdout.contains("max-records"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_dns_empty_file() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("empty_dns.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["dns", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("QNAME"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_dns_query_response() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt1 = make_dns_query_udp_packet([192, 168, 1, 50], [8, 8, 8, 8], 0x1234, "example.com");
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt1));
+
+    let temp = TempCaptureFile::new("dns_query.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["dns", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("example.com"));
+    assert!(stdout.contains("192.168.1.50:53535"));
+    assert!(stdout.contains("8.8.8.8:53"));
+    assert!(stdout.contains("UDP"));
+    assert!(stdout.contains("Query"));
+    assert!(stdout.contains("A"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_dns_no_dns_traffic() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    // Port 80 traffic (not DNS)
+    let pkt = make_ipv4_udp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [10, 0, 0, 1],
+        [10, 0, 0, 2],
+        1000,
+        80,
+        &[1, 2, 3],
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("no_dns.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["dns", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("QNAME"));
+    assert!(!stdout.contains("10.0.0.1"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_dns_quiet_mode() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt = make_dns_query_udp_packet([192, 168, 1, 50], [8, 8, 8, 8], 0xabcd, "test.local");
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("dns_quiet.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["-q", "dns", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("test.local"));
     assert!(stderr.is_empty());
 }

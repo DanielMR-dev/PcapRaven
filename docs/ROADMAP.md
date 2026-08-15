@@ -7,14 +7,13 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 are complete. Phase 6
-delivered the initial functional CLI (`validate` and `flows`), streaming capture and flow
-inspection orchestration without bulk packet retention, multiplication-free Euclidean
-`FlowDuration` total rational ordering, removal of production `.expect()` calls in
-`FlowReconstructor`, exact exit codes (0, 1, 2, 3), stdout/stderr stream separation, bounded
-diagnostic budgets with quiet mode support, audited `clap = "=4.6.4"`, and comprehensive
-end-to-end CLI integration tests.
-Phase 7 (DNS protocol analysis) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, and Phase 7 are complete. Phase 7
+delivered bounded DNS wire-format parsing in `pcapraven-protocols`, normalized DNS observation
+models in `pcapraven-domain`, candidate classification (UDP/TCP port 53), backward pointer
+decompression with cycle prevention, EDNS(0) OPT pseudo-record metadata decoding, terminal-safe
+domain name escaping, the `pcapraven dns <capture>` CLI inspection command, synthetic micro-fixtures,
+property tests, and the `fuzz_dns_parser` target.
+Phase 8 (HTTP/1.x metadata analysis) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -99,9 +98,15 @@ budget (100 lines default) with suppression summary unless `--quiet`, audited mi
 
 ## Phase 7 - DNS protocol analysis
 
-Implement bounded DNS metadata parsing over normalized transport data and emit
-normalized DNS observations. Add malformed fixtures, properties, fuzzing, and
-inspection support. Do not add DNS threat heuristics.
+Implemented bounded DNS wire-format parsing over normalized transport data and emitted
+normalized DNS observations in `pcapraven-protocols` and `pcapraven-domain`. Classified
+candidate traffic on UDP and TCP port 53, decoded length-prefixed TCP frames, applied
+strict backward-pointer decompression rules (`target_offset < pointer_location_offset`) to
+prevent pointer loops and cycles, parsed standard RR types (A, AAAA, CNAME, NS, PTR, MX),
+decoded EDNS(0) OPT pseudo-records (extended RCODE, DO bit, options), rendered terminal-safe
+domain name escaping (`\DDD`), implemented the `pcapraven dns <capture>` CLI inspection
+command, and added synthetic micro-fixtures, unit tests, property tests, and the `fuzz_dns_parser`
+target. Threat detection heuristics and application decoders for HTTP/TLS remain future work.
 
 ## Phase 8 - HTTP/1.x metadata analysis
 

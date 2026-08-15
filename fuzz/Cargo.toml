@@ -34,3 +34,10 @@ path = "fuzz_targets/fuzz_flow_reconstructor.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_dns_parser"
+path = "fuzz_targets/fuzz_dns_parser.rs"
+test = false
+doc = false
+bench = false

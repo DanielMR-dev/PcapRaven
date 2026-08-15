@@ -19,9 +19,9 @@ the `pcapraven-cli` orchestration boundary and command-line interface.
 ## Invariants and Rules
 
 ### 1. Implemented Commands
-- Only `pcapraven validate <capture>` and `pcapraven flows <capture>` are implemented in Phase 6.
+- `pcapraven validate <capture>`, `pcapraven flows <capture>`, and `pcapraven dns <capture>` are implemented.
 - `pcapraven --help` and `pcapraven --version` are fully functional.
-- Future subcommands (`analyze`, `dns`, `http`, `tls`, `findings`) must NEVER be implemented
+- Future subcommands (`analyze`, `http`, `tls`, `findings`) must NEVER be implemented
   or advertised in runtime help.
 
 ### 2. Argument and Limits Validation

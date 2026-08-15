@@ -67,10 +67,11 @@ Implemented properties include:
 
 ### Fuzzing Strategy
 
-Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with three targets:
+Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with four targets:
 `fuzz_pcap_reader` for capture-container parsing, `fuzz_packet_normalizer` for
-protocol normalization, and `fuzz_flow_reconstructor` for flow reconstruction
-and traffic/temporal metric invariant validation.
+protocol normalization, `fuzz_flow_reconstructor` for flow reconstruction
+and traffic/temporal metric invariant validation, and `fuzz_dns_parser` for
+bounded DNS wire parsing.
 The targets call only public bounded APIs and do not access files or networks.
 The checked-in CI build commands are:
 
@@ -78,6 +79,7 @@ The checked-in CI build commands are:
 cargo +nightly fuzz build fuzz_pcap_reader
 cargo +nightly fuzz build fuzz_packet_normalizer
 cargo +nightly fuzz build fuzz_flow_reconstructor
+cargo +nightly fuzz build fuzz_dns_parser
 ```
 
 Long-running `cargo-fuzz` campaigns and additional structured targets remain
@@ -113,7 +115,7 @@ fixtures/pcaps/edge-cases/
 fixtures/expected/
 ```
 
-These paths are planned for Phase 17 and intentionally do not exist in Phase 4.
+The full fixture corpus is deferred to Phase 17.
 
 ### Categories
 
@@ -259,6 +261,26 @@ Phase 6 validation confirms:
   exercise all commands, help, version, usage errors, nonexistent files, complete/partial captures,
   quiet mode, UDP/TCP flows, exclusions, early stopping, and determinism.
 
+### Phase 7 Quality Gates
+
+- **DNS Wire Parser Invariants:** Implements bounded parsing in `pcapraven-protocols` with zero `.unwrap()`,
+  zero `.expect()`, zero panics, and checked arithmetic at all offsets.
+- **Candidate Classification:** Accurately routes UDP/TCP port 53 traffic, handles empty-payload TCP packets safely,
+  and skips non-candidate packets deterministically.
+- **Framing & Decompression:** Decodes 2-byte length TCP frames up to configured message caps without cross-packet
+  stream reassembly. Strictly enforces the backward-pointer rule (`target_offset < pointer_location_offset`),
+  eliminating self-loops, cycle recursion, and forward pointer exploits.
+- **Section and Name Bounds:** Validates label length (<= 63), expanded wire length (<= 255), and message-wide
+  retained name bytes limits. RDATA offsets and lengths are strictly checked against message buffer bounds.
+- **Normalized Observation Model:** Emits `DnsObservation` records in `pcapraven-domain` with decoded flags,
+  effective response codes (incorporating EDNS extended RCODE), parsed questions, decoded standard RRs (A, AAAA,
+  CNAME, NS, PTR, MX), and EDNS(0) OPT pseudo-records.
+- **Output Safety & CLI Inspection:** Renders domain names using terminal-safe `display_escaped()` notation
+  (`\DDD` for non-printable octets and dots inside labels) with zero ANSI escape risks. Implements `pcapraven dns <capture>`
+  with streaming output and standard exit codes (0, 1, 2, 3).
+- **Comprehensive Verification:** 11 synthetic micro-fixtures with provenance docs, integration tests in `tests/dns.rs`,
+  CLI tests in `tests/cli.rs`, proptests for arbitrary byte sequences, and the `fuzz_dns_parser` fuzz target.
+
 ## Dependency Audits
 
 ### `pcap-parser = 0.17.0` (Phase 2)
@@ -282,7 +304,7 @@ or network behavior.
 ### `clap = "=4.6.4"` (Phase 6)
 
 The production CLI dependency in `pcapraven-cli` is exact `clap = "=4.6.4"`, licensed
-MIT/Apache-2.0, with declared MSRV 1.74. It uses `default-features = false` and enabled
+MIT/Apache-2.0, with declared MSRV 1.85. It uses `default-features = false` and enabled
 features `["std", "help", "usage", "error-context"]`. Audited transitive tree:
 `clap_builder = 4.6.2`, `clap_lex = 1.1.0`, `anstyle = 1.0.14`. Zero network or telemetry
 behavior. Zero project `unsafe` code.

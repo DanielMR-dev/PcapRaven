@@ -1,12 +1,14 @@
 //! CLI application orchestration for validation and flow inspection.
 
-use crate::args::{CliArgs, FlowsArgs, Subcommand, ValidateArgs};
+use crate::args::{CliArgs, DnsArgs, FlowsArgs, Subcommand, ValidateArgs};
 use crate::diagnostics::{DEFAULT_DIAGNOSTIC_BUDGET, DiagnosticEmitter};
 use crate::output;
 use pcapraven_domain::{FlowRecord, FlowTemporalUnavailableReason};
 use pcapraven_flows::{FlowDisposition, FlowReconstructionConfig, FlowReconstructor};
 use pcapraven_pcap::{CaptureCompletion, CaptureReader, ReaderLimits};
-use pcapraven_protocols::{NormalizationLimits, normalize_packet};
+use pcapraven_protocols::{
+    DnsLimits, DnsPacketDisposition, NormalizationLimits, normalize_packet, parse_dns_packet,
+};
 use std::fs::File;
 use std::io;
 use std::process::ExitCode;
@@ -126,6 +128,7 @@ pub fn run(args: CliArgs) -> ExitCode {
     let status_code = match args.command {
         Subcommand::Validate(v_args) => run_validate(v_args, args.quiet),
         Subcommand::Flows(f_args) => run_flows(f_args, args.quiet),
+        Subcommand::Dns(d_args) => run_dns(d_args, args.quiet),
     };
     ExitCode::from(status_code)
 }
@@ -412,13 +415,23 @@ fn run_flows(args: FlowsArgs, quiet: bool) -> u8 {
     if !useful_result_produced {
         if total_records_processed == 0 && !had_stream_error && outcome.is_complete() {
             if !table_header_rendered {
-                let _ = output::render_flow_table_header(&mut stdout);
+                if let Err(e) = output::render_flow_table_header(&mut stdout) {
+                    DiagnosticEmitter::emit_fatal_error(&format!(
+                        "failed to write flow table header: {e}"
+                    ));
+                    return 1;
+                }
             }
             return 0;
         }
         if had_exclusion && !had_stream_error && outcome.is_complete() {
             if !table_header_rendered {
-                let _ = output::render_flow_table_header(&mut stdout);
+                if let Err(e) = output::render_flow_table_header(&mut stdout) {
+                    DiagnosticEmitter::emit_fatal_error(&format!(
+                        "failed to write flow table header: {e}"
+                    ));
+                    return 1;
+                }
             }
             return 3;
         }
@@ -427,6 +440,171 @@ fn run_flows(args: FlowsArgs, quiet: bool) -> u8 {
     }
 
     if had_stream_error || had_exclusion || had_temporal_degradation || !outcome.is_complete() {
+        3
+    } else {
+        0
+    }
+}
+
+fn run_dns(args: DnsArgs, quiet: bool) -> u8 {
+    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
+
+    let reader_limits = if let Some(max_rec) = args.max_records {
+        let max_usize = match usize::try_from(max_rec) {
+            Ok(v) => v,
+            Err(_) => {
+                DiagnosticEmitter::emit_fatal_error(
+                    "max-records value exceeds memory addressable bounds",
+                );
+                return 2;
+            }
+        };
+        match ReaderLimits::builder().maximum_records(max_usize).build() {
+            Ok(l) => l,
+            Err(e) => {
+                DiagnosticEmitter::emit_fatal_error(&format!("invalid reader limits: {e}"));
+                return 2;
+            }
+        }
+    } else {
+        ReaderLimits::default()
+    };
+
+    let norm_limits = match NormalizationLimits::builder()
+        .maximum_retained_payload_bytes(65_535)
+        .build()
+    {
+        Ok(l) => l,
+        Err(e) => {
+            DiagnosticEmitter::emit_fatal_error(&format!("invalid normalization limits: {e}"));
+            return 2;
+        }
+    };
+
+    let dns_limits = DnsLimits::default();
+
+    let file = match File::open(&args.capture_path) {
+        Ok(f) => f,
+        Err(e) => {
+            DiagnosticEmitter::emit_fatal_error(&format!("failed to open capture file: {e}"));
+            return 1;
+        }
+    };
+
+    let mut reader = match CaptureReader::new(file, reader_limits) {
+        Ok(r) => r,
+        Err(e) => {
+            DiagnosticEmitter::emit_fatal_error(&format!(
+                "failed to initialize capture reader: {e}"
+            ));
+            return 1;
+        }
+    };
+
+    let mut stdout = io::stdout().lock();
+    let mut table_header_rendered = false;
+    let mut useful_result_produced = false;
+    let mut had_partial_dns = false;
+    let mut had_stream_error = false;
+    let mut total_records_processed = 0u64;
+
+    loop {
+        let record_opt = match reader.next_record() {
+            Ok(opt) => opt,
+            Err(e) => {
+                had_stream_error = true;
+                diag_emitter.emit_diagnostic(&format!("capture reader error: {e}"));
+                break;
+            }
+        };
+
+        let record = match record_opt {
+            Some(r) => r,
+            None => break,
+        };
+        total_records_processed = total_records_processed.saturating_add(1);
+
+        let norm_input = record.as_normalization_input();
+        let norm_outcome = normalize_packet(&norm_input, &norm_limits);
+        for d in &norm_outcome.diagnostics {
+            diag_emitter.emit_diagnostic(&format!(
+                "normalization diagnostic on packet {}: {}",
+                record.ordinal, d.message
+            ));
+        }
+
+        let dns_outcome = parse_dns_packet(&norm_outcome.packet, &dns_limits);
+        for d in &dns_outcome.diagnostics {
+            diag_emitter.emit_diagnostic(&format!(
+                "DNS diagnostic on packet {}: {}",
+                record.ordinal, d.message
+            ));
+        }
+
+        if matches!(dns_outcome.disposition, DnsPacketDisposition::Partial) {
+            had_partial_dns = true;
+        }
+
+        for obs in &dns_outcome.observations {
+            if !obs.completeness.is_complete() {
+                had_partial_dns = true;
+            }
+            if !table_header_rendered {
+                if let Err(e) = output::render_dns_table_header(&mut stdout) {
+                    DiagnosticEmitter::emit_fatal_error(&format!(
+                        "failed to write DNS table header: {e}"
+                    ));
+                    return 1;
+                }
+                table_header_rendered = true;
+            }
+            if let Err(e) = output::render_dns_row(obs, &mut stdout) {
+                DiagnosticEmitter::emit_fatal_error(&format!(
+                    "failed to write DNS observation row: {e}"
+                ));
+                return 1;
+            }
+            useful_result_produced = true;
+        }
+    }
+
+    let outcome = reader.into_outcome();
+    for diag in &outcome.diagnostics {
+        diag_emitter.emit_capture_diagnostic(diag);
+    }
+    diag_emitter.finish();
+
+    if !useful_result_produced {
+        if total_records_processed == 0 && !had_stream_error && outcome.is_complete() {
+            if !table_header_rendered {
+                if let Err(e) = output::render_dns_table_header(&mut stdout) {
+                    DiagnosticEmitter::emit_fatal_error(&format!(
+                        "failed to write DNS table header: {e}"
+                    ));
+                    return 1;
+                }
+            }
+            return 0;
+        }
+        if total_records_processed > 0 && !had_stream_error && outcome.is_complete() {
+            if !table_header_rendered {
+                if let Err(e) = output::render_dns_table_header(&mut stdout) {
+                    DiagnosticEmitter::emit_fatal_error(&format!(
+                        "failed to write DNS table header: {e}"
+                    ));
+                    return 1;
+                }
+            }
+            if had_partial_dns {
+                return 3;
+            }
+            return 0;
+        }
+        DiagnosticEmitter::emit_fatal_error("DNS inspection produced no useful results");
+        return 1;
+    }
+
+    if had_stream_error || had_partial_dns || !outcome.is_complete() {
         3
     } else {
         0

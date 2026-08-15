@@ -174,4 +174,25 @@ Phase 6 implements the initial functional command-line interface and streaming c
 - Architecture checker updated and verified for Phase 6.
 - Cross-platform integration tests in `crates/pcapraven-cli/tests/cli.rs` pass.
 - Application decoders (DNS/HTTP/TLS), threat detection, formal reporting, and output files remain strictly future work.
+  That historical gate is superseded by the current Phase 7 gate below.
+
+## Phase 7 Gate
+
+Phase 7 implements bounded DNS protocol analysis, normalized DNS observations, and DNS CLI inspection.
+- `pcapraven-domain` defines DNS domain types: `DnsTransport`, `DnsMessageKind`, `DnsFlags`, `DnsName`,
+  `DnsQuestion`, `DnsSection`, `DnsRdataMetadata`, `DnsResourceRecord`, `DnsEdnsOptionMetadata`,
+  `DnsEdnsMetadata`, `DnsObservationCompleteness`, `DnsObservation`, `DnsDiagnosticKind`, and `DnsDiagnostic`.
+- `DnsName` enforces RFC 1035 label length (<= 63) and expanded wire length (<= 255) bounds, preserving raw byte
+  fidelity and providing terminal-safe `display_escaped()` rendering without ANSI escape risks.
+- `pcapraven-protocols` implements `DnsLimits`, `DnsLimitsBuilder`, and `parse_dns_packet`.
+- Candidate classification handles UDP and TCP port 53; non-candidate packets and candidate packets without application
+  payload are handled safely and deterministically.
+- TCP framing decodes 2-byte length prefixes and processes multiple framed messages per packet without cross-packet reassembly.
+- Compression decompression enforces the strict backward-pointer rule (`target_offset < pointer_location_offset`),
+  preventing self-loops, cycles, and forward pointers, with pointer hops capped by `maximum_name_pointer_hops`.
+- Decodes A (IPv4), AAAA (IPv6), CNAME, NS, PTR, MX, and EDNS(0) OPT pseudo-records with extended RCODE and DO bit.
+- CLI adds `pcapraven dns <capture>` with streaming execution and immediate observation row rendering.
+- Exit codes for `dns`: `0` (complete), `1` (fatal failure before useful result), `2` (usage/config error), `3` (useful partial result).
+- Synthetic micro-fixtures with documentation, unit tests, proptests, and `fuzz_dns_parser` are added and pass.
+- HTTP/1.x (Phase 8), TLS (Phase 9), threat detection, and reporting remain strictly future work.
 
