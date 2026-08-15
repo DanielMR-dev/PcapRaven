@@ -148,4 +148,30 @@ Phase 5 implements checked flow traffic statistics and exact rational temporal m
 - No new production dependencies are added (`proptest` remains dev-only).
 - Comprehensive unit, boundary, lifecycle, property, and strengthened fuzzing tests pass.
 - Application decoders (DNS/HTTP/TLS), CLI commands, threat detection, and reporting remain
-  future roadmap phases.
+  future roadmap phases. That historical gate is superseded by the current Phase 6 gate below.
+
+## Phase 6 Gate
+
+Phase 6 implements the initial functional command-line interface and streaming capture/flow inspection.
+- Phase 5.1 hardening is complete: `FlowDuration::cmp` is exact, total, and panic/overflow-free for all valid
+  public fractions; all production `expect()` paths in `FlowReconstructor` are removed and replaced with
+  structured invariant errors without sacrificing `observe()` transactionality.
+- Implements exactly `pcapraven validate <capture>` and `pcapraven flows <capture>`.
+- Root `--help` and `--version` are functional and do not advertise future subcommands (`analyze`, `dns`,
+  `http`, `tls`, `findings`).
+- Bounded streaming capture reader orchestration; zero whole-capture `CaptureRecord` bulk accumulation.
+- `flows` streams reader -> normalization -> flow reconstruction -> immediate closed `FlowRecord` output.
+- Truthful finalization: clean EOF yields `FlowEndReason::EndOfInput`; early/abnormal termination yields
+  `FlowEndReason::AnalysisStopped` via `finish_partial()`.
+- Exact exit codes: `0` (complete), `1` (fatal failure before useful result), `2` (usage/configuration error),
+  `3` (useful partial result).
+- Strict separation: stdout is result-only, stderr is diagnostics/errors only.
+- Zero ANSI styling/color.
+- Stderr diagnostics bounded by display budget (default 100 lines) with suppression summary unless `--quiet`.
+- `--quiet` suppresses nonfatal stderr diagnostics without altering exit codes, stdout results, or fatal errors.
+- CLI arguments/limits validated through existing library builder APIs.
+- Audited `clap = "=4.6.4"` minimal dependency (`default-features = false`, features: `std`, `help`, `usage`, `error-context`).
+- Architecture checker updated and verified for Phase 6.
+- Cross-platform integration tests in `crates/pcapraven-cli/tests/cli.rs` pass.
+- Application decoders (DNS/HTTP/TLS), threat detection, formal reporting, and output files remain strictly future work.
+

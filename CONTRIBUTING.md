@@ -2,12 +2,11 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are complete. Phase 5
-contributions implemented checked flow traffic statistics and exact rational temporal
-metrics in `pcapraven-flows` and capture-independent flow metric domain representations
-in `pcapraven-domain`. Do not add application protocol decoding (DNS/HTTP/TLS), threat
-detection, reporting, or functional CLI commands until their respective roadmap phases
-begin. Phase 6 (functional CLI) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 are complete. Phase 6
+contributions implemented the initial functional CLI with streaming capture validation
+(`validate`) and flow inspection (`flows`) in `pcapraven-cli`. Do not add application
+protocol decoding (DNS/HTTP/TLS), threat detection, reporting, or advanced CLI commands
+until their respective roadmap phases begin. Phase 7 (application protocol decoders) is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -51,11 +50,11 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 5 validation uses the reader, normalizer, and flow reconstruction tests,
-baseline quality commands, fuzz-target builds, and architecture checker described in
-[Testing](docs/TESTING.md#phase-5-quality-gates). The pinned development
+Phase 6 validation uses the reader, normalizer, flow reconstruction, and CLI
+integration tests, baseline quality commands, fuzz-target builds, and architecture checker
+described in [Testing](docs/TESTING.md#phase-6-quality-gates). The pinned development
 toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
-the CLI binary emits no output.
+the CLI orchestrates streaming execution and human inspection output.
 
 The baseline gates are formatting, Clippy with warnings denied, workspace tests,
 documentation generation, Cargo metadata, and the architecture checker. Locked

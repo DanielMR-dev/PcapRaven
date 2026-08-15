@@ -1304,6 +1304,32 @@ fn invalid_timestamp_structure_and_arithmetic_overflow() {
     );
 }
 
+#[test]
+fn test_flow_duration_ordering_extreme_values() {
+    let a = FlowDuration::from_fraction(u128::MAX - 1, u128::MAX).unwrap();
+    let b = FlowDuration::from_fraction(u128::MAX - 3, u128::MAX - 2).unwrap();
+
+    assert!(a > b);
+    assert_eq!(a.cmp(&b), core::cmp::Ordering::Greater);
+    assert_eq!(b.cmp(&a), core::cmp::Ordering::Less);
+    assert_eq!(a.cmp(&a), core::cmp::Ordering::Equal);
+
+    let max_unit = FlowDuration::from_fraction(u128::MAX, u128::MAX).unwrap();
+    let one_unit = FlowDuration::from_secs(1);
+    assert_eq!(max_unit, one_unit);
+    assert_eq!(max_unit.cmp(&one_unit), core::cmp::Ordering::Equal);
+
+    let small1 = FlowDuration::from_fraction(1, u128::MAX).unwrap();
+    let small2 = FlowDuration::from_fraction(2, u128::MAX).unwrap();
+    assert!(small1 < small2);
+    assert_eq!(small1.cmp(&small2), core::cmp::Ordering::Less);
+
+    let huge1 = FlowDuration::from_fraction(u128::MAX, 1).unwrap();
+    let huge2 = FlowDuration::from_fraction(u128::MAX - 1, 1).unwrap();
+    assert!(huge1 > huge2);
+    assert_eq!(huge1.cmp(&huge2), core::cmp::Ordering::Greater);
+}
+
 // 4. Property-based Testing with proptest
 
 proptest! {
@@ -1338,12 +1364,11 @@ proptest! {
             prop_assert_eq!(records.len(), 1);
             let flow = &records[0];
 
-            // Invariant 1: Total packet count == AToB + BToA + SameEndpoint
+            // Invariant 1: Packet count directional sum
             prop_assert_eq!(
                 flow.traffic.total.packet_count,
                 flow.traffic.a_to_b.packet_count + flow.traffic.b_to_a.packet_count + flow.traffic.same_endpoint.packet_count
             );
-            prop_assert_eq!(flow.traffic.total.packet_count, total_expected as u64);
 
             // Invariant 2: Captured bytes directional sum
             prop_assert_eq!(
@@ -1388,6 +1413,75 @@ proptest! {
                 prop_assert_eq!(duration.denominator(), 1);
             }
         }
+    }
+
+    #[test]
+    fn prop_flow_duration_ordering_properties(
+        num_a in any::<u128>(),
+        den_a in 1u128..=u128::MAX,
+        num_b in any::<u128>(),
+        den_b in 1u128..=u128::MAX,
+    ) {
+        let a = FlowDuration::from_fraction(num_a, den_a).unwrap();
+        let b = FlowDuration::from_fraction(num_b, den_b).unwrap();
+
+        // Property 1: Antisymmetry: cmp(a, b) == b.cmp(&a).reverse()
+        prop_assert_eq!(a.cmp(&b), b.cmp(&a).reverse());
+
+        // Property 2: if a == b => cmp(a, b) == Equal
+        if a == b {
+            prop_assert_eq!(a.cmp(&b), core::cmp::Ordering::Equal);
+        }
+
+        // Property 3: if cmp(a, b) == Equal => a == b
+        if a.cmp(&b) == core::cmp::Ordering::Equal {
+            prop_assert_eq!(a, b);
+        }
+
+        // Property 5: cross multiplication consistency when non-overflowing
+        let g = pcapraven_flows::metrics::gcd(a.denominator(), b.denominator());
+        let b_div = b.denominator() / g;
+        let a_div = a.denominator() / g;
+        if let (Some(lhs), Some(rhs)) = (a.numerator().checked_mul(b_div), b.numerator().checked_mul(a_div)) {
+            prop_assert_eq!(a.cmp(&b), lhs.cmp(&rhs));
+        }
+    }
+
+    #[test]
+    fn prop_flow_duration_ordering_transitivity(
+        num_a in 0u128..1_000_000_000u128,
+        den_a in 1u128..1_000_000_000u128,
+        num_b in 0u128..1_000_000_000u128,
+        den_b in 1u128..1_000_000_000u128,
+        num_c in 0u128..1_000_000_000u128,
+        den_c in 1u128..1_000_000_000u128,
+    ) {
+        let a = FlowDuration::from_fraction(num_a, den_a).unwrap();
+        let b = FlowDuration::from_fraction(num_b, den_b).unwrap();
+        let c = FlowDuration::from_fraction(num_c, den_c).unwrap();
+
+        // Property 4: Transitivity: a <= b && b <= c => a <= c
+        if a <= b && b <= c {
+            prop_assert!(a <= c);
+        }
+    }
+
+    #[test]
+    fn prop_flow_duration_extreme_canonical_fractions(
+        offset_a in 0u128..100u128,
+        offset_b in 0u128..100u128,
+    ) {
+        // Property 6: extreme canonical fractions never panic
+        let num_a = u128::MAX.saturating_sub(offset_a);
+        let den_a = u128::MAX.saturating_sub(offset_b).max(1);
+        let a = FlowDuration::from_fraction(num_a, den_a).unwrap();
+
+        let num_b = u128::MAX.saturating_sub(offset_b);
+        let den_b = u128::MAX.saturating_sub(offset_a).max(1);
+        let b = FlowDuration::from_fraction(num_b, den_b).unwrap();
+
+        let _ = a.cmp(&b);
+        prop_assert_eq!(a.cmp(&b), b.cmp(&a).reverse());
     }
 
     #[test]

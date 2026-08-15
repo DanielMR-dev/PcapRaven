@@ -113,7 +113,7 @@ within a defined lifecycle. The implemented Phase 4 domain types include:
 - `FlowDirection`: relative packet direction (`AToB`, `BToA`, or `SameEndpoint`).
 - `FlowReference`: zero-based monotonic flow instance ordinal distinguishing sequential reuse.
 - `FlowPacketAssociation`: compact reference association (`flow`, `packet`, `direction`).
-- `FlowEndReason`: lifecycle closure reason (`EndOfInput`, `IdleTimeout`, `TcpReset`, `TcpNewInitialSyn`).
+- `FlowEndReason`: lifecycle closure reason (`EndOfInput`, `IdleTimeout`, `TcpReset`, `TcpNewInitialSyn`, `AnalysisStopped`).
 - `FlowRecord`: completed record (`reference`, `key`, `first_packet`, `last_packet`, `end_reason`, `traffic`, `temporal`).
 
 ### Phase 5 Flow Traffic Statistics and Exact Temporal Metrics

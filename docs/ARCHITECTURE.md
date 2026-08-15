@@ -4,13 +4,14 @@
 
 Phase 0 product and architecture definition, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion, Phase 3 packet normalization, Phase 4
-bidirectional flow reconstruction, and Phase 5 checked flow statistics and exact
-temporal metrics are complete. `pcapraven-domain` defines normalized packet, flow,
+bidirectional flow reconstruction, Phase 5 checked flow statistics and exact
+temporal metrics, and Phase 6 initial functional CLI with streaming capture and
+flow inspection are complete. `pcapraven-domain` defines normalized packet, flow,
 statistics, and temporal models, `pcapraven-pcap` provides capture ingestion,
-`pcapraven-protocols` provides packet normalization, and `pcapraven-flows`
+`pcapraven-protocols` provides packet normalization, `pcapraven-flows`
 provides stateful flow reconstruction, traffic statistics, and exact rational
-temporal metrics. Phase 6 functional CLI commands, application decoders
-(DNS/HTTP/TLS), threat detection, and reporting remain future work.
+temporal metrics, and `pcapraven-cli` provides the initial functional CLI.
+Phase 7 application decoders (DNS/HTTP/TLS), threat detection, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -178,6 +179,34 @@ and exact rational temporal metric calculations:
   packet ordinals, and allocated references completely unmodified.
 
 Phase 5 adds no new production dependencies; `proptest = 1.11.0` remains dev-only.
+
+## Phase 6 Initial Functional CLI and Streaming Orchestration Boundary
+
+`pcapraven-cli` provides the binary orchestration layer for streaming capture validation
+and flow inspection:
+
+- **Implemented Commands:** Implements `pcapraven validate <capture>` and
+  `pcapraven flows <capture>`. Future subcommands (`analyze`, `dns`, `http`, `tls`, `findings`)
+  remain unimplemented and are not advertised in `--help`.
+- **Streaming Pipeline:** Incremental record streaming connects `CaptureReader::next_record()`
+  to `normalize_packet()` to `FlowReconstructor::observe()`. Emits closed `FlowRecord` rows
+  immediately without whole-capture packet retention.
+- **Truthful Finalization:** Clean end-of-input finalizes remaining flows with
+  `FlowEndReason::EndOfInput` via `finish()`; early/abnormal stop finalizes with
+  `FlowEndReason::AnalysisStopped` via `finish_partial()`.
+- **Exit Code Contract:** Exactly defines:
+  - `0`: Successful complete command execution.
+  - `1`: Fatal input, I/O, or analysis failure before any useful result was produced.
+  - `2`: Usage or configuration error.
+  - `3`: Useful result produced, but analysis/validation was partial.
+- **Stream Separation:** `stdout` is reserved strictly for requested factual results (validation
+  summary or flow table). `stderr` is reserved for diagnostics and fatal errors. Zero ANSI color.
+- **Bounded Diagnostics:** Stderr nonfatal diagnostics are capped at 100 lines default, followed
+  by a single suppression summary line unless `--quiet`.
+- **Presentation Exception:** Prior to Phase 16 formal reporting, `pcapraven-cli` implements minimal
+  factual table rendering for human stdout inspection.
+- **Audited Dependency:** Adds `clap = "=4.6.4"` with `default-features = false` and features
+  `["std", "help", "usage", "error-context"]`.
 
 ## Crate Responsibilities
 

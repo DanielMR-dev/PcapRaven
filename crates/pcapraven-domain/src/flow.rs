@@ -283,7 +283,7 @@ impl FlowPacketAssociation {
 /// Reason for closing an active flow instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FlowEndReason {
-    /// Capture input ended while flow was active.
+    /// Capture input ended cleanly while flow was active.
     EndOfInput,
     /// Reliable timestamp difference exceeded configured idle timeout.
     IdleTimeout,
@@ -291,6 +291,8 @@ pub enum FlowEndReason {
     TcpReset,
     /// A new initial TCP SYN packet (SYN=1, ACK=0) was observed after activity.
     TcpNewInitialSyn,
+    /// Analysis stopped before a clean end-of-input boundary while flow was active.
+    AnalysisStopped,
 }
 
 impl FlowEndReason {
@@ -302,6 +304,7 @@ impl FlowEndReason {
             Self::IdleTimeout => "IdleTimeout",
             Self::TcpReset => "TcpReset",
             Self::TcpNewInitialSyn => "TcpNewInitialSyn",
+            Self::AnalysisStopped => "AnalysisStopped",
         }
     }
 }

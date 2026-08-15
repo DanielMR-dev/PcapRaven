@@ -1354,6 +1354,68 @@ fn unsupported_transport_classification_regression() {
     );
 }
 
+#[test]
+fn test_finish_vs_finish_partial() {
+    let mut reconstructor_clean =
+        FlowReconstructor::new(FlowReconstructionConfig::default()).unwrap();
+    let mut reconstructor_partial =
+        FlowReconstructor::new(FlowReconstructionConfig::default()).unwrap();
+
+    let p1 = make_ipv4_udp_packet(
+        0,
+        make_timestamp_dec(100, 0, 0),
+        [10, 0, 0, 1],
+        [10, 0, 0, 2],
+        5353,
+        5353,
+        None,
+    );
+    let p2 = make_ipv4_tcp_packet(
+        1,
+        make_timestamp_dec(101, 0, 0),
+        [192, 168, 1, 10],
+        [192, 168, 1, 1],
+        4433,
+        443,
+        TcpFlags {
+            syn: true,
+            ack: false,
+            rst: false,
+            fin: false,
+            ..Default::default()
+        },
+        None,
+    );
+
+    reconstructor_clean.observe(&p1).unwrap();
+    reconstructor_clean.observe(&p2).unwrap();
+
+    reconstructor_partial.observe(&p1).unwrap();
+    reconstructor_partial.observe(&p2).unwrap();
+
+    let clean_records = reconstructor_clean.finish();
+    let partial_records = reconstructor_partial.finish_partial();
+
+    assert_eq!(clean_records.len(), 2);
+    assert_eq!(partial_records.len(), 2);
+
+    for (clean, partial) in clean_records.iter().zip(partial_records.iter()) {
+        assert_eq!(clean.reference, partial.reference);
+        assert_eq!(clean.key, partial.key);
+        assert_eq!(clean.first_packet, partial.first_packet);
+        assert_eq!(clean.last_packet, partial.last_packet);
+        assert_eq!(clean.traffic, partial.traffic);
+        assert_eq!(clean.temporal, partial.temporal);
+
+        assert_eq!(clean.end_reason, FlowEndReason::EndOfInput);
+        assert_eq!(partial.end_reason, FlowEndReason::AnalysisStopped);
+    }
+
+    // Calling finish/finish_partial again returns empty because active flows were drained
+    assert!(reconstructor_clean.finish().is_empty());
+    assert!(reconstructor_partial.finish_partial().is_empty());
+}
+
 // 7. Property-based Testing with proptest
 
 proptest! {
