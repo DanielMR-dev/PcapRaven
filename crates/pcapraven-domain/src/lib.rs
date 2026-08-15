@@ -4,10 +4,17 @@
 //! and result concepts. It does not perform capture reading, protocol parsing,
 //! flow reconstruction algorithms, detection, reporting, or CLI orchestration.
 
+pub mod dns;
 pub mod flow;
 pub mod flow_metrics;
 pub mod packet;
 
+pub use dns::{
+    DnsDiagnostic, DnsDiagnosticKind, DnsEdnsMetadata, DnsEdnsOptionMetadata, DnsFlags,
+    DnsMessageKind, DnsName, DnsObservation, DnsObservationCompleteness, DnsQuestion,
+    DnsRdataMetadata, DnsResourceRecord, DnsSection, DnsTransport, MAX_DNS_LABEL_LENGTH,
+    MAX_DNS_NAME_WIRE_LENGTH,
+};
 pub use flow::{
     FlowDirection, FlowEndReason, FlowEndpoint, FlowKey, FlowPacketAssociation, FlowRecord,
     FlowReference, TransportProtocol,

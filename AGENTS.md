@@ -26,13 +26,13 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 6. Phase 0 product and
+The accepted repository phase for this branch is Phase 7. Phase 0 product and
 governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
 Phase 3 packet normalization work, Phase 4 flow reconstruction, Phase 5
 checked flow statistics and exact temporal metrics, and Phase 6 initial
 functional CLI with streaming capture and flow inspection are complete. Phase 7
-application decoders (DNS, HTTP, TLS) and all later capabilities remain out of scope until
-their roadmap gates are accepted.
+covers DNS protocol analysis. Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata),
+and all later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 
@@ -170,7 +170,7 @@ product finding severity in `docs/DETECTION_MODEL.md`.
 Use the `phase-validation` skill before declaring a phase complete. For parser
 changes, also use `secure-parser-review`; for Rust changes, use `rust-quality`;
 for flow reconstruction, use `flow-reconstruction`; for traffic metrics, use
-`flow-statistics`; for CLI orchestration, use `cli-contract`.
+`flow-statistics`; for DNS analysis, use `dns-protocol-analysis`; for CLI orchestration, use `cli-contract`.
 Inspect every changed or created file, verify referenced paths, and confirm the
 repository contains no out-of-phase artifacts.
 

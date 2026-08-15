@@ -159,3 +159,208 @@ pub fn render_flow_row(flow: &FlowRecord, w: &mut impl Write) -> io::Result<()> 
         flow.end_reason.as_str(),
     )
 }
+
+/// Renders the DNS inspection table column header to the provided writer.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_dns_table_header(w: &mut impl Write) -> io::Result<()> {
+    writeln!(
+        w,
+        "{:<6} {:<5} {:<21} {:<21} {:>5} {:<8} {:>6} {:>5} {:>3} {:>3} {:>3} {:>3} {:<30} {:<6} {:<4}",
+        "PKT",
+        "XPORT",
+        "SRC",
+        "DST",
+        "ID",
+        "KIND",
+        "OPCODE",
+        "RCODE",
+        "QD",
+        "AN",
+        "NS",
+        "AR",
+        "QNAME",
+        "QTYPE",
+        "EDNS"
+    )
+}
+
+/// Renders a single factual DNS observation row to the provided writer.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_dns_row(
+    obs: &pcapraven_domain::DnsObservation,
+    w: &mut impl Write,
+) -> io::Result<()> {
+    let src = format!("{}:{}", obs.source_ip, obs.source_port);
+    let dst = format!("{}:{}", obs.destination_ip, obs.destination_port);
+    let kind = obs.message_kind.as_str();
+
+    let (qname, qtype) = if let Some(first_q) = obs.questions.first() {
+        let name_str = if obs.questions.len() > 1 {
+            format!(
+                "{}(+{})",
+                first_q.name.display_escaped(),
+                obs.questions.len().saturating_sub(1)
+            )
+        } else {
+            first_q.name.display_escaped()
+        };
+        let type_str = pcapraven_domain::DnsQuestion::qtype_name(first_q.qtype);
+        (name_str, type_str)
+    } else {
+        ("-".to_string(), "-")
+    };
+
+    let edns_str = if obs.edns.is_some() { "yes" } else { "no" };
+
+    writeln!(
+        w,
+        "{:<6} {:<5} {:<21} {:<21} {:>5} {:<8} {:>6} {:>5} {:>3} {:>3} {:>3} {:>3} {:<30} {:<6} {:<4}",
+        obs.packet.capture_record_ordinal,
+        obs.transport.as_str(),
+        src,
+        dst,
+        obs.transaction_id,
+        kind,
+        obs.opcode,
+        obs.effective_response_code,
+        obs.declared_qdcount,
+        obs.declared_ancount,
+        obs.declared_nscount,
+        obs.declared_arcount,
+        qname,
+        qtype,
+        edns_str,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pcapraven_domain::{
+        FlowDuration, FlowEndReason, FlowEndpoint, FlowInterArrivalMetrics, FlowKey, FlowRecord,
+        FlowReference, FlowTemporalMetrics, FlowTemporalUnavailableReason, FlowTemporalValue,
+        FlowTimestampCoverage, FlowTrafficCounters, FlowTrafficStatistics, IpAddress,
+        PacketReference, PacketTimestamp, TransportProtocol,
+    };
+    use pcapraven_pcap::{CaptureCompletion, CaptureFormat, CaptureMetadata, CaptureReadOutcome};
+    use std::io::{self, Write};
+
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(io::ErrorKind::BrokenPipe, "broken pipe"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::new(io::ErrorKind::BrokenPipe, "broken pipe"))
+        }
+    }
+
+    #[test]
+    fn test_render_validate_summary_propagates_writer_error() {
+        let outcome = CaptureReadOutcome {
+            metadata: CaptureMetadata {
+                format: CaptureFormat::Unknown,
+                legacy: None,
+                sections: Vec::new(),
+            },
+            records: Vec::new(),
+            diagnostics: Vec::new(),
+            completion: CaptureCompletion::Complete,
+        };
+        let mut writer = FailingWriter;
+        assert!(render_validate_summary(&outcome, 0, &mut writer).is_err());
+    }
+
+    #[test]
+    fn test_render_flow_table_header_propagates_writer_error() {
+        let mut writer = FailingWriter;
+        assert!(render_flow_table_header(&mut writer).is_err());
+    }
+
+    #[test]
+    fn test_render_flow_row_propagates_writer_error() {
+        let key = FlowKey::new(
+            TransportProtocol::Udp,
+            FlowEndpoint::new(IpAddress::Ipv4([10, 0, 0, 1]), 1000),
+            FlowEndpoint::new(IpAddress::Ipv4([10, 0, 0, 2]), 2000),
+        );
+        let counters = FlowTrafficCounters::default();
+        let pkt_ref = PacketReference::new(0, None, None, 64, 64, false);
+        let unavail =
+            FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+        let inter_arrival =
+            FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+        let flow = FlowRecord {
+            key,
+            reference: FlowReference::new(0),
+            first_packet: pkt_ref,
+            last_packet: pkt_ref,
+            traffic: FlowTrafficStatistics {
+                total: counters,
+                a_to_b: counters,
+                b_to_a: counters,
+                same_endpoint: counters,
+            },
+            temporal: FlowTemporalMetrics {
+                first_packet_timestamp: PacketTimestamp::Unavailable,
+                last_packet_timestamp: PacketTimestamp::Unavailable,
+                duration: FlowTemporalValue::Available(FlowDuration::from_fraction(0, 1).unwrap()),
+                coverage: FlowTimestampCoverage::default(),
+                overall_inter_arrival: inter_arrival.clone(),
+                a_to_b_inter_arrival: inter_arrival.clone(),
+                b_to_a_inter_arrival: inter_arrival.clone(),
+                same_endpoint_inter_arrival: inter_arrival,
+            },
+            end_reason: FlowEndReason::EndOfInput,
+        };
+        let mut writer = FailingWriter;
+        assert!(render_flow_row(&flow, &mut writer).is_err());
+    }
+
+    #[test]
+    fn test_render_dns_table_header_propagates_writer_error() {
+        let mut writer = FailingWriter;
+        assert!(render_dns_table_header(&mut writer).is_err());
+    }
+
+    #[test]
+    fn test_render_dns_row_propagates_writer_error() {
+        use pcapraven_domain::{
+            DnsFlags, DnsMessageKind, DnsName, DnsObservation, DnsObservationCompleteness,
+            DnsQuestion, DnsTransport,
+        };
+
+        let obs = DnsObservation {
+            packet: PacketReference::new(0, None, None, 64, 64, false),
+            timestamp: PacketTimestamp::Unavailable,
+            transport: DnsTransport::Udp,
+            source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
+            source_port: 53535,
+            destination_ip: IpAddress::Ipv4([8, 8, 8, 8]),
+            destination_port: 53,
+            transaction_id: 0x1234,
+            message_kind: DnsMessageKind::Query,
+            opcode: 0,
+            response_code: 0,
+            effective_response_code: 0,
+            flags: DnsFlags::default(),
+            declared_qdcount: 1,
+            declared_ancount: 0,
+            declared_nscount: 0,
+            declared_arcount: 0,
+            questions: vec![DnsQuestion::new(DnsName::root(), 1, 1)],
+            records: Vec::new(),
+            edns: None,
+            completeness: DnsObservationCompleteness::Complete,
+        };
+
+        let mut writer = FailingWriter;
+        assert!(render_dns_row(&obs, &mut writer).is_err());
+    }
+}

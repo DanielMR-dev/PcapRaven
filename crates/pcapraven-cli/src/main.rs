@@ -12,7 +12,9 @@ fn main() -> ExitCode {
     match args::parse_args(raw_args) {
         Ok(parsed_args) => app::run(parsed_args),
         Err(err) => {
-            let _ = err.print();
+            if err.print().is_err() {
+                return ExitCode::from(1);
+            }
             match err.kind() {
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
                     ExitCode::SUCCESS

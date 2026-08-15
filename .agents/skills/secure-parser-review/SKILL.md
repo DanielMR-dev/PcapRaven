@@ -9,10 +9,10 @@ description: Use for PcapRaven capture or protocol parser design and changes inv
 
 1. Read `AGENTS.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_MODEL.md`,
    `docs/SECURITY_MODEL.md`, `docs/TESTING.md`, and the current roadmap phase.
-2. Confirm parser implementation is allowed. Phase 2 capture parsing and Phase 3
-   packet normalization are accepted; flow reconstruction and statistics do not
-   authorize new protocol parsers; application decoding begins only with its
-   dedicated roadmap phases.
+2. Confirm parser implementation is allowed. Phase 2 capture parsing, Phase 3
+   packet normalization, and Phase 7 DNS protocol analysis are accepted.
+   HTTP (Phase 8) and TLS (Phase 9) remain out of scope. Use the
+   `dns-protocol-analysis` skill for DNS parser changes.
 3. Identify each attacker-controlled length, count, offset, text value, nesting
    level, and loop bound.
 

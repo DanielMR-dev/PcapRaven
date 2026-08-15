@@ -6,7 +6,7 @@ Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 are complete. 
 contributions implemented the initial functional CLI with streaming capture validation
 (`validate`) and flow inspection (`flows`) in `pcapraven-cli`. Do not add application
 protocol decoding (DNS/HTTP/TLS), threat detection, reporting, or advanced CLI commands
-until their respective roadmap phases begin. Phase 7 (application protocol decoders) is next.
+until their respective roadmap phases begin. Phase 7 (DNS protocol analysis) is current.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.

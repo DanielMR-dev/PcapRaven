@@ -8,8 +8,9 @@ contains a bounded library-only PCAP/PCAPNG container reader in
 `pcapraven-pcap`. Phase 3 adds bounded Ethernet, IPv4/IPv6, and TCP/UDP packet
 normalization in `pcapraven-protocols`. Phase 4 adds deterministic bidirectional
 flow reconstruction, Phase 5 adds checked flow traffic statistics and exact
-rational temporal metrics in `pcapraven-flows`, and Phase 6 adds initial functional
-CLI orchestration (`validate` and `flows`) in `pcapraven-cli`.
+rational temporal metrics in `pcapraven-flows`, Phase 6 adds initial functional
+CLI orchestration (`validate` and `flows`) in `pcapraven-cli`, and Phase 7 adds
+bounded DNS protocol analysis and DNS inspection (`pcapraven dns`).
 
 ## Assets
 
@@ -191,7 +192,7 @@ expand the attack surface.
 - `pcapraven-flows`: zero third-party production dependencies.
 - `clap = "=4.6.4"` (in `pcapraven-cli`): normal dependency, `default-features = false`,
   features `["std", "help", "usage", "error-context"]`. Audited transitive tree:
-  `clap_builder 4.6.2`, `clap_lex 1.1.0`, `anstyle 1.0.14`. MIT/Apache-2.0, MSRV 1.74.
+  `clap_builder 4.6.2`, `clap_lex 1.1.0`, `anstyle 1.0.14`. MIT/Apache-2.0, MSRV 1.85.
 - `proptest = 1.11.0`: dev-only in test targets, `std` feature only. MIT/Apache-2.0, MSRV 1.85.
 - `libfuzzer-sys = 0.4.13`: separate `fuzz/` package only.
 

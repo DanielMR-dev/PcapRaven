@@ -11,7 +11,7 @@ statistics, and temporal models, `pcapraven-pcap` provides capture ingestion,
 `pcapraven-protocols` provides packet normalization, `pcapraven-flows`
 provides stateful flow reconstruction, traffic statistics, and exact rational
 temporal metrics, and `pcapraven-cli` provides the initial functional CLI.
-Phase 7 application decoders (DNS/HTTP/TLS), threat detection, and reporting remain future work.
+Phase 7 covers DNS protocol analysis. Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), threat detection, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -56,7 +56,7 @@ intentionally newer than the declared MSRV. The only dependencies are the
 documented path edges below and the audited external dependencies. Every member
 opts into the workspace lint policy, which forbids project `unsafe` code by default.
 
-The source files for detection, reporting, and CLI packages remain
+The source files for detection and reporting packages remain
 compile-only documentation skeletons. They do not define business behavior or
 implement analysis.
 
@@ -208,6 +208,29 @@ and flow inspection:
 - **Audited Dependency:** Adds `clap = "=4.6.4"` with `default-features = false` and features
   `["std", "help", "usage", "error-context"]`.
 
+## Phase 7 DNS Protocol Analysis Boundary
+
+`pcapraven-protocols` derives bounded DNS observations from normalized packet transport
+data (`NormalizedPacket`), and `pcapraven-domain` defines the capture-independent DNS models:
+
+- **DNS Domain Models:** `pcapraven-domain` defines `DnsTransport`, `DnsMessageKind`, `DnsFlags`,
+  `DnsName`, `DnsQuestion`, `DnsSection`, `DnsRdataMetadata`, `DnsResourceRecord`, `DnsEdnsOptionMetadata`,
+  `DnsEdnsMetadata`, `DnsObservationCompleteness`, `DnsObservation`, `DnsDiagnosticKind`, and `DnsDiagnostic`.
+- **Domain Name Invariants:** `DnsName` preserves raw wire label bytes with RFC 1035 bounds
+  (label length $\le 63$, expanded wire length $\le 255$) and provides terminal-safe `display_escaped()`
+  rendering (`\DDD` notation) preventing ANSI escape code injection.
+- **Candidate Selection:** Transparent candidate classification on UDP and TCP port 53.
+- **Decompression Invariants:** Enforces strict backward-only pointer rules (`target_offset < pointer_location_offset`),
+  eliminating compression self-loops, cycle recursion, and forward pointers. Pointer traversal is bounded by
+  `maximum_name_pointer_hops`.
+- **Framing:** UDP single message processing and TCP 2-byte length-prefixed framing up to `maximum_messages_per_packet`
+  without cross-packet TCP stream reassembly.
+- **Record Decoding:** Decodes standard RR types (A, AAAA, CNAME, NS, PTR, MX) with strict RDLENGTH validation
+  and extracts EDNS(0) OPT pseudo-record metadata (UDP size, extended RCODE, DO bit, bounded option TLVs).
+- **CLI Inspection:** `pcapraven dns <capture>` streams capture reading and immediately renders factual
+  inspection tables to stdout with exact exit codes (0, 1, 2, 3).
+- **Zero Production Dependencies:** Implemented with safe Rust and `std`; `proptest = 1.11.0` is dev-only.
+
 ## Crate Responsibilities
 
 The crates have the following responsibilities:
@@ -238,10 +261,11 @@ threats; format reports; or interact with users.
 ### `pcapraven-protocols`
 
 Owns normalization of supported network and application protocol data. Normalizes
-Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations. Future phases
-will derive DNS, HTTP/1.x, and TLS handshake observations from normalized data. It
-does not read capture container files, reconstruct global flow state, assign
-security findings, serialize reports, or implement CLI behavior.
+Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations, and parses bounded
+DNS wire messages into normalized DNS observations. Future phases will derive HTTP/1.x
+and TLS handshake observations from normalized data. It does not read capture container
+files, reconstruct global flow state, assign security findings, serialize reports, or
+implement CLI behavior.
 
 ### `pcapraven-flows`
 

@@ -182,3 +182,6 @@ jobs:
 
       - name: Build bounded flow reconstructor fuzz target
         run: cargo +nightly fuzz build fuzz_flow_reconstructor
+
+      - name: Build bounded DNS parser fuzz target
+        run: cargo +nightly fuzz build fuzz_dns_parser

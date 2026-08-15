@@ -9,9 +9,9 @@ Phase 0 product definition and engineering foundation, Phase 1 workspace
 tooling, Phase 2 capture reader, Phase 3 packet normalization, Phase 4
 bidirectional flow reconstruction, Phase 5 flow statistics and exact
 temporal metrics, and Phase 6 initial functional CLI with streaming
-capture and flow inspection are complete. Application decoders (DNS, HTTP, TLS),
-threat detection heuristics, and advanced reporting remain targets for later
-roadmap phases.
+capture and flow inspection are complete. Phase 7 DNS protocol analysis is
+current. Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), threat detection
+heuristics, and advanced reporting remain targets for later roadmap phases.
 
 ## Problem Statement
 
@@ -103,6 +103,7 @@ The initial functional CLI is implemented in `pcapraven-cli` and provides:
 ```text
 pcapraven validate <capture> [--max-records <N>]
 pcapraven flows <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>]
+pcapraven dns <capture> [--max-records <N>]
 pcapraven --help
 pcapraven --version
 pcapraven --quiet <subcommand> <capture>
@@ -114,6 +115,7 @@ pcapraven --quiet <subcommand> <capture>
 | --- | --- |
 | `validate` | Streams capture records through the safe reader, validating container integrity, sections, interfaces, linktypes, and timestamp resolutions. Emits factual summary to stdout. |
 | `flows` | Streams capture records through packet normalization and flow reconstruction, immediately emitting closed bidirectional flow records and factual traffic/temporal statistics to stdout in tabular format. |
+| `dns` | Streams capture records through packet normalization and DNS parser, immediately emitting normalized DNS observations to stdout in tabular format. |
 
 ### Implemented Exit Codes
 
@@ -124,13 +126,13 @@ pcapraven --quiet <subcommand> <capture>
 
 ### Implemented Stream Separation
 
-- `stdout`: Requested factual summary or flow table only. No ANSI color.
+- `stdout`: Requested factual summary or table only. No ANSI color.
 - `stderr`: Nonfatal diagnostics (budgeted to 100 lines default, suppressed summary unless `--quiet`) and fatal errors.
 
 ## Target v1 CLI Contract
 
 The expanded CLI described below is a target for later roadmap phases. Higher-level
-commands (`analyze`, `findings`), application decoders (`dns`, `http`, `tls`), and
+commands (`analyze`, `findings`), application decoders (`http`, `tls`), and
 machine-readable formats (`json`, `ndjson`, `csv`) are not yet implemented.
 
 ```text

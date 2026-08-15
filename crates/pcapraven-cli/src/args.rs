@@ -19,11 +19,22 @@ pub enum Subcommand {
     Validate(ValidateArgs),
     /// Reconstruct network flows and inspect traffic statistics.
     Flows(FlowsArgs),
+    /// Inspect normalized DNS observations.
+    Dns(DnsArgs),
 }
 
 /// Arguments for `pcapraven validate`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidateArgs {
+    /// Path to the local capture file.
+    pub capture_path: PathBuf,
+    /// Maximum capture records to process.
+    pub max_records: Option<u64>,
+}
+
+/// Arguments for `pcapraven dns`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsArgs {
     /// Path to the local capture file.
     pub capture_path: PathBuf,
     /// Maximum capture records to process.
@@ -127,6 +138,24 @@ pub fn build_cli() -> Command {
                         .help("UDP flow idle timeout in seconds"),
                 ),
         )
+        .subcommand(
+            Command::new("dns")
+                .about("Inspect normalized DNS observations.")
+                .arg(
+                    Arg::new("capture")
+                        .value_name("CAPTURE")
+                        .required(true)
+                        .index(1)
+                        .help("Path to the capture file"),
+                )
+                .arg(
+                    Arg::new("max-records")
+                        .long("max-records")
+                        .value_name("N")
+                        .value_parser(clap::value_parser!(u64))
+                        .help("Maximum capture records to process"),
+                ),
+        )
 }
 
 /// Parses command-line arguments into [`CliArgs`].
@@ -168,6 +197,16 @@ where
                 max_flow_instances,
                 tcp_idle_timeout,
                 udp_idle_timeout,
+            })
+        }
+        Some(("dns", sub_m)) => {
+            let capture_str = sub_m
+                .get_one::<String>("capture")
+                .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument))?;
+            let max_records = sub_m.get_one::<u64>("max-records").copied();
+            Subcommand::Dns(DnsArgs {
+                capture_path: PathBuf::from(capture_str),
+                max_records,
             })
         }
         _ => {
