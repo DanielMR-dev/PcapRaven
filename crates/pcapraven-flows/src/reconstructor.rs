@@ -273,10 +273,12 @@ impl FlowReconstructor {
                 } else {
                     FlowEndReason::TcpNewInitialSyn
                 };
-                let closed_active = self
-                    .active_flows
-                    .remove(&flow_key)
-                    .expect("active flow key confirmed");
+                let closed_active =
+                    self.active_flows
+                        .remove(&flow_key)
+                        .ok_or(FlowError::InternalInvariant {
+                            detail: "active flow key missing during lifecycle transition",
+                        })?;
                 let closed_record = FlowRecord::new(
                     closed_active.reference,
                     closed_active.key,
@@ -331,10 +333,12 @@ impl FlowReconstructor {
             }
 
             // Packet belongs to existing active flow instance
-            let active = self
-                .active_flows
-                .get_mut(&flow_key)
-                .expect("active flow key confirmed");
+            let active =
+                self.active_flows
+                    .get_mut(&flow_key)
+                    .ok_or(FlowError::InternalInvariant {
+                        detail: "active flow key missing during active update",
+                    })?;
 
             // Update traffic and temporal accumulators (preflights checked arithmetic)
             active.traffic.observe(direction, &packet.reference)?;
@@ -359,10 +363,12 @@ impl FlowReconstructor {
 
             if is_rst {
                 // RST packet belongs to this flow, then terminates it immediately
-                let closed_active = self
-                    .active_flows
-                    .remove(&flow_key)
-                    .expect("active flow key confirmed");
+                let closed_active =
+                    self.active_flows
+                        .remove(&flow_key)
+                        .ok_or(FlowError::InternalInvariant {
+                            detail: "active flow key missing during RST termination",
+                        })?;
                 let closed_record = FlowRecord::new(
                     closed_active.reference,
                     closed_active.key,
@@ -456,11 +462,25 @@ impl FlowReconstructor {
         })
     }
 
-    /// Finalizes flow reconstruction at the end of input, closing all active flows.
+    /// Finalizes flow reconstruction at the clean end of input, closing all active flows
+    /// with [`FlowEndReason::EndOfInput`].
     ///
     /// The returned flow records are deterministically ordered by their [`FlowReference`] ordinal.
     #[must_use]
     pub fn finish(&mut self) -> Vec<FlowRecord> {
+        self.drain_with_reason(FlowEndReason::EndOfInput)
+    }
+
+    /// Finalizes flow reconstruction when analysis stops before clean end-of-input,
+    /// closing all remaining active flows with [`FlowEndReason::AnalysisStopped`].
+    ///
+    /// The returned flow records are deterministically ordered by their [`FlowReference`] ordinal.
+    #[must_use]
+    pub fn finish_partial(&mut self) -> Vec<FlowRecord> {
+        self.drain_with_reason(FlowEndReason::AnalysisStopped)
+    }
+
+    fn drain_with_reason(&mut self, end_reason: FlowEndReason) -> Vec<FlowRecord> {
         let mut closed_flows = Vec::with_capacity(self.active_flows.len());
         for (_, active) in std::mem::take(&mut self.active_flows) {
             closed_flows.push(FlowRecord::new(
@@ -468,7 +488,7 @@ impl FlowReconstructor {
                 active.key,
                 active.first_packet,
                 active.last_packet,
-                FlowEndReason::EndOfInput,
+                end_reason,
                 active.traffic.finalize(),
                 active.temporal.finalize(),
             ));

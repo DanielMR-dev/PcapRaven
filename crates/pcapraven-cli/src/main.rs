@@ -1,6 +1,24 @@
-//! PcapRaven command-line binary skeleton.
-//!
-//! Phase 1 provides no arguments, commands, output, or analysis behavior. The
-//! binary exists only to verify the documented workspace boundary.
+//! PcapRaven command-line interface entry point.
 
-fn main() {}
+mod app;
+mod args;
+mod diagnostics;
+mod output;
+
+use std::process::ExitCode;
+
+fn main() -> ExitCode {
+    let raw_args = std::env::args_os();
+    match args::parse_args(raw_args) {
+        Ok(parsed_args) => app::run(parsed_args),
+        Err(err) => {
+            let _ = err.print();
+            match err.kind() {
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+                    ExitCode::SUCCESS
+                }
+                _ => ExitCode::from(2),
+            }
+        }
+    }
+}

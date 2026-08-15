@@ -1338,8 +1338,9 @@ impl<'a> CaptureReader<'a> {
     }
 
     fn into_outcome_with_records(self, records: Vec<CaptureRecord>) -> CaptureReadOutcome {
+        let has_useful = !records.is_empty();
         let completion = match self.terminal_error.clone() {
-            Some(error) if records.is_empty() => CaptureCompletion::FailedBeforeUsefulRecords {
+            Some(error) if !has_useful => CaptureCompletion::FailedBeforeUsefulRecords {
                 terminal_error: error,
             },
             Some(error) => CaptureCompletion::Partial {
@@ -1360,7 +1361,25 @@ impl<'a> CaptureReader<'a> {
 
     /// Consumes the reader and returns the state observed so far with no collected records.
     pub fn into_outcome(self) -> CaptureReadOutcome {
-        self.into_outcome_with_records(Vec::new())
+        let has_useful = self.records_emitted > 0;
+        let completion = match self.terminal_error.clone() {
+            Some(error) if !has_useful => CaptureCompletion::FailedBeforeUsefulRecords {
+                terminal_error: error,
+            },
+            Some(error) => CaptureCompletion::Partial {
+                terminal_error: Some(error),
+            },
+            None if self.partial => CaptureCompletion::Partial {
+                terminal_error: None,
+            },
+            None => CaptureCompletion::Complete,
+        };
+        CaptureReadOutcome {
+            metadata: self.metadata,
+            records: Vec::new(),
+            diagnostics: self.diagnostics,
+            completion,
+        }
     }
 
     fn current_location(&self) -> CaptureLocation {

@@ -7,14 +7,14 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are complete. Phase 5
-delivered checked directional flow traffic statistics, directional-sum invariants,
-exact rational `FlowDuration` arithmetic (`u128 / u128` reduced via GCD), a zero-float
-policy, robust timestamp structure validation, sequence chain breaking on gaps and
-non-monotonic timestamps without interval bridging, inter-arrival metrics with sample
-thresholds, fixed-size online accumulators ($O(1)$ per flow), transactional error semantics,
-comprehensive property tests, and metric invariant verification in `fuzz_flow_reconstructor`.
-Phase 6 (Initial CLI + capture/flow inspection) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 are complete. Phase 6
+delivered the initial functional CLI (`validate` and `flows`), streaming capture and flow
+inspection orchestration without bulk packet retention, multiplication-free Euclidean
+`FlowDuration` total rational ordering, removal of production `.expect()` calls in
+`FlowReconstructor`, exact exit codes (0, 1, 2, 3), stdout/stderr stream separation, bounded
+diagnostic budgets with quiet mode support, audited `clap = "=4.6.4"`, and comprehensive
+end-to-end CLI integration tests.
+Phase 7 (DNS protocol analysis) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -38,29 +38,20 @@ Implemented bounded capture-container ingestion and capture record metadata for
 the documented PCAP/PCAPNG subset. The reader accepts a generic `Read` source,
 supports legacy PCAP little/big-endian microsecond and nanosecond variants plus
 PCAPNG section/interface description, enhanced-packet, and simple-packet blocks,
-and preserves section-local timestamp resolution, signed offsets, truncation,
-and unavailable simple-packet timestamps. It emits owned bounded packet bytes,
-capture metadata, stable emitted-record ordinals, bounded fixed diagnostics,
-and explicit complete/partial/failed completion state.
-
-The reader validates container boundaries, lengths, timestamps, interface
-references, configured resource limits, and streaming progress. Recoverable
-unsupported or malformed blocks are reported only at parser-validated block
-boundaries; unsafe continuation is terminal. The Phase 2 limits and default
-budgets are documented in `pcapraven-pcap`, with synthetic boundary tests,
-property tests, an excluded public-API fuzz target, and CI build validation.
+enforces finite bounds, preserves recoverable diagnostics without unbounded
+allocation, and guarantees that external bytes never panic the reader. Delivered
+unit, boundary, property, and fuzzing targets.
 
 ## Phase 3 - Ethernet + IPv4/IPv6 + TCP/UDP normalization
 
-Implemented bounded normalization for the documented Ethernet II, IPv4, IPv6,
-TCP, and UDP subset. Transformed opaque capture records from `pcapraven-pcap`
-via zero-copy `PacketNormalizationInput` into capture-independent `NormalizedPacket`
-records in `pcapraven-domain`. Implemented `etherparse = 0.21.0` with `default-features = false`
-in `pcapraven-protocols`. Excluded trailing Ethernet padding, bounded IPv6
-extension header traversal and byte budgets, modeled fragmentation explicitly
-without reassembly, bounded transport application payload retention, and emitted
-bounded diagnostics. Delivered exhaustive unit tests, boundary tests, property tests
-with `proptest`, and a new `fuzz_packet_normalizer` target.
+Implemented bounded protocol normalization in `pcapraven-protocols` converting
+opaque packet bytes into capture-independent normalized domain models. Normalizes
+Ethernet II headers with padding stripping, IPv4 with options and total length
+validation, IPv6 with bounded extension header traversal, and TCP/UDP transport
+headers with flags and ports. Handles fragmentation explicitly without whole-packet
+reassembly, bounds transport payload retention, emits structured diagnostics,
+enforces the zero-panic invariant, and delivers comprehensive unit, boundary,
+property, and fuzzing targets.
 
 ## Phase 4 - Bidirectional flow reconstruction
 
@@ -93,9 +84,18 @@ updated `fuzz_flow_reconstructor`.
 
 ## Phase 6 - Initial CLI + capture/flow inspection
 
-Implement the first orchestration and inspection commands for capture and flow
-data, including baseline stdout/stderr, exit-status, limits, and table/output
-behavior. Do not advertise protocol or detection commands before they work.
+Implemented the initial functional CLI in `pcapraven-cli` with `validate` and `flows`
+commands. Delivered streaming reader orchestration connecting `CaptureReader` ->
+`normalize_packet` -> `FlowReconstructor` -> immediate closed `FlowRecord` tabular
+output without bulk packet memory retention. Hardened `FlowDuration::cmp` with a
+multiplication-free Euclidean continued-fraction rational comparison algorithm ensuring
+total ordering without integer overflow across the full `u128` rational domain, and
+eliminated production `.expect()` calls in `FlowReconstructor`. Implemented exact exit
+codes (`0` complete, `1` fatal failure before useful result, `2` usage/config error, `3`
+useful partial result), strict stdout/stderr stream separation, bounded diagnostics
+budget (100 lines default) with suppression summary unless `--quiet`, audited minimal
+`clap = "=4.6.4"` dependency, and comprehensive end-to-end integration tests in
+`crates/pcapraven-cli/tests/cli.rs`.
 
 ## Phase 7 - DNS protocol analysis
 

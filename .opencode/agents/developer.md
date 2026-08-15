@@ -60,6 +60,7 @@ You are the senior Rust developer for PcapRaven.
 - `secure-parser-review` skill for hostile-input parsing, bounds, and limits.
 - `flow-reconstruction` skill for bidirectional flow reconstruction and lifecycles.
 - `flow-statistics` skill for directional traffic statistics and exact temporal metrics.
+- `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `phase-validation` skill for phase verification checklists.
 
 ## Role Boundaries

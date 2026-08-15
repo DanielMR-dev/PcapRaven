@@ -4,9 +4,10 @@
 
 Phase 0 documentation and governance work, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion tests, Phase 3 protocol normalization tests,
-Phase 4 bidirectional flow reconstruction tests, and Phase 5 flow statistics and
-exact temporal metric tests are complete. Application decoders, detection,
-reporting, and CLI testing remain future phase work.
+Phase 4 bidirectional flow reconstruction tests, Phase 5 flow statistics and
+exact temporal metric tests, and Phase 6 functional CLI integration tests
+are complete. Application decoders (DNS, HTTP, TLS), detection, and advanced
+reporting testing remain future phase work.
 
 ## Testing Pyramid
 
@@ -232,8 +233,31 @@ safe timestamp structure validation, sequence chain breaking on unavailable/inva
 timestamps without interval bridging, sample requirements on inter-arrival metrics,
 fixed-size online accumulators, transactional error semantics on `observe()`,
 comprehensive property tests, and metric invariant verification in `fuzz_flow_reconstructor`.
-It also confirms that Phase 6 functional CLI commands, application decoders (DNS/HTTP/TLS),
-threat detectors, and reporters remain future work.
+
+## Phase 6 Quality Gates (completed)
+
+Phase 6 validation confirms:
+- **Phase 5.1 Hardening:** `FlowDuration::cmp` uses a multiplication-free Euclidean continued-fraction
+  rational comparison algorithm, guaranteeing exact, total, and panic-free ordering across all valid
+  `u128` rational numbers without intermediate integer overflow. All production `.expect()` paths in
+  `FlowReconstructor` are eliminated in favor of structured invariant errors while maintaining strict
+  `observe()` transactionality.
+- **Initial Functional CLI Commands:** `pcapraven validate <capture>` and `pcapraven flows <capture>`
+  are fully implemented. Future subcommands (`analyze`, `dns`, `http`, `tls`, `findings`) remain
+  unimplemented and are not advertised in `--help`.
+- **Streaming Pipeline:** Captures stream incrementally via `CaptureReader::next_record()`, normalize
+  via `normalize_packet()`, and reconstruct flows via `FlowReconstructor::observe()`, emitting closed
+  flows immediately without retaining raw packet byte vectors or all historical flow records.
+- **Truthful Finalization:** Clean input termination assigns `FlowEndReason::EndOfInput` via `finish()`;
+  early or abnormal termination assigns `FlowEndReason::AnalysisStopped` via `finish_partial()`.
+- **Exit Code Contracts:** Exactly verifies exit codes `0` (complete), `1` (fatal failure before useful result),
+  `2` (usage/config error), and `3` (useful partial result).
+- **Stream Separation and Bounds:** Stdout is reserved for requested factual results (summary/table),
+  stderr is reserved for diagnostics and fatal errors. Nonfatal diagnostics are capped at 100 lines with a
+  suppression summary unless `--quiet`. Zero ANSI color codes.
+- **Comprehensive Integration Tests:** End-to-end integration tests in `crates/pcapraven-cli/tests/cli.rs`
+  exercise all commands, help, version, usage errors, nonexistent files, complete/partial captures,
+  quiet mode, UDP/TCP flows, exclusions, early stopping, and determinism.
 
 ## Dependency Audits
 
@@ -254,6 +278,14 @@ or network behavior.
 ### `pcapraven-flows` (Phase 4 and Phase 5)
 
 `pcapraven-flows` introduces zero third-party production dependencies.
+
+### `clap = "=4.6.4"` (Phase 6)
+
+The production CLI dependency in `pcapraven-cli` is exact `clap = "=4.6.4"`, licensed
+MIT/Apache-2.0, with declared MSRV 1.74. It uses `default-features = false` and enabled
+features `["std", "help", "usage", "error-context"]`. Audited transitive tree:
+`clap_builder = 4.6.2`, `clap_lex = 1.1.0`, `anstyle = 1.0.14`. Zero network or telemetry
+behavior. Zero project `unsafe` code.
 
 ### `proptest = 1.11.0` (Dev-only)
 

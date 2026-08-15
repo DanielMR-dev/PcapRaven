@@ -7,9 +7,11 @@ threat-hunting command-line application written in Rust.
 
 Phase 0 product definition and engineering foundation, Phase 1 workspace
 tooling, Phase 2 capture reader, Phase 3 packet normalization, Phase 4
-bidirectional flow reconstruction, and Phase 5 flow statistics and exact
-temporal metrics are complete. Functional CLI behavior, application decoders,
-and threat detection remain targets for later roadmap phases.
+bidirectional flow reconstruction, Phase 5 flow statistics and exact
+temporal metrics, and Phase 6 initial functional CLI with streaming
+capture and flow inspection are complete. Application decoders (DNS, HTTP, TLS),
+threat detection heuristics, and advanced reporting remain targets for later
+roadmap phases.
 
 ## Problem Statement
 
@@ -63,8 +65,8 @@ not replace analyst judgment.
 - A graphical user interface, server, daemon, or hosted service in v1.0.0.
 - Compatibility with NetSentinel APIs, data formats, architecture, or source
   code.
-- Phase 6 functional CLI commands, application protocol decoders, threat detection,
-  and reporting in the current phase. The binary remains a compile-only skeleton.
+- Phase 7 application protocol decoders, threat detection, and structured reporting
+  in the current phase.
 
 ## Product Principles
 
@@ -94,11 +96,42 @@ Malformed records should produce bounded diagnostics and permit continued
 analysis when safe. Unsupported input is not equivalent to malicious input.
 Heuristic behavior is described as possible or suspicious, not as proof.
 
+## Current Implemented CLI Contract (Phase 6)
+
+The initial functional CLI is implemented in `pcapraven-cli` and provides:
+
+```text
+pcapraven validate <capture> [--max-records <N>]
+pcapraven flows <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>]
+pcapraven --help
+pcapraven --version
+pcapraven --quiet <subcommand> <capture>
+```
+
+### Implemented Command Summary
+
+| Command | Current Implemented Behavior |
+| --- | --- |
+| `validate` | Streams capture records through the safe reader, validating container integrity, sections, interfaces, linktypes, and timestamp resolutions. Emits factual summary to stdout. |
+| `flows` | Streams capture records through packet normalization and flow reconstruction, immediately emitting closed bidirectional flow records and factual traffic/temporal statistics to stdout in tabular format. |
+
+### Implemented Exit Codes
+
+- `0`: Successful complete command execution.
+- `1`: Fatal input, I/O, or analysis failure before any useful result was produced.
+- `2`: Usage or configuration error (invalid flags, missing arguments, limit errors).
+- `3`: Useful result produced, but analysis/validation was partial (e.g. flow exclusions, degraded temporal metrics, capture recovery/truncation).
+
+### Implemented Stream Separation
+
+- `stdout`: Requested factual summary or flow table only. No ANSI color.
+- `stderr`: Nonfatal diagnostics (budgeted to 100 lines default, suppressed summary unless `--quiet`) and fatal errors.
+
 ## Target v1 CLI Contract
 
-The CLI described here is a target for later roadmap phases. None of these
-commands or options is implemented yet; the binary skeleton accepts no
-arguments and emits no output.
+The expanded CLI described below is a target for later roadmap phases. Higher-level
+commands (`analyze`, `findings`), application decoders (`dns`, `http`, `tls`), and
+machine-readable formats (`json`, `ndjson`, `csv`) are not yet implemented.
 
 ```text
 pcapraven analyze <capture>
@@ -110,7 +143,7 @@ pcapraven findings <capture>
 pcapraven validate <capture>
 ```
 
-### Command Intent
+### Target Command Intent
 
 | Command | Intended result |
 | --- | --- |
@@ -147,27 +180,6 @@ requests rather than silently discard required information.
 
 Severity and confidence filters apply to findings, not raw observations.
 Invalid combinations must produce a usage error rather than being ignored.
-
-### I/O Contract
-
-- Stdout is reserved for requested result output.
-- Diagnostics and logs use stderr through the logging policy in
-  [Architecture](ARCHITECTURE.md#logging-policy).
-- Machine-readable stdout must not be contaminated by progress, warnings, or
-  logs.
-- Output file failures must not fall back to stdout silently.
-- User-controlled strings must be encoded or escaped for the selected format
-  and safe terminal presentation.
-- Partial analysis must be visibly represented through diagnostics and result
-  metadata; it must not appear indistinguishable from complete analysis.
-
-### Exit Status Categories
-
-Exact numeric exit codes will be finalized with the CLI in Phase 6. The v1
-contract will distinguish at least success, usage/configuration failure, input
-or I/O failure, and analysis completed with a policy-relevant partial or
-validation outcome. The presence of a security finding is not, by itself, an
-application failure.
 
 ## v1 Success Criteria
 

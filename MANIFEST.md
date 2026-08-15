@@ -5,9 +5,10 @@
 This is a human-readable inventory and governance document, not a Cargo
 manifest. Phase 0 product and governance work, Phase 1 workspace/tooling work,
 Phase 2 safe PCAP/PCAPNG container reader work, Phase 3 packet normalization
-work, Phase 4 bidirectional flow reconstruction work, and Phase 5 checked flow
-statistics and exact temporal metrics are complete.
-Phase 6 functional CLI and later analysis capabilities remain future work.
+work, Phase 4 bidirectional flow reconstruction work, Phase 5 checked flow
+statistics and exact temporal metrics, and Phase 6 initial functional CLI
+with streaming capture and flow inspection are complete.
+Phase 7 application decoders (DNS, HTTP, TLS) and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -30,11 +31,12 @@ Phase 6 functional CLI and later analysis capabilities remain future work.
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, and flow reconstructor tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
 | `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
+| `.agents/skills/cli-contract/SKILL.md` | Reusable command-line interface, streaming orchestration, and exit status procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
@@ -66,8 +68,13 @@ Phase 6 functional CLI and later analysis capabilities remain future work.
 | `crates/pcapraven-detection/src/lib.rs` | Detection Phase 1 documentation skeleton. |
 | `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
 | `crates/pcapraven-reporting/src/lib.rs` | Reporting Phase 1 documentation skeleton. |
-| `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable. |
-| `crates/pcapraven-cli/src/main.rs` | Compile-only CLI binary skeleton with no arguments or output. |
+| `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
+| `crates/pcapraven-cli/src/main.rs` | Functional CLI binary entry point and exit-code mapping. |
+| `crates/pcapraven-cli/src/args.rs` | Command-line argument parsing and configuration types. |
+| `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation and flow inspection. |
+| `crates/pcapraven-cli/src/output.rs` | Factual human inspection output rendering for stdout. |
+| `crates/pcapraven-cli/src/diagnostics.rs` | Bounded diagnostic emission and suppression tracking. |
+| `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI. |
 | `fuzz/Cargo.toml` | Excluded independent cargo-fuzz project manifest with separately audited fuzz-only dependency. |
 | `fuzz/Cargo.lock` | Cargo-generated lockfile for the excluded fuzz project. |
 | `fuzz/fuzz_targets/fuzz_pcap_reader.rs` | Stable-name libFuzzer target using only the public bounded reader API. |
@@ -75,9 +82,9 @@ Phase 6 functional CLI and later analysis capabilities remain future work.
 | `fuzz/fuzz_targets/fuzz_flow_reconstructor.rs` | Stable-name libFuzzer target for bounded bidirectional flow reconstruction and metric invariant validation. |
 
 The former duplicate skill copies are intentionally absent. Future capture
-fixtures, application protocol analysis, reporters, and functional CLI commands
+fixtures, application protocol analysis, reporters, and advanced CLI commands
 are not current inventory and may be added only by their owning roadmap phases.
-The excluded `fuzz/` project is current Phase 5 inventory but is not one of the
+The excluded `fuzz/` project is current Phase 6 inventory but is not one of the
 seven main workspace packages.
 
 ## Inventory Rules

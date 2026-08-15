@@ -41,6 +41,7 @@ factual bidirectional traffic statistics and exact rational temporal metrics in
 - Zero duration has canonical representation `0 / 1`.
 - Denominator must never be zero.
 - Decimal and binary timestamp resolutions and signed offsets are combined via exact LCM/GCD arithmetic.
+- `FlowDuration` total ordering must remain exact and panic-free for the entire public `u128` rational domain.
 
 ### 4. Timestamp Validation and Gaps
 - An unavailable, invalid, or non-monotonic timestamp must never panic.

@@ -3,7 +3,7 @@
 use crate::packet::PacketTimestamp;
 use core::fmt;
 
-/// 64-bit unsigned integer division and greatest common divisor for rational duration reduction.
+/// Unsigned 128-bit integer division and greatest common divisor for rational duration reduction.
 const fn gcd(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         let t = b;
@@ -112,23 +112,52 @@ impl Ord for FlowDuration {
         if self.denominator == other.denominator {
             return self.numerator.cmp(&other.numerator);
         }
-        let g = gcd(self.denominator, other.denominator);
-        let b_div = self.denominator / g;
-        let d_div = other.denominator / g;
-        match (
-            self.numerator.checked_mul(d_div),
-            other.numerator.checked_mul(b_div),
-        ) {
-            (Some(lhs), Some(rhs)) => lhs.cmp(&rhs),
-            _ => {
-                let q1 = self.numerator / self.denominator;
-                let q2 = other.numerator / other.denominator;
-                if q1 != q2 {
-                    q1.cmp(&q2)
-                } else {
-                    let r1 = self.numerator % self.denominator;
-                    let r2 = other.numerator % other.denominator;
-                    (r1 * d_div).cmp(&(r2 * b_div))
+        if self.numerator == other.numerator {
+            if self.numerator == 0 {
+                return core::cmp::Ordering::Equal;
+            }
+            return other.denominator.cmp(&self.denominator);
+        }
+
+        // Exact, multiplication-free rational comparison using Euclidean continued fractions.
+        // For positive fractions n1/d1 and n2/d2:
+        //   n1/d1 = q1 + r1/d1
+        //   n2/d2 = q2 + r2/d2
+        // If q1 != q2, q1.cmp(&q2) determines the ordering.
+        // If q1 == q2:
+        //   - if r1 == 0 and r2 == 0 => Equal
+        //   - if r1 == 0 and r2 > 0 => Less
+        //   - if r1 > 0 and r2 == 0 => Greater
+        //   - if r1 > 0 and r2 > 0: r1/d1 < r2/d2 <=> d2/r2 < d1/r1.
+        // Swapping roles to compare (d2, r2) with (d1, r1) preserves the original comparison direction.
+        let mut n1 = self.numerator;
+        let mut d1 = self.denominator;
+        let mut n2 = other.numerator;
+        let mut d2 = other.denominator;
+
+        loop {
+            let q1 = n1 / d1;
+            let r1 = n1 % d1;
+            let q2 = n2 / d2;
+            let r2 = n2 % d2;
+
+            if q1 != q2 {
+                return q1.cmp(&q2);
+            }
+
+            match (r1 == 0, r2 == 0) {
+                (true, true) => return core::cmp::Ordering::Equal,
+                (true, false) => return core::cmp::Ordering::Less,
+                (false, true) => return core::cmp::Ordering::Greater,
+                (false, false) => {
+                    let next_n1 = d2;
+                    let next_d1 = r2;
+                    let next_n2 = d1;
+                    let next_d2 = r1;
+                    n1 = next_n1;
+                    d1 = next_d1;
+                    n2 = next_n2;
+                    d2 = next_d2;
                 }
             }
         }

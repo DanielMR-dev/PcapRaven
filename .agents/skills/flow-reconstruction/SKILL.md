@@ -44,8 +44,12 @@ description: Use for PcapRaven bidirectional flow reconstruction design, impleme
   and `maximum_flow_instances`. Reject non-deterministic eviction.
 - **Memory Non-Retention:** Flow reconstructor internal state must never retain
   `NormalizedPacket`, transport payloads, or raw packet byte vectors.
-- **Deterministic Output:** Finalization must return completed records ordered by
-  `FlowReference` ordinal.
+- **Deterministic Output & Finalization:** Finalization must return completed records ordered by
+  `FlowReference` ordinal:
+  - Clean end-of-input uses `finish()`, assigning `FlowEndReason::EndOfInput` to remaining active flows.
+  - Early/abnormal termination uses `finish_partial()`, assigning `FlowEndReason::AnalysisStopped`.
+  - Both methods drain active flows completely, preserve all traffic counters and exact temporal metrics,
+    and retain no packets afterward.
 - **Error Transactionality:** An `observe()` call returning `Err` must not partially
   mutate reconstructor state, advance packet ordinals, drop active flows, or allocate
   flow references.
