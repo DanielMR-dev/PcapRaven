@@ -13,16 +13,17 @@ skeletons, baseline CI, and tooling**, **Phase 2: Safe PCAP/PCAPNG capture reade
 **Phase 3: Ethernet + IPv4/IPv6 + TCP/UDP normalization**, **Phase 4: Deterministic
 bidirectional flow reconstruction**, **Phase 5: Checked flow statistics and
 exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspection**,
-and **Phase 7: Bounded DNS protocol analysis + normalized DNS observations + DNS CLI inspection**
+**Phase 7: Bounded DNS protocol analysis + normalized DNS observations + DNS CLI inspection**,
+and **Phase 8: Bounded HTTP/1.x metadata analysis + normalized HTTP observations + HTTP CLI inspection**
 are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
-- `pcapraven-domain` defines normalized packet, flow, and DNS domain models, traffic statistics, and exact temporal metrics.
-- `pcapraven-protocols` provides bounded packet normalization and bounded DNS wire-format parsing.
+- `pcapraven-domain` defines normalized packet, flow, DNS, and HTTP domain models, traffic statistics, and exact temporal metrics.
+- `pcapraven-protocols` provides bounded packet normalization, bounded DNS wire-format parsing, and bounded HTTP/1.x message header parsing.
 - `pcapraven-flows` provides stateful bidirectional flow reconstruction, checked traffic statistics accumulation, and exact rational temporal metric calculations.
-- `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, and DNS inspection.
+- `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, and HTTP inspection.
 
-### Implemented CLI Commands (Phase 7)
+### Implemented CLI Commands (Phase 8)
 
 ```text
 # Validate capture container integrity and factual metadata:
@@ -34,13 +35,16 @@ pcapraven flows <capture.pcap>
 # Inspect normalized DNS observations:
 pcapraven dns <capture.pcap>
 
+# Inspect cleartext HTTP/1.x message headers:
+pcapraven http <capture.pcap>
+
 # Global flags and help:
 pcapraven --help
 pcapraven --version
-pcapraven --quiet dns <capture.pcap>
+pcapraven --quiet http <capture.pcap>
 ```
 
-Higher-level commands (`analyze`, `findings`), application decoders (`http`, `tls`),
+Higher-level commands (`analyze`, `findings`), TLS handshake decoders (`tls`),
 detection heuristics, and structured reporting (JSON/CSV) remain targets for later roadmap
 phases and are not currently available.
 

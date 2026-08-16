@@ -158,11 +158,17 @@ with RFC 1035 bounds (label length <= 63, wire length <= 255) and terminal-safe 
 
 ### HTTP Observations
 
-Planned HTTP/1.x observations represent request/response metadata such as
-method, target metadata, status, version, and a deliberately selected bounded
-header set. They are not full body capture, browser interpretation, or proof of
-transaction pairing. Sensitive values require minimization in logs and careful
-report escaping.
+Phase 8 HTTP observations (`HttpObservation` in `pcapraven-domain`) represent factual
+cleartext HTTP/1.0 and HTTP/1.1 message metadata: version (`Http10`/`Http11`), message kind
+(`Request`/`Response`), request start-line (`HttpRequestMetadata` with `method` and `target`),
+response status-line (`HttpResponseMetadata` with 3-digit `status_code`), selected headers
+(`HttpSelectedHeaders` holding `host`, `user_agent`, `server`, `content_type`, `content_length`,
+`transfer_encoding`, `connection`, `upgrade`), sensitive header presence flags (`has_authorization`,
+`has_proxy_authorization`, `has_cookie`, `has_set_cookie`), framing metadata (`HttpFramingMetadata`
+with `content_length`, `is_chunked`, `is_upgrade`, `is_close`, `is_keep_alive`, `has_conflicting_framing`),
+declared field count, header section byte length, and explicit completeness status (`Complete`
+or `Partial`). Raw text is preserved in `HttpByteString` and rendered via terminal-safe
+`display_escaped()` notation (`\xHH`/`\\`). Sensitive values are never retained or serialized.
 
 ### TLS Observations
 

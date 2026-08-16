@@ -7,9 +7,11 @@ manifest. Phase 0 product and governance work, Phase 1 workspace/tooling work,
 Phase 2 safe PCAP/PCAPNG container reader work, Phase 3 packet normalization
 work, Phase 4 bidirectional flow reconstruction work, Phase 5 checked flow
 statistics and exact temporal metrics, Phase 6 initial functional CLI
-with streaming capture and flow inspection, and Phase 7 bounded DNS protocol
-analysis with normalized DNS observations and DNS CLI inspection are complete.
-Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), and later analysis capabilities remain future work.
+with streaming capture and flow inspection, Phase 7 bounded DNS protocol
+analysis with normalized DNS observations and DNS CLI inspection, and
+Phase 8 bounded HTTP/1.x metadata analysis with normalized HTTP observations
+and HTTP CLI inspection are complete.
+Phase 9 (TLS handshake metadata) and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -32,7 +34,7 @@ Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), and later analysis capabil
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
@@ -41,12 +43,14 @@ Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), and later analysis capabil
 | `.agents/skills/dns-protocol-analysis/SKILL.md` | Reusable DNS wire parser, candidate classification, and observation extraction procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
+| `.agents/skills/http-protocol-analysis/SKILL.md` | Reusable HTTP/1.x header parser, candidate classification, sensitive header masking, and observation extraction procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
 | `.agents/skills/secure-parser-review/SKILL.md` | Reusable hostile-input parser review procedure. |
 | `crates/pcapraven-domain/Cargo.toml` | Domain library package manifest. |
 | `crates/pcapraven-domain/src/lib.rs` | Domain library entry point and type exports. |
 | `crates/pcapraven-domain/src/dns.rs` | Normalized DNS observation model, question, RR, EDNS metadata, and diagnostic types. |
+| `crates/pcapraven-domain/src/http.rs` | Normalized HTTP/1.x observation model, request/response metadata, selected headers, sensitive flags, and diagnostic types. |
 | `crates/pcapraven-domain/src/packet.rs` | Normalized packet model, metadata, diagnostics, addresses, flags, and completeness states. |
 | `crates/pcapraven-domain/src/flow.rs` | Capture-independent flow endpoints, keys, references, directions, associations, end reasons, and records. |
 | `crates/pcapraven-domain/src/flow_metrics.rs` | Domain models for directional traffic statistics, exact rational `FlowDuration`, and temporal metrics. |
@@ -58,9 +62,12 @@ Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), and later analysis capabil
 | `crates/pcapraven-protocols/src/lib.rs` | Protocol-normalization library entry point and public exports. |
 | `crates/pcapraven-protocols/src/dns.rs` | Bounded DNS wire-format parser and candidate classification engine. |
 | `crates/pcapraven-protocols/src/dns_limits.rs` | Validated finite resource limits for DNS parsing. |
+| `crates/pcapraven-protocols/src/http.rs` | Bounded HTTP/1.x wire-format parser and candidate classification engine. |
+| `crates/pcapraven-protocols/src/http_limits.rs` | Validated finite resource limits for HTTP parsing. |
 | `crates/pcapraven-protocols/src/limits.rs` | Finite normalization resource limits and builder. |
 | `crates/pcapraven-protocols/src/normalizer.rs` | Bounded Ethernet, IPv4, IPv6, TCP, and UDP packet normalization engine. |
 | `crates/pcapraven-protocols/tests/dns.rs` | Integration, boundary, security, and property tests for bounded DNS wire parsing. |
+| `crates/pcapraven-protocols/tests/http.rs` | Integration, boundary, security, and property tests for bounded HTTP parsing. |
 | `crates/pcapraven-protocols/tests/normalization.rs` | Unit, boundary, property, and regression tests for packet normalization. |
 | `crates/pcapraven-protocols/tests/fixtures/dns/README.md` | Provenance and inventory documentation for synthetic DNS binary test fixtures. |
 | `crates/pcapraven-flows/Cargo.toml` | Flow-analysis library package manifest with dev-only `proptest`. |
@@ -78,7 +85,7 @@ Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), and later analysis capabil
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
 | `crates/pcapraven-cli/src/main.rs` | Functional CLI binary entry point and exit-code mapping. |
 | `crates/pcapraven-cli/src/args.rs` | Command-line argument parsing and configuration types. |
-| `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, and DNS inspection. |
+| `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, DNS inspection, and HTTP inspection. |
 | `crates/pcapraven-cli/src/output.rs` | Factual human inspection output rendering for stdout. |
 | `crates/pcapraven-cli/src/diagnostics.rs` | Bounded diagnostic emission and suppression tracking. |
 | `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI. |
@@ -88,11 +95,12 @@ Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), and later analysis capabil
 | `fuzz/fuzz_targets/fuzz_packet_normalizer.rs` | Stable-name libFuzzer target for bounded protocol normalization. |
 | `fuzz/fuzz_targets/fuzz_flow_reconstructor.rs` | Stable-name libFuzzer target for bounded bidirectional flow reconstruction and metric invariant validation. |
 | `fuzz/fuzz_targets/fuzz_dns_parser.rs` | Stable-name libFuzzer target for bounded DNS wire parsing. |
+| `fuzz/fuzz_targets/fuzz_http_parser.rs` | Stable-name libFuzzer target for bounded HTTP/1.x wire parsing. |
 
 The former duplicate skill copies are intentionally absent. Future capture
-fixtures, HTTP/1.x, TLS handshake analysis, reporters, and advanced CLI commands
+fixtures, TLS handshake analysis, reporters, and advanced CLI commands
 are not current inventory and may be added only by their owning roadmap phases.
-The excluded `fuzz/` project is current Phase 7 inventory but is not one of the
+The excluded `fuzz/` project is current Phase 8 inventory but is not one of the
 seven main workspace packages.
 
 ## Inventory Rules

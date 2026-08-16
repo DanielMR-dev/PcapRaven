@@ -386,6 +386,209 @@ fn test_limits_builder_validation() {
     assert!(res_cap.is_err());
 }
 
+#[test]
+fn test_missing_network_layer_produces_no_fake_endpoints() {
+    let mut packet = make_normalized_udp_packet(53535, 53, SIMPLE_QUERY_BYTES.to_vec());
+    packet.network_layer = None;
+    let limits = DnsLimits::default();
+    let outcome = parse_dns_packet(&packet, &limits);
+
+    assert_eq!(outcome.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome.observations.is_empty());
+    assert!(!outcome.diagnostics.is_empty());
+    assert!(
+        outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("missing network layer"))
+    );
+}
+
+#[test]
+fn test_exact_rdlength_enforcement() {
+    let limits = DnsLimits::default();
+
+    // 1. NS record where RDLENGTH is 2 bytes larger than the name consumes (5 bytes name vs 7 bytes declared)
+    let mut ns_payload = Vec::new();
+    // Header: ID=1, QR=1 (response), QDCOUNT=0, ANCOUNT=1, NSCOUNT=0, ARCOUNT=0
+    ns_payload.extend_from_slice(&[
+        0x00, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    // AN: Name = root (0x00), TYPE=2 (NS), CLASS=1 (IN), TTL=60, RDLENGTH=7 (name takes 5: \x03ns1\x00 + 2 trailing dummy bytes)
+    ns_payload.extend_from_slice(&[
+        0x00, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x07,
+    ]);
+    ns_payload.extend_from_slice(b"\x03ns1\x00\xaa\xbb"); // 5 bytes name + 2 extra bytes = 7 bytes
+
+    let pkt_ns = make_normalized_udp_packet(53, 53535, ns_payload);
+    let outcome_ns = parse_dns_packet(&pkt_ns, &limits);
+    assert_eq!(outcome_ns.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome_ns.diagnostics.iter().any(|d| {
+        d.message
+            .contains("NS domain name did not consume exact RDLENGTH")
+    }));
+
+    // 2. CNAME record where RDLENGTH is 2 bytes larger
+    let mut cname_payload = Vec::new();
+    cname_payload.extend_from_slice(&[
+        0x00, 0x02, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    cname_payload.extend_from_slice(&[
+        0x00, 0x00, 0x05, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x07,
+    ]);
+    cname_payload.extend_from_slice(b"\x03foo\x00\xaa\xbb");
+
+    let pkt_cname = make_normalized_udp_packet(53, 53535, cname_payload);
+    let outcome_cname = parse_dns_packet(&pkt_cname, &limits);
+    assert_eq!(outcome_cname.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome_cname.diagnostics.iter().any(|d| {
+        d.message
+            .contains("CNAME domain name did not consume exact RDLENGTH")
+    }));
+
+    // 3. PTR record where RDLENGTH is 2 bytes larger
+    let mut ptr_payload = Vec::new();
+    ptr_payload.extend_from_slice(&[
+        0x00, 0x03, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    ptr_payload.extend_from_slice(&[
+        0x00, 0x00, 0x0c, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x07,
+    ]);
+    ptr_payload.extend_from_slice(b"\x03ptr\x00\xbb\xcc");
+
+    let pkt_ptr = make_normalized_udp_packet(53, 53535, ptr_payload);
+    let outcome_ptr = parse_dns_packet(&pkt_ptr, &limits);
+    assert_eq!(outcome_ptr.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome_ptr.diagnostics.iter().any(|d| {
+        d.message
+            .contains("PTR domain name did not consume exact RDLENGTH")
+    }));
+
+    // 4. MX record where RDLENGTH is 2 bytes larger than preference (2 bytes) + exchange name (5 bytes)
+    let mut mx_payload = Vec::new();
+    mx_payload.extend_from_slice(&[
+        0x00, 0x04, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    mx_payload.extend_from_slice(&[
+        0x00, 0x00, 0x0f, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3c, 0x00, 0x09,
+    ]); // RDLENGTH = 9
+    mx_payload.extend_from_slice(&[0x00, 0x0a]); // preference 10
+    mx_payload.extend_from_slice(b"\x03mx1\x00\xcc\xdd"); // 5 bytes name + 2 extra bytes = 7 bytes RDATA payload
+
+    let pkt_mx = make_normalized_udp_packet(53, 53535, mx_payload);
+    let outcome_mx = parse_dns_packet(&pkt_mx, &limits);
+    assert_eq!(outcome_mx.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome_mx.diagnostics.iter().any(|d| {
+        d.message
+            .contains("MX preference and exchange name did not consume exact RDLENGTH")
+    }));
+}
+
+#[test]
+fn test_invalid_opt_structure_and_placement() {
+    let limits = DnsLimits::default();
+
+    // 1. OPT record with non-root owner name
+    let mut opt_non_root = Vec::new();
+    opt_non_root.extend_from_slice(&[
+        0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    ]);
+    // AR: Name = \x03opt\x00 (non-root), TYPE=41 (OPT), CLASS=4096, TTL=0, RDLENGTH=0
+    opt_non_root.extend_from_slice(b"\x03opt\x00\x00\x29\x10\x00\x00\x00\x00\x00\x00\x00");
+
+    let pkt1 = make_normalized_udp_packet(53535, 53, opt_non_root);
+    let outcome1 = parse_dns_packet(&pkt1, &limits);
+    assert_eq!(outcome1.disposition, DnsPacketDisposition::Partial);
+    assert!(
+        outcome1
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("OPT record owner name must be root"))
+    );
+
+    // 2. OPT record in Answer section instead of Additional
+    let mut opt_in_answer = Vec::new();
+    opt_in_answer.extend_from_slice(&[
+        0x00, 0x06, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    // AN: Name = root (\x00), TYPE=41 (OPT), CLASS=4096, TTL=0, RDLENGTH=0
+    opt_in_answer.extend_from_slice(&[
+        0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]);
+
+    let pkt2 = make_normalized_udp_packet(53, 53535, opt_in_answer);
+    let outcome2 = parse_dns_packet(&pkt2, &limits);
+    assert_eq!(outcome2.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome2.diagnostics.iter().any(|d| {
+        d.message
+            .contains("OPT record must only appear in Additional section")
+    }));
+}
+
+#[test]
+fn test_edns_option_limits_exact_boundary() {
+    // Construct an OPT record with 2 options
+    let mut opt_bytes = Vec::new();
+    opt_bytes.extend_from_slice(&[
+        0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    ]);
+    // AR: Root, TYPE=41, CLASS=4096, TTL=0, RDLENGTH=12 (two 6-byte options: code=1, len=2, data=0x0000; code=2, len=2, data=0x0000)
+    opt_bytes.extend_from_slice(&[
+        0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c,
+    ]);
+    opt_bytes.extend_from_slice(&[0x00, 0x01, 0x00, 0x02, 0xaa, 0xbb]);
+    opt_bytes.extend_from_slice(&[0x00, 0x02, 0x00, 0x02, 0xcc, 0xdd]);
+
+    let pkt = make_normalized_udp_packet(53535, 53, opt_bytes);
+
+    // Limit = 2 options -> Should parse completely
+    let limits_2 = DnsLimitsBuilder::new()
+        .maximum_edns_options_per_message(2)
+        .build()
+        .unwrap();
+    let outcome_2 = parse_dns_packet(&pkt, &limits_2);
+    assert_eq!(outcome_2.disposition, DnsPacketDisposition::Parsed);
+    assert_eq!(
+        outcome_2.observations[0]
+            .edns
+            .as_ref()
+            .unwrap()
+            .options
+            .len(),
+        2
+    );
+
+    // Limit = 1 option -> Should emit ResourceLimit diagnostic and mark Partial
+    let limits_1 = DnsLimitsBuilder::new()
+        .maximum_edns_options_per_message(1)
+        .build()
+        .unwrap();
+    let outcome_1 = parse_dns_packet(&pkt, &limits_1);
+    assert_eq!(outcome_1.disposition, DnsPacketDisposition::Partial);
+    assert!(
+        outcome_1
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == DnsDiagnosticKind::ResourceLimit)
+    );
+}
+
+#[test]
+fn test_undeclared_trailing_bytes_after_sections() {
+    let mut payload = SIMPLE_QUERY_BYTES.to_vec();
+    payload.extend_from_slice(b"trailing_undeclared_garbage");
+
+    let packet = make_normalized_udp_packet(53535, 53, payload);
+    let limits = DnsLimits::default();
+    let outcome = parse_dns_packet(&packet, &limits);
+
+    assert_eq!(outcome.disposition, DnsPacketDisposition::Partial);
+    assert!(outcome.diagnostics.iter().any(|d| {
+        d.message
+            .contains("undeclared trailing bytes after DNS message sections")
+    }));
+}
+
 proptest! {
     #[test]
     fn arbitrary_udp_bytes_never_panic(payload in prop::collection::vec(any::<u8>(), 0..1024)) {

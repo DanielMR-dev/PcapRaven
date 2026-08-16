@@ -62,7 +62,7 @@ safety alone prevents resource exhaustion or logic vulnerabilities.
 - PcapRaven performs no external network requests by default.
 - PcapRaven has no telemetry and does not upload captures.
 - Stdout is reserved for requested result output.
-- Diagnostics and logs use stderr through structured tracing.
+- Diagnostics and logs use stderr through bounded structured diagnostic emitters.
 
 These are release-blocking requirements, not best-effort guidelines.
 
@@ -93,6 +93,24 @@ The Phase 2 capture reader and Phase 3 protocol normalizers must:
   messages.
 - Continue after a malformed record only when resynchronization is specified
   and safe; never scan unbounded input for a guessed boundary.
+
+## DNS and HTTP Protocol Parser Safety Requirements
+
+The Phase 7 DNS and Phase 8 HTTP parsers in `pcapraven-protocols` must:
+
+- **DNS:** Enforce strict backward-pointer decompression rules (`target_offset < pointer_location_offset`),
+  eliminating self-loops, forward pointer corruption, and cyclical recursion. Bound pointer traversal hops
+  and total retained name bytes per message. Strict RDLENGTH consumption verification for standard records.
+- **HTTP:** Enforce packet-local start-line and header parsing without cross-packet TCP stream reassembly,
+  body retention, chunked body decoding, or decompression. Require canonical CRLF line endings (bare CR/LF rejected),
+  reject whitespace before colon, reject obs-fold line folding, enforce mandatory Host header on HTTP/1.1 requests,
+  reject duplicate Host headers, parse decimal Content-Length, and detect conflicting Transfer-Encoding / Content-Length framing.
+- **Privacy Masking:** Enforce sensitive header masking (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`)
+  by capturing boolean presence flags without retaining or serializing header values.
+- **Output Safety:** Render all domain names and raw byte strings via deterministic terminal-safe escaping
+  (`\DDD` or `\xHH`/`\\`), preventing terminal control sequence injection.
+- **Diagnostics & Error Boundaries:** Cap diagnostic emission per packet and ensure malformed/partial packets
+  never panic or abort capture processing.
 
 ## Flow Reconstruction and Metrics Safety Requirements
 

@@ -64,14 +64,15 @@ Implemented properties include:
   with `denominator > 0` and zero canonicalized as `0 / 1`.
 - Inter-arrival sample ordering: `min <= mean <= max` whenever `interval_sample_count > 0`.
 - Missing and non-monotonic timestamps break sequence chains without panic or negative intervals.
+- HTTP wire parser handling of arbitrary TCP byte sequences over port 80 never panics.
 
 ### Fuzzing Strategy
 
-Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with four targets:
+Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with five targets:
 `fuzz_pcap_reader` for capture-container parsing, `fuzz_packet_normalizer` for
 protocol normalization, `fuzz_flow_reconstructor` for flow reconstruction
-and traffic/temporal metric invariant validation, and `fuzz_dns_parser` for
-bounded DNS wire parsing.
+and traffic/temporal metric invariant validation, `fuzz_dns_parser` for
+bounded DNS wire parsing, and `fuzz_http_parser` for bounded HTTP/1.x wire parsing.
 The targets call only public bounded APIs and do not access files or networks.
 The checked-in CI build commands are:
 
@@ -80,6 +81,7 @@ cargo +nightly fuzz build fuzz_pcap_reader
 cargo +nightly fuzz build fuzz_packet_normalizer
 cargo +nightly fuzz build fuzz_flow_reconstructor
 cargo +nightly fuzz build fuzz_dns_parser
+cargo +nightly fuzz build fuzz_http_parser
 ```
 
 Long-running `cargo-fuzz` campaigns and additional structured targets remain
