@@ -262,6 +262,50 @@ pub fn render_http_table_header(w: &mut impl Write) -> io::Result<()> {
 
 /// Renders a single factual HTTP observation row to the provided writer.
 ///
+/// Truncates an already terminal-safe escaped string to a maximum display width,
+/// ensuring we never slice in the middle of a `\xHH` or `\\` escape sequence.
+#[must_use]
+pub fn truncate_escaped_presentation(escaped: &str, max_width: usize) -> String {
+    if escaped.len() <= max_width {
+        return escaped.to_string();
+    }
+    if max_width <= 3 {
+        return "...".chars().take(max_width).collect();
+    }
+
+    let budget = max_width.saturating_sub(3);
+    let bytes = escaped.as_bytes();
+    let mut i = 0usize;
+    let mut last_safe = 0usize;
+
+    while i < bytes.len() {
+        let token_len = if bytes[i] == b'\\' {
+            if i + 3 < bytes.len() && bytes[i + 1] == b'x' {
+                4
+            } else if i + 1 < bytes.len() && bytes[i + 1] == b'\\' {
+                2
+            } else {
+                1
+            }
+        } else {
+            1
+        };
+
+        if i.saturating_add(token_len) <= budget {
+            i = i.saturating_add(token_len);
+            last_safe = i;
+        } else {
+            break;
+        }
+    }
+
+    let mut res = escaped[..last_safe].to_string();
+    res.push_str("...");
+    res
+}
+
+/// Renders a single factual HTTP observation row to the provided writer.
+///
 /// # Errors
 /// Returns an [`io::Error`] if writing to `w` fails.
 pub fn render_http_row(
@@ -274,12 +318,12 @@ pub fn render_http_row(
     let ver = obs.version.as_str();
 
     let method = match &obs.request {
-        Some(req) => req.method.display_escaped(),
+        Some(req) => truncate_escaped_presentation(&req.method.display_escaped(), 8),
         None => "-".to_string(),
     };
 
     let target = match &obs.request {
-        Some(req) => req.target.display_escaped(),
+        Some(req) => truncate_escaped_presentation(&req.target.display_escaped(), 24),
         None => "-".to_string(),
     };
 
@@ -289,12 +333,12 @@ pub fn render_http_row(
     };
 
     let host = match &obs.headers.host {
-        Some(h) => h.display_escaped(),
+        Some(h) => truncate_escaped_presentation(&h.display_escaped(), 20),
         None => "-".to_string(),
     };
 
     let content_type = match &obs.headers.content_type {
-        Some(ct) => ct.display_escaped(),
+        Some(ct) => truncate_escaped_presentation(&ct.display_escaped(), 20),
         None => "-".to_string(),
     };
 
@@ -305,7 +349,7 @@ pub fn render_http_row(
     };
 
     let te = match &obs.headers.transfer_encoding {
-        Some(t) => t.display_escaped(),
+        Some(t) => truncate_escaped_presentation(&t.display_escaped(), 10),
         None => "-".to_string(),
     };
 
@@ -324,6 +368,110 @@ pub fn render_http_row(
         content_type,
         cl,
         te,
+    )
+}
+
+/// Renders the TLS inspection table column header to the provided writer.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_tls_table_header(w: &mut impl Write) -> io::Result<()> {
+    writeln!(
+        w,
+        "{:<6} {:<17} {:<21} {:<21} {:<8} {:<8} {:<8} {:<24} {:<12} {:>7} {:>4}",
+        "PKT",
+        "KIND",
+        "SRC",
+        "DST",
+        "REC_VER",
+        "TLS_VER",
+        "CIPHER",
+        "SNI",
+        "ALPN",
+        "CIPHERS",
+        "EXTS"
+    )
+}
+
+/// Renders a single factual TLS observation row to the provided writer.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_tls_row(
+    obs: &pcapraven_domain::TlsObservation,
+    w: &mut impl Write,
+) -> io::Result<()> {
+    let src = format!("{}:{}", obs.source_ip, obs.source_port);
+    let dst = format!("{}:{}", obs.destination_ip, obs.destination_port);
+    let kind = obs.handshake_kind.as_str();
+    let rec_ver = obs.record_version.as_str();
+
+    let (tls_ver, cipher, sni, alpn, ciphers_count, exts_count) = if let Some(ref ch) =
+        obs.client_hello
+    {
+        let sni_str = match &ch.server_name {
+            Some(s) => truncate_escaped_presentation(&s.display_escaped(), 24),
+            None => "-".to_string(),
+        };
+        let alpn_str = if ch.alpn_protocols.is_empty() {
+            "-".to_string()
+        } else if ch.alpn_protocols.len() == 1 {
+            truncate_escaped_presentation(&ch.alpn_protocols[0].display_escaped(), 12)
+        } else {
+            let first = truncate_escaped_presentation(&ch.alpn_protocols[0].display_escaped(), 6);
+            format!("{}(+{})", first, ch.alpn_protocols.len().saturating_sub(1))
+        };
+        (
+            "-".to_string(),
+            "-".to_string(),
+            sni_str,
+            alpn_str,
+            format!("{}", ch.cipher_suites.len()),
+            format!("{}", ch.extensions.len()),
+        )
+    } else if let Some(ref sh) = obs.server_hello {
+        let ver_str = sh
+            .selected_version
+            .map(|v| v.as_str().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let cipher_str = format!("0x{:04x}", sh.cipher_suite);
+        let alpn_str = match &sh.selected_alpn {
+            Some(a) => truncate_escaped_presentation(&a.display_escaped(), 12),
+            None => "-".to_string(),
+        };
+        (
+            ver_str,
+            cipher_str,
+            "-".to_string(),
+            alpn_str,
+            "-".to_string(),
+            format!("{}", sh.extensions.len()),
+        )
+    } else {
+        (
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+            "-".to_string(),
+        )
+    };
+
+    writeln!(
+        w,
+        "{:<6} {:<17} {:<21} {:<21} {:<8} {:<8} {:<8} {:<24} {:<12} {:>7} {:>4}",
+        obs.packet.capture_record_ordinal,
+        kind,
+        src,
+        dst,
+        rec_ver,
+        tls_ver,
+        cipher,
+        sni,
+        alpn,
+        ciphers_count,
+        exts_count,
     )
 }
 
@@ -495,5 +643,20 @@ mod tests {
 
         let mut writer = FailingWriter;
         assert!(render_http_row(&obs, &mut writer).is_err());
+    }
+
+    #[test]
+    fn test_truncate_escaped_presentation() {
+        assert_eq!(truncate_escaped_presentation("hello", 10), "hello");
+        assert_eq!(truncate_escaped_presentation("hello world", 8), "hello...");
+        assert_eq!(
+            truncate_escaped_presentation("hello\\x00world", 10),
+            "hello..."
+        );
+        assert_eq!(
+            truncate_escaped_presentation("hello\\\\world", 9),
+            "hello..."
+        );
+        assert_eq!(truncate_escaped_presentation("abc", 2), "..");
     }
 }

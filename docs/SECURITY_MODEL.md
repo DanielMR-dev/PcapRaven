@@ -94,9 +94,9 @@ The Phase 2 capture reader and Phase 3 protocol normalizers must:
 - Continue after a malformed record only when resynchronization is specified
   and safe; never scan unbounded input for a guessed boundary.
 
-## DNS and HTTP Protocol Parser Safety Requirements
+## DNS, HTTP, and TLS Protocol Parser Safety Requirements
 
-The Phase 7 DNS and Phase 8 HTTP parsers in `pcapraven-protocols` must:
+The Phase 7 DNS, Phase 8 HTTP, and Phase 9 TLS parsers in `pcapraven-protocols` must:
 
 - **DNS:** Enforce strict backward-pointer decompression rules (`target_offset < pointer_location_offset`),
   eliminating self-loops, forward pointer corruption, and cyclical recursion. Bound pointer traversal hops
@@ -105,8 +105,18 @@ The Phase 7 DNS and Phase 8 HTTP parsers in `pcapraven-protocols` must:
   body retention, chunked body decoding, or decompression. Require canonical CRLF line endings (bare CR/LF rejected),
   reject whitespace before colon, reject obs-fold line folding, enforce mandatory Host header on HTTP/1.1 requests,
   reject duplicate Host headers, parse decimal Content-Length, and detect conflicting Transfer-Encoding / Content-Length framing.
-- **Privacy Masking:** Enforce sensitive header masking (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`)
-  by capturing boolean presence flags without retaining or serializing header values.
+- **TLS:** Enforce packet-local record parsing without cross-packet TCP stream reassembly. Assemble adjacent
+  Handshake records in the same packet up to `maximum_handshake_message_bytes`. Enforce maximum record fragment
+  bounds (16 KiB plaintext, 18 KiB opaque). Detect duplicate extensions per Hello message.
+- **Privacy Non-Retention Invariants (MANDATORY):**
+  - Raw 32-byte ClientHello / ServerHello random values are NEVER retained (only inspected transiently for the HRR sentinel).
+  - Session ID bytes are NEVER retained (only `session_id_length` is recorded).
+  - Key Share public key bytes are NEVER retained (only named group IDs are recorded).
+  - PSK identities and binders are NEVER retained (only boolean presence flag).
+  - Early Data payloads are NEVER retained (only boolean presence flag).
+  - Certificate DER and ciphertext payloads are NEVER retained.
+  - Zero TLS decryption, private key loading, or `SSLKEYLOGFILE` support.
+  - HTTP sensitive header values (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`) are never retained.
 - **Output Safety:** Render all domain names and raw byte strings via deterministic terminal-safe escaping
   (`\DDD` or `\xHH`/`\\`), preventing terminal control sequence injection.
 - **Diagnostics & Error Boundaries:** Cap diagnostic emission per packet and ensure malformed/partial packets

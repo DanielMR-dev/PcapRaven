@@ -23,6 +23,8 @@ pub enum Subcommand {
     Dns(DnsArgs),
     /// Inspect cleartext HTTP/1.x message headers.
     Http(HttpArgs),
+    /// Inspect visible TLS 1.2 / TLS 1.3 handshake metadata.
+    Tls(TlsArgs),
 }
 
 /// Arguments for `pcapraven validate`.
@@ -46,6 +48,15 @@ pub struct DnsArgs {
 /// Arguments for `pcapraven http`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpArgs {
+    /// Path to the local capture file.
+    pub capture_path: PathBuf,
+    /// Maximum capture records to process.
+    pub max_records: Option<u64>,
+}
+
+/// Arguments for `pcapraven tls`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TlsArgs {
     /// Path to the local capture file.
     pub capture_path: PathBuf,
     /// Maximum capture records to process.
@@ -185,6 +196,24 @@ pub fn build_cli() -> Command {
                         .help("Maximum capture records to process"),
                 ),
         )
+        .subcommand(
+            Command::new("tls")
+                .about("Inspect visible TLS 1.2 / TLS 1.3 handshake metadata.")
+                .arg(
+                    Arg::new("capture")
+                        .value_name("CAPTURE")
+                        .required(true)
+                        .index(1)
+                        .help("Path to the capture file"),
+                )
+                .arg(
+                    Arg::new("max-records")
+                        .long("max-records")
+                        .value_name("N")
+                        .value_parser(clap::value_parser!(u64))
+                        .help("Maximum capture records to process"),
+                ),
+        )
 }
 
 /// Parses command-line arguments into [`CliArgs`].
@@ -244,6 +273,16 @@ where
                 .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument))?;
             let max_records = sub_m.get_one::<u64>("max-records").copied();
             Subcommand::Http(HttpArgs {
+                capture_path: PathBuf::from(capture_str),
+                max_records,
+            })
+        }
+        Some(("tls", sub_m)) => {
+            let capture_str = sub_m
+                .get_one::<String>("capture")
+                .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument))?;
+            let max_records = sub_m.get_one::<u64>("max-records").copied();
+            Subcommand::Tls(TlsArgs {
                 capture_path: PathBuf::from(capture_str),
                 max_records,
             })

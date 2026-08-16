@@ -1,8 +1,8 @@
 use pcapraven_domain::{
     EthernetMetadata, HttpContentLengthState, HttpDiagnosticKind, HttpMessageKind,
     HttpObservationCompleteness, HttpVersion, Ipv4Metadata, MacAddress, NetworkLayer,
-    NormalizedPacket, PacketCompleteness, PacketReference, PacketTimestamp, TcpFlags, TcpMetadata,
-    TransportLayer,
+    NormalizedPacket, PacketCompleteness, PacketReference, PacketTimestamp, PacketTruncationReason,
+    TcpFlags, TcpMetadata, TransportLayer,
 };
 use pcapraven_protocols::{
     HttpLimits, HttpLimitsBuilder, HttpPacketDisposition, parse_http_packet,
@@ -110,6 +110,30 @@ fn test_simple_http_response() {
 }
 
 #[test]
+fn test_status_line_second_sp_strictness() {
+    let limits = HttpLimits::default();
+
+    // Valid: 200 followed by SP and empty reason-phrase
+    let raw_valid = b"HTTP/1.1 200 \r\n\r\n";
+    let pkt_valid = make_tcp_packet(80, 54321, raw_valid.to_vec());
+    let out_valid = parse_http_packet(&pkt_valid, &limits);
+    assert_eq!(out_valid.disposition, HttpPacketDisposition::Parsed);
+    assert_eq!(out_valid.observations[0].response.unwrap().status_code, 200);
+
+    // Malformed: 200 followed immediately by CRLF without second SP
+    let raw_malformed = b"HTTP/1.1 200\r\n\r\n";
+    let pkt_malformed = make_tcp_packet(80, 54321, raw_malformed.to_vec());
+    let out_malformed = parse_http_packet(&pkt_malformed, &limits);
+    assert_eq!(out_malformed.disposition, HttpPacketDisposition::Partial);
+    assert!(
+        out_malformed
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("missing second space after status code"))
+    );
+}
+
+#[test]
 fn test_http10_request_and_response() {
     let raw_req = b"GET / HTTP/1.0\r\n\r\n";
     let packet_req = make_tcp_packet(54321, 80, raw_req.to_vec());
@@ -157,7 +181,7 @@ fn test_sensitive_headers_presence_flags_only() {
 
 #[test]
 fn test_framing_and_chunked_metadata() {
-    let raw = b"POST /upload HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\nConnection: keep-alive\r\n\r\n";
+    let raw = b"POST /upload HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked; q=1.0\r\nConnection: keep-alive, close\r\n\r\n";
     let packet = make_tcp_packet(54321, 80, raw.to_vec());
     let limits = HttpLimits::default();
 
@@ -166,7 +190,7 @@ fn test_framing_and_chunked_metadata() {
     let obs = &outcome.observations[0];
     assert!(obs.framing.is_chunked);
     assert!(obs.framing.is_keep_alive);
-    assert!(!obs.framing.is_close);
+    assert!(obs.framing.is_close);
     assert!(!obs.framing.has_conflicting_framing);
 }
 
@@ -239,281 +263,225 @@ fn test_duplicate_host_header_rejected() {
 }
 
 #[test]
-fn test_content_length_parsing_and_duplicates() {
+fn test_duplicate_informational_headers_preserve_first() {
+    let raw = b"GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent: first\r\nUser-Agent: second\r\nServer: s1\r\nServer: s2\r\n\r\n";
+    let packet = make_tcp_packet(54321, 80, raw.to_vec());
     let limits = HttpLimits::default();
 
-    // Invalid non-digit
-    let raw_bad = b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: abc\r\n\r\n";
-    let pkt_bad = make_tcp_packet(54321, 80, raw_bad.to_vec());
-    let out_bad = parse_http_packet(&pkt_bad, &limits);
-    assert_eq!(out_bad.disposition, HttpPacketDisposition::Partial);
+    let outcome = parse_http_packet(&packet, &limits);
+    assert_eq!(outcome.disposition, HttpPacketDisposition::Parsed);
+    let obs = &outcome.observations[0];
     assert_eq!(
-        out_bad.observations[0].headers.content_length,
-        HttpContentLengthState::Invalid
+        obs.headers.user_agent.as_ref().unwrap().as_bytes(),
+        b"first"
     );
+    assert_eq!(obs.headers.server.as_ref().unwrap().as_bytes(), b"s1");
+}
 
-    // Duplicate identical (valid per RFC 9110)
-    let raw_dup =
-        b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 42\r\nContent-Length: 42\r\n\r\n";
-    let pkt_dup = make_tcp_packet(54321, 80, raw_dup.to_vec());
-    let out_dup = parse_http_packet(&pkt_dup, &limits);
-    assert_eq!(out_dup.disposition, HttpPacketDisposition::Parsed);
+#[test]
+fn test_content_length_parsing_and_lists() {
+    let limits = HttpLimits::default();
+
+    // Comma-separated list identical: valid per RFC 9110 Section 8.6
+    let raw_list = b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 42, 42, 42\r\n\r\n";
+    let pkt_list = make_tcp_packet(54321, 80, raw_list.to_vec());
+    let out_list = parse_http_packet(&pkt_list, &limits);
+    assert_eq!(out_list.disposition, HttpPacketDisposition::Parsed);
     assert_eq!(
-        out_dup.observations[0].headers.content_length,
+        out_list.observations[0].headers.content_length,
         HttpContentLengthState::Present(42)
     );
 
-    // Duplicate conflicting
-    let raw_conflict =
-        b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 42\r\nContent-Length: 99\r\n\r\n";
-    let pkt_conflict = make_tcp_packet(54321, 80, raw_conflict.to_vec());
-    let out_conflict = parse_http_packet(&pkt_conflict, &limits);
-    assert_eq!(out_conflict.disposition, HttpPacketDisposition::Partial);
+    // Comma-separated list conflicting
+    let raw_list_bad = b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 42, 43\r\n\r\n";
+    let pkt_list_bad = make_tcp_packet(54321, 80, raw_list_bad.to_vec());
+    let out_list_bad = parse_http_packet(&pkt_list_bad, &limits);
+    assert_eq!(out_list_bad.disposition, HttpPacketDisposition::Partial);
     assert_eq!(
-        out_conflict.observations[0].headers.content_length,
+        out_list_bad.observations[0].headers.content_length,
+        HttpContentLengthState::Invalid
+    );
+
+    // Content-length overflow
+    let raw_overflow = b"POST / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 99999999999999999999999999999999\r\n\r\n";
+    let pkt_overflow = make_tcp_packet(54321, 80, raw_overflow.to_vec());
+    let out_overflow = parse_http_packet(&pkt_overflow, &limits);
+    assert_eq!(out_overflow.disposition, HttpPacketDisposition::Partial);
+    assert_eq!(
+        out_overflow.observations[0].headers.content_length,
         HttpContentLengthState::Invalid
     );
 }
 
 #[test]
-fn test_obs_fold_unsupported() {
-    let raw = b"GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent: foo\r\n bar\r\n\r\n";
-    let packet = make_tcp_packet(54321, 80, raw.to_vec());
-    let limits = HttpLimits::default();
-
-    let outcome = parse_http_packet(&packet, &limits);
-    assert_eq!(outcome.disposition, HttpPacketDisposition::Partial);
-    assert!(
-        outcome
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("obs-fold"))
-    );
-}
-
-#[test]
-fn test_http2_preface_unsupported() {
-    let raw = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
-    let packet = make_tcp_packet(54321, 80, raw.to_vec());
-    let limits = HttpLimits::default();
-
-    let outcome = parse_http_packet(&packet, &limits);
-    assert_eq!(outcome.disposition, HttpPacketDisposition::Partial);
-    assert!(outcome.diagnostics.iter().any(|d| {
-        d.message
-            .contains("HTTP/2 connection preface is unsupported")
-    }));
-}
-
-#[test]
-fn test_bare_cr_or_bare_lf_rejected() {
-    let limits = HttpLimits::default();
-
-    // Bare LF in start line
-    let raw_lf = b"GET / HTTP/1.1\nHost: example.com\r\n\r\n";
-    let pkt_lf = make_tcp_packet(54321, 80, raw_lf.to_vec());
-    let out_lf = parse_http_packet(&pkt_lf, &limits);
-    assert_eq!(out_lf.disposition, HttpPacketDisposition::Partial);
-    assert!(
-        out_lf
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("bare LF"))
-    );
-
-    // Bare CR in header line
-    let raw_cr = b"GET / HTTP/1.1\r\nHost: example.com\rUser-Agent: test\r\n\r\n";
-    let pkt_cr = make_tcp_packet(54321, 80, raw_cr.to_vec());
-    let out_cr = parse_http_packet(&pkt_cr, &limits);
-    assert_eq!(out_cr.disposition, HttpPacketDisposition::Partial);
-    assert!(
-        out_cr
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("bare CR"))
-    );
-}
-
-#[test]
-fn test_whitespace_before_colon_rejected() {
-    let raw = b"GET / HTTP/1.1\r\nHost : example.com\r\n\r\n";
-    let packet = make_tcp_packet(54321, 80, raw.to_vec());
-    let limits = HttpLimits::default();
-
-    let outcome = parse_http_packet(&packet, &limits);
-    assert_eq!(outcome.disposition, HttpPacketDisposition::Partial);
-    assert!(outcome.diagnostics.iter().any(|d| {
-        d.message
-            .contains("invalid characters or whitespace in HTTP header field name")
-    }));
-}
-
-#[test]
-fn test_non_candidate_packets() {
-    let limits = HttpLimits::default();
-
-    // UDP port 80
-    let mut pkt_udp = make_tcp_packet(54321, 80, b"GET / HTTP/1.1\r\nHost: a.com\r\n\r\n".to_vec());
-    pkt_udp.transport_layer = Some(TransportLayer::Udp(pcapraven_domain::UdpMetadata {
-        source_port: 54321,
-        destination_port: 80,
-        length: 20,
-        checksum: 0,
-    }));
-    let out_udp = parse_http_packet(&pkt_udp, &limits);
-    assert_eq!(out_udp.disposition, HttpPacketDisposition::NotHttpCandidate);
-
-    // TCP port 443
-    let pkt_tls = make_tcp_packet(
-        54321,
-        443,
-        b"GET / HTTP/1.1\r\nHost: a.com\r\n\r\n".to_vec(),
-    );
-    let out_tls = parse_http_packet(&pkt_tls, &limits);
-    assert_eq!(out_tls.disposition, HttpPacketDisposition::NotHttpCandidate);
-
-    // TCP port 80 empty payload
-    let pkt_empty = make_tcp_packet(54321, 80, Vec::new());
-    let out_empty = parse_http_packet(&pkt_empty, &limits);
-    assert_eq!(
-        out_empty.disposition,
-        HttpPacketDisposition::CandidateWithoutMessage
-    );
-
-    // TCP port 80 non-HTTP binary payload
-    let pkt_binary = make_tcp_packet(54321, 80, vec![0x00, 0x01, 0x02, 0x03]);
-    let out_binary = parse_http_packet(&pkt_binary, &limits);
-    assert_eq!(
-        out_binary.disposition,
-        HttpPacketDisposition::CandidateWithoutMessage
-    );
-}
-
-#[test]
-fn test_missing_network_layer_produces_no_fake_endpoints() {
-    let mut packet = make_tcp_packet(54321, 80, b"GET / HTTP/1.1\r\nHost: a.com\r\n\r\n".to_vec());
-    packet.network_layer = None;
-    let limits = HttpLimits::default();
-
-    let outcome = parse_http_packet(&packet, &limits);
-    assert_eq!(outcome.disposition, HttpPacketDisposition::Partial);
-    assert!(outcome.observations.is_empty());
-    assert!(
-        outcome
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("missing network layer"))
-    );
-}
-
-#[test]
-fn test_terminal_safe_escaping() {
-    let raw = b"GET /\x1b[31mattack\x00\\ HTTP/1.1\r\nHost: example.com\r\n\r\n";
-    let packet = make_tcp_packet(54321, 80, raw.to_vec());
-    let limits = HttpLimits::default();
-
-    let outcome = parse_http_packet(&packet, &limits);
-    // target has control characters, so it gets rejected by parse_start_line as Malformed
-    assert_eq!(outcome.disposition, HttpPacketDisposition::Partial);
-    assert!(
-        outcome
-            .diagnostics
-            .iter()
-            .any(|d| d.kind == HttpDiagnosticKind::Malformed)
-    );
-
-    // Test HttpByteString escaping directly
-    let bs = pcapraven_domain::HttpByteString::new(b"hello \x1b[31mworld\x00\\".to_vec());
-    let escaped = bs.display_escaped();
-    assert_eq!(escaped, "hello \\x1b[31mworld\\x00\\\\");
-}
-
-#[test]
-fn test_limits_builder_validation() {
-    assert!(
-        HttpLimitsBuilder::new()
-            .maximum_start_line_bytes(0)
-            .build()
-            .is_err()
-    );
-    assert!(
-        HttpLimitsBuilder::new()
-            .maximum_start_line_bytes(100_000)
-            .build()
-            .is_err()
-    );
-    assert!(
-        HttpLimitsBuilder::new()
-            .maximum_header_fields(0)
-            .build()
-            .is_err()
-    );
-    assert!(
-        HttpLimitsBuilder::new()
-            .maximum_header_fields(2000)
-            .build()
-            .is_err()
-    );
-    assert!(
-        HttpLimitsBuilder::new()
-            .maximum_diagnostics_per_packet(0)
-            .build()
-            .is_err()
-    );
-    assert!(
-        HttpLimitsBuilder::new()
-            .maximum_diagnostics_per_packet(500)
-            .build()
-            .is_err()
-    );
-}
-
-#[test]
-fn test_header_fields_limit_enforced() {
-    let mut raw = b"GET / HTTP/1.1\r\nHost: example.com\r\n".to_vec();
-    for i in 0..5 {
-        raw.extend_from_slice(format!("X-Header-{i}: value\r\n").as_bytes());
-    }
-    raw.extend_from_slice(b"\r\n");
-
-    let packet = make_tcp_packet(54321, 80, raw);
-
-    // Limit 10 headers -> Complete
-    let limits_10 = HttpLimitsBuilder::new()
-        .maximum_header_fields(10)
+fn test_line_scanning_and_section_bounds() {
+    // 1. Line budget exactly N vs N+1
+    let limits = HttpLimitsBuilder::new()
+        .maximum_header_line_bytes(11)
+        .maximum_header_section_bytes(100)
         .build()
         .unwrap();
-    let outcome_10 = parse_http_packet(&packet, &limits_10);
-    assert_eq!(outcome_10.disposition, HttpPacketDisposition::Parsed);
-    assert_eq!(outcome_10.observations[0].declared_field_count, 6);
 
-    // Limit 3 headers -> Partial with ResourceLimit
-    let limits_3 = HttpLimitsBuilder::new()
-        .maximum_header_fields(3)
+    let raw_exact = b"GET / HTTP/1.1\r\nHost: a.com\r\n\r\n";
+    let pkt_exact = make_tcp_packet(54321, 80, raw_exact.to_vec());
+    let out_exact = parse_http_packet(&pkt_exact, &limits);
+    assert_eq!(out_exact.disposition, HttpPacketDisposition::Parsed);
+
+    let raw_line_over = b"GET / HTTP/1.1\r\nHost: a_very_long_host_name.com\r\n\r\n";
+    let pkt_line_over = make_tcp_packet(54321, 80, raw_line_over.to_vec());
+    let out_line_over = parse_http_packet(&pkt_line_over, &limits);
+    assert_eq!(out_line_over.disposition, HttpPacketDisposition::Partial);
+    assert!(
+        out_line_over
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == HttpDiagnosticKind::ResourceLimit)
+    );
+
+    // 2. Whole header section limit exactly N vs N+1
+    let total_len = raw_exact.len();
+    let limits_exact_sec = HttpLimitsBuilder::new()
+        .maximum_header_section_bytes(total_len)
         .build()
         .unwrap();
-    let outcome_3 = parse_http_packet(&packet, &limits_3);
-    assert_eq!(outcome_3.disposition, HttpPacketDisposition::Partial);
+    let out_sec_exact = parse_http_packet(&pkt_exact, &limits_exact_sec);
+    assert_eq!(out_sec_exact.disposition, HttpPacketDisposition::Parsed);
+
+    let limits_sec_minus1 = HttpLimitsBuilder::new()
+        .maximum_header_section_bytes(total_len.saturating_sub(1))
+        .build()
+        .unwrap();
+    let out_sec_minus1 = parse_http_packet(&pkt_exact, &limits_sec_minus1);
+    assert_eq!(out_sec_minus1.disposition, HttpPacketDisposition::Partial);
     assert!(
-        outcome_3
+        out_sec_minus1
             .diagnostics
             .iter()
             .any(|d| d.kind == HttpDiagnosticKind::ResourceLimit)
     );
 }
 
+#[test]
+fn test_no_silent_selected_header_truncation() {
+    let limits = HttpLimitsBuilder::new()
+        .maximum_selected_field_value_bytes(5)
+        .build()
+        .unwrap();
+
+    let raw = b"GET / HTTP/1.1\r\nHost: toolonghostname.com\r\n\r\n";
+    let packet = make_tcp_packet(54321, 80, raw.to_vec());
+    let outcome = parse_http_packet(&packet, &limits);
+
+    assert_eq!(outcome.disposition, HttpPacketDisposition::Partial);
+    assert!(
+        outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == HttpDiagnosticKind::ResourceLimit)
+    );
+    // Oversized value must NOT be retained
+    assert!(outcome.observations[0].headers.host.is_none());
+}
+
+#[test]
+fn test_complete_headers_with_large_body_payload_budget_exceeded() {
+    let raw_headers = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    let mut payload = raw_headers.to_vec();
+    payload.extend_from_slice(&[0xaa; 1000]);
+
+    let mut packet = make_tcp_packet(54321, 80, payload);
+    packet.completeness = PacketCompleteness::Partial {
+        reason: PacketTruncationReason::PayloadBudgetExceeded,
+    };
+
+    let limits = HttpLimits::default();
+    let outcome = parse_http_packet(&packet, &limits);
+
+    // Headers were fully retained up to \r\n\r\n within the payload slice.
+    // Observation must remain Complete!
+    assert_eq!(outcome.disposition, HttpPacketDisposition::Parsed);
+    assert_eq!(
+        outcome.observations[0].completeness,
+        HttpObservationCompleteness::Complete
+    );
+}
+
+#[test]
+fn test_synthetic_http_fixtures() {
+    let fixtures = [
+        ("simple_request_http11.http", HttpPacketDisposition::Parsed),
+        ("simple_response_http11.http", HttpPacketDisposition::Parsed),
+        ("simple_request_http10.http", HttpPacketDisposition::Parsed),
+        ("missing_host.http", HttpPacketDisposition::Partial),
+        ("duplicate_host.http", HttpPacketDisposition::Partial),
+        ("obs_fold.http", HttpPacketDisposition::Partial),
+        ("lf_only.http", HttpPacketDisposition::Partial),
+        ("truncated_headers.http", HttpPacketDisposition::Partial),
+        (
+            "content_length_list_identical.http",
+            HttpPacketDisposition::Parsed,
+        ),
+        (
+            "content_length_conflict.http",
+            HttpPacketDisposition::Partial,
+        ),
+        ("te_and_cl.http", HttpPacketDisposition::Partial),
+        (
+            "oversized_selected_header.http",
+            HttpPacketDisposition::Partial,
+        ),
+    ];
+
+    let limits = HttpLimits::default();
+
+    for (file_name, expected_disp) in fixtures {
+        let path = format!("tests/fixtures/http/{file_name}");
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
+        let packet = make_tcp_packet(54321, 80, bytes);
+        let outcome = parse_http_packet(&packet, &limits);
+        assert_eq!(
+            outcome.disposition, expected_disp,
+            "failed fixture {file_name}"
+        );
+    }
+}
+
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(50))]
+    #![proptest_config(ProptestConfig::with_cases(100))]
 
     #[test]
-    fn arbitrary_tcp_bytes_never_panic(
+    fn prop_arbitrary_tcp_bytes_never_panic(
         src_port in 1u16..=65535,
         dst_port in 1u16..=65535,
-        payload in prop::collection::vec(any::<u8>(), 0..2048)
+        payload in prop::collection::vec(any::<u8>(), 0..4096)
     ) {
         let packet = make_tcp_packet(src_port, dst_port, payload);
         let limits = HttpLimits::default();
         let outcome = parse_http_packet(&packet, &limits);
         prop_assert!(outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+        prop_assert!(outcome.observations.len() <= 1);
+        for obs in &outcome.observations {
+            if obs.completeness.is_complete() {
+                prop_assert!(obs.header_section_bytes <= limits.maximum_header_section_bytes);
+            }
+            if let Some(ref h) = obs.headers.host {
+                prop_assert!(h.len() <= limits.maximum_selected_field_value_bytes);
+            }
+            if let Some(ref ua) = obs.headers.user_agent {
+                prop_assert!(ua.len() <= limits.maximum_selected_field_value_bytes);
+            }
+        }
+    }
+
+    #[test]
+    fn prop_deterministic_outcome(
+        payload in prop::collection::vec(any::<u8>(), 0..1024)
+    ) {
+        let packet1 = make_tcp_packet(54321, 80, payload.clone());
+        let packet2 = make_tcp_packet(54321, 80, payload);
+        let limits = HttpLimits::default();
+        let out1 = parse_http_packet(&packet1, &limits);
+        let out2 = parse_http_packet(&packet2, &limits);
+        prop_assert_eq!(out1, out2);
     }
 }

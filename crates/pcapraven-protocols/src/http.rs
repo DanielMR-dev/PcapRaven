@@ -8,7 +8,8 @@ use pcapraven_domain::{
     HttpByteString, HttpContentLengthState, HttpDiagnostic, HttpDiagnosticKind,
     HttpFramingMetadata, HttpMessageKind, HttpObservation, HttpObservationCompleteness,
     HttpRequestMetadata, HttpResponseMetadata, HttpSelectedHeaders, HttpVersion, IpAddress,
-    NormalizedPacket, PacketReference, PacketTimestamp, TransportLayer,
+    NormalizedPacket, PacketCompleteness, PacketReference, PacketTimestamp, PacketTruncationReason,
+    TransportLayer,
 };
 
 /// High-level disposition of HTTP processing for a single packet.
@@ -124,6 +125,7 @@ pub fn parse_http_packet(packet: &NormalizedPacket, limits: &HttpLimits) -> Http
         source_port: transport.source_port,
         destination_ip,
         destination_port: transport.destination_port,
+        packet_completeness: packet.completeness,
         limits,
         diagnostics: Vec::new(),
         had_partial: false,
@@ -205,9 +207,66 @@ struct HttpMessageParser<'a> {
     source_port: u16,
     destination_ip: IpAddress,
     destination_port: u16,
+    packet_completeness: PacketCompleteness,
     limits: &'a HttpLimits,
     diagnostics: Vec<HttpDiagnostic>,
     had_partial: bool,
+}
+
+enum BoundedScanResult {
+    Found(usize),
+    ResourceLimit,
+    Incomplete,
+    Malformed(&'static str, usize),
+}
+
+fn scan_line_bounded(
+    data: &[u8],
+    start: usize,
+    line_limit: usize,
+    section_limit: usize,
+) -> BoundedScanResult {
+    let line_bound = match start.checked_add(line_limit).and_then(|v| v.checked_add(2)) {
+        Some(b) => b,
+        None => usize::MAX,
+    };
+    let scan_limit = line_bound.min(section_limit);
+    let scan_end = data.len().min(scan_limit);
+
+    let mut i = start;
+    while i < scan_end {
+        if data[i] == b'\r' {
+            if i + 1 < data.len() {
+                if data[i + 1] == b'\n' {
+                    if i.saturating_sub(start) > line_limit || i.saturating_add(2) > section_limit {
+                        return BoundedScanResult::ResourceLimit;
+                    }
+                    return BoundedScanResult::Found(i);
+                }
+                return BoundedScanResult::Malformed(
+                    "bare CR character without following LF in HTTP message",
+                    i,
+                );
+            }
+            if scan_limit <= data.len() {
+                return BoundedScanResult::ResourceLimit;
+            }
+            return BoundedScanResult::Incomplete;
+        }
+        if data[i] == b'\n' {
+            return BoundedScanResult::Malformed(
+                "bare LF character without preceding CR in HTTP message",
+                i,
+            );
+        }
+        i = i.saturating_add(1);
+    }
+
+    if scan_limit < data.len() {
+        BoundedScanResult::ResourceLimit
+    } else {
+        BoundedScanResult::Incomplete
+    }
 }
 
 impl<'a> HttpMessageParser<'a> {
@@ -226,10 +285,24 @@ impl<'a> HttpMessageParser<'a> {
         let mut is_partial = false;
         let mut partial_reason = "";
 
-        // 1. Parse start-line up to CRLF
-        let start_line_crlf = match find_crlf(payload, offset) {
-            Ok(Some(idx)) => idx,
-            Ok(None) => {
+        // 1. Parse start-line up to CRLF with checked line and section bounds
+        let start_line_crlf = match scan_line_bounded(
+            payload,
+            offset,
+            self.limits.maximum_start_line_bytes,
+            self.limits.maximum_header_section_bytes,
+        ) {
+            BoundedScanResult::Found(idx) => idx,
+            BoundedScanResult::ResourceLimit => {
+                self.emit_diagnostic(
+                    HttpDiagnosticKind::ResourceLimit,
+                    "HTTP start-line exceeds configured maximum bytes limit",
+                    offset,
+                );
+                self.had_partial = true;
+                return None;
+            }
+            BoundedScanResult::Incomplete => {
                 self.emit_diagnostic(
                     HttpDiagnosticKind::Incomplete,
                     "truncated HTTP start-line (missing CRLF)",
@@ -238,23 +311,12 @@ impl<'a> HttpMessageParser<'a> {
                 self.had_partial = true;
                 return None;
             }
-            Err(e) => {
-                self.emit_diagnostic(e.kind, e.message, e.offset);
+            BoundedScanResult::Malformed(msg, off) => {
+                self.emit_diagnostic(HttpDiagnosticKind::Malformed, msg, off);
                 self.had_partial = true;
                 return None;
             }
         };
-
-        let start_line_len = start_line_crlf.saturating_sub(offset);
-        if start_line_len > self.limits.maximum_start_line_bytes {
-            self.emit_diagnostic(
-                HttpDiagnosticKind::ResourceLimit,
-                "HTTP start-line exceeds configured maximum bytes limit",
-                offset,
-            );
-            self.had_partial = true;
-            return None;
-        }
 
         let start_line_bytes = &payload[offset..start_line_crlf];
         offset = start_line_crlf.saturating_add(2); // skip \r\n
@@ -290,13 +352,25 @@ impl<'a> HttpMessageParser<'a> {
                 break;
             }
 
+            // Check if remaining section budget can accommodate even a terminal CRLF
+            if offset.saturating_add(2) > self.limits.maximum_header_section_bytes {
+                self.emit_diagnostic(
+                    HttpDiagnosticKind::ResourceLimit,
+                    "exceeded maximum HTTP header section bytes limit",
+                    offset,
+                );
+                is_partial = true;
+                partial_reason = "exceeded maximum header section bytes limit";
+                break;
+            }
+
             // Check for empty line marking end of headers
             if payload[offset..].starts_with(b"\r\n") {
                 offset = offset.saturating_add(2);
                 break;
             }
 
-            // Check limits before reading next line
+            // Check field count limit before reading next line
             if field_count >= self.limits.maximum_header_fields {
                 self.emit_diagnostic(
                     HttpDiagnosticKind::ResourceLimit,
@@ -305,17 +379,6 @@ impl<'a> HttpMessageParser<'a> {
                 );
                 is_partial = true;
                 partial_reason = "exceeded maximum header fields limit";
-                break;
-            }
-
-            if offset > self.limits.maximum_header_section_bytes {
-                self.emit_diagnostic(
-                    HttpDiagnosticKind::ResourceLimit,
-                    "exceeded maximum HTTP header section bytes limit",
-                    offset,
-                );
-                is_partial = true;
-                partial_reason = "exceeded maximum header section bytes limit";
                 break;
             }
 
@@ -331,9 +394,24 @@ impl<'a> HttpMessageParser<'a> {
                 break;
             }
 
-            let line_crlf = match find_crlf(payload, offset) {
-                Ok(Some(idx)) => idx,
-                Ok(None) => {
+            let line_crlf = match scan_line_bounded(
+                payload,
+                offset,
+                self.limits.maximum_header_line_bytes,
+                self.limits.maximum_header_section_bytes,
+            ) {
+                BoundedScanResult::Found(idx) => idx,
+                BoundedScanResult::ResourceLimit => {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "HTTP header line exceeds configured maximum bytes limit",
+                        offset,
+                    );
+                    is_partial = true;
+                    partial_reason = "header line exceeds byte limit";
+                    break;
+                }
+                BoundedScanResult::Incomplete => {
                     self.emit_diagnostic(
                         HttpDiagnosticKind::Incomplete,
                         "truncated HTTP header field line (missing CRLF)",
@@ -343,26 +421,15 @@ impl<'a> HttpMessageParser<'a> {
                     partial_reason = "truncated header line";
                     break;
                 }
-                Err(e) => {
-                    self.emit_diagnostic(e.kind, e.message, e.offset);
+                BoundedScanResult::Malformed(msg, off) => {
+                    self.emit_diagnostic(HttpDiagnosticKind::Malformed, msg, off);
                     is_partial = true;
-                    partial_reason = e.message;
+                    partial_reason = msg;
                     break;
                 }
             };
 
             let line_len = line_crlf.saturating_sub(offset);
-            if line_len > self.limits.maximum_header_line_bytes {
-                self.emit_diagnostic(
-                    HttpDiagnosticKind::ResourceLimit,
-                    "HTTP header line exceeds configured maximum bytes limit",
-                    offset,
-                );
-                is_partial = true;
-                partial_reason = "header line exceeds byte limit";
-                break;
-            }
-
             let line_bytes = &payload[offset..line_crlf];
             offset = line_crlf.saturating_add(2); // skip \r\n
             field_count = field_count.saturating_add(1);
@@ -409,7 +476,7 @@ impl<'a> HttpMessageParser<'a> {
                 break;
             }
 
-            // Process selected headers
+            // Process selected headers with exact bounds and deterministic duplicate policy
             if name_bytes.eq_ignore_ascii_case(b"host") {
                 if selected_headers.host.is_some()
                     && matches!(message_kind, HttpMessageKind::Request)
@@ -421,33 +488,56 @@ impl<'a> HttpMessageParser<'a> {
                     );
                     is_partial = true;
                     partial_reason = "duplicate Host header";
-                } else {
-                    let val_len = value_trimmed
-                        .len()
-                        .min(self.limits.maximum_selected_field_value_bytes);
-                    selected_headers.host =
-                        Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                } else if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "Host header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "Host header value exceeds maximum bytes limit";
+                } else if selected_headers.host.is_none() {
+                    selected_headers.host = Some(HttpByteString::new(value_trimmed.to_vec()));
                 }
             } else if name_bytes.eq_ignore_ascii_case(b"user-agent") {
-                let val_len = value_trimmed
-                    .len()
-                    .min(self.limits.maximum_selected_field_value_bytes);
-                selected_headers.user_agent =
-                    Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "User-Agent header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "User-Agent header value exceeds maximum bytes limit";
+                } else if selected_headers.user_agent.is_none() {
+                    selected_headers.user_agent = Some(HttpByteString::new(value_trimmed.to_vec()));
+                }
             } else if name_bytes.eq_ignore_ascii_case(b"server") {
-                let val_len = value_trimmed
-                    .len()
-                    .min(self.limits.maximum_selected_field_value_bytes);
-                selected_headers.server =
-                    Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "Server header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "Server header value exceeds maximum bytes limit";
+                } else if selected_headers.server.is_none() {
+                    selected_headers.server = Some(HttpByteString::new(value_trimmed.to_vec()));
+                }
             } else if name_bytes.eq_ignore_ascii_case(b"content-type") {
-                let val_len = value_trimmed
-                    .len()
-                    .min(self.limits.maximum_selected_field_value_bytes);
-                selected_headers.content_type =
-                    Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "Content-Type header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "Content-Type header value exceeds maximum bytes limit";
+                } else if selected_headers.content_type.is_none() {
+                    selected_headers.content_type =
+                        Some(HttpByteString::new(value_trimmed.to_vec()));
+                }
             } else if name_bytes.eq_ignore_ascii_case(b"content-length") {
-                match parse_content_length(value_trimmed) {
+                match parse_content_length_list(value_trimmed) {
                     Ok(len) => {
                         match selected_headers.content_length {
                             HttpContentLengthState::NotPresent => {
@@ -491,36 +581,55 @@ impl<'a> HttpMessageParser<'a> {
                     is_partial = true;
                     partial_reason = "Transfer-Encoding in HTTP/1.0";
                 }
-                if contains_token_case_insensitive(value_trimmed, b"chunked") {
+                if contains_transfer_coding_token(value_trimmed, b"chunked") {
                     is_chunked = true;
                 }
-                let val_len = value_trimmed
-                    .len()
-                    .min(self.limits.maximum_selected_field_value_bytes);
-                selected_headers.transfer_encoding =
-                    Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "Transfer-Encoding header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "Transfer-Encoding value exceeds maximum bytes limit";
+                } else if selected_headers.transfer_encoding.is_none() {
+                    selected_headers.transfer_encoding =
+                        Some(HttpByteString::new(value_trimmed.to_vec()));
+                }
             } else if name_bytes.eq_ignore_ascii_case(b"connection") {
-                if contains_token_case_insensitive(value_trimmed, b"close") {
+                if contains_connection_token(value_trimmed, b"close") {
                     is_close = true;
                 }
-                if contains_token_case_insensitive(value_trimmed, b"keep-alive") {
+                if contains_connection_token(value_trimmed, b"keep-alive") {
                     is_keep_alive = true;
                 }
-                if contains_token_case_insensitive(value_trimmed, b"upgrade") {
+                if contains_connection_token(value_trimmed, b"upgrade") {
                     is_upgrade = true;
                 }
-                let val_len = value_trimmed
-                    .len()
-                    .min(self.limits.maximum_selected_field_value_bytes);
-                selected_headers.connection =
-                    Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "Connection header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "Connection header value exceeds maximum bytes limit";
+                } else if selected_headers.connection.is_none() {
+                    selected_headers.connection = Some(HttpByteString::new(value_trimmed.to_vec()));
+                }
             } else if name_bytes.eq_ignore_ascii_case(b"upgrade") {
                 is_upgrade = true;
-                let val_len = value_trimmed
-                    .len()
-                    .min(self.limits.maximum_selected_field_value_bytes);
-                selected_headers.upgrade =
-                    Some(HttpByteString::new(value_trimmed[..val_len].to_vec()));
+                if value_trimmed.len() > self.limits.maximum_selected_field_value_bytes {
+                    self.emit_diagnostic(
+                        HttpDiagnosticKind::ResourceLimit,
+                        "Upgrade header value exceeds configured maximum bytes limit",
+                        offset.saturating_sub(line_len).saturating_sub(2),
+                    );
+                    is_partial = true;
+                    partial_reason = "Upgrade header value exceeds maximum bytes limit";
+                } else if selected_headers.upgrade.is_none() {
+                    selected_headers.upgrade = Some(HttpByteString::new(value_trimmed.to_vec()));
+                }
             } else if name_bytes.eq_ignore_ascii_case(b"authorization") {
                 selected_headers.has_authorization = true;
             } else if name_bytes.eq_ignore_ascii_case(b"proxy-authorization") {
@@ -561,6 +670,45 @@ impl<'a> HttpMessageParser<'a> {
             );
             is_partial = true;
             partial_reason = "conflicting Transfer-Encoding and Content-Length";
+        }
+
+        // Enforce exact header section byte boundary before accepting Complete
+        if !is_partial && offset > self.limits.maximum_header_section_bytes {
+            self.emit_diagnostic(
+                HttpDiagnosticKind::ResourceLimit,
+                "exceeded maximum HTTP header section bytes limit",
+                offset,
+            );
+            is_partial = true;
+            partial_reason = "exceeded maximum header section bytes limit";
+        }
+
+        // Check if underlying packet had non-payload-budget truncation
+        if !is_partial {
+            match self.packet_completeness {
+                PacketCompleteness::Partial {
+                    reason: PacketTruncationReason::CaptureTruncation,
+                }
+                | PacketCompleteness::Partial {
+                    reason: PacketTruncationReason::DeclaredLengthMismatch,
+                }
+                | PacketCompleteness::Partial {
+                    reason: PacketTruncationReason::HeaderTruncation,
+                }
+                | PacketCompleteness::Partial {
+                    reason: PacketTruncationReason::Fragmented,
+                } => {
+                    is_partial = true;
+                    partial_reason = "packet layer truncation prevented complete analysis";
+                }
+                PacketCompleteness::Partial {
+                    reason: PacketTruncationReason::PayloadBudgetExceeded,
+                } => {
+                    // Header section was fully retained up to `\r\n\r\n` (offset <= payload.len()).
+                    // Truncation only affected discarded body bytes; observation remains Complete.
+                }
+                PacketCompleteness::Unsupported { .. } | PacketCompleteness::Complete => {}
+            }
         }
 
         let framing = HttpFramingMetadata {
@@ -649,22 +797,30 @@ impl<'a> HttpMessageParser<'a> {
                 ));
             }
 
-            // Status code is exactly 3 decimal digits
-            let status_code_bytes = if rem.len() >= 3 && (rem.len() == 3 || rem[3] == b' ') {
-                &rem[..3]
-            } else {
+            // Status code is exactly 3 decimal digits followed by required SP
+            if rem.len() < 3 {
                 return Err(HttpInternalError::new(
                     HttpDiagnosticKind::Malformed,
                     "HTTP status code must be exactly 3 digits",
                     sp1 + 1,
                 ));
-            };
+            }
 
+            let status_code_bytes = &rem[..3];
             if !status_code_bytes.iter().all(|&b| b.is_ascii_digit()) {
                 return Err(HttpInternalError::new(
                     HttpDiagnosticKind::Malformed,
                     "HTTP status code contains non-digit characters",
                     sp1 + 1,
+                ));
+            }
+
+            // Strict status-line profile requires a second SP after the 3-digit status code
+            if rem.len() < 4 || rem[3] != b' ' {
+                return Err(HttpInternalError::new(
+                    HttpDiagnosticKind::Malformed,
+                    "malformed HTTP status-line (missing second space after status code)",
+                    sp1 + 1 + 3,
                 ));
             }
 
@@ -777,34 +933,6 @@ impl HttpInternalError {
     }
 }
 
-fn find_crlf(data: &[u8], start: usize) -> Result<Option<usize>, HttpInternalError> {
-    let mut i = start;
-    while i < data.len() {
-        if data[i] == b'\r' {
-            if i + 1 < data.len() {
-                if data[i + 1] == b'\n' {
-                    return Ok(Some(i));
-                }
-                return Err(HttpInternalError::new(
-                    HttpDiagnosticKind::Malformed,
-                    "bare CR character without following LF in HTTP message",
-                    i,
-                ));
-            }
-            return Ok(None); // truncated at bare CR at end of available payload
-        }
-        if data[i] == b'\n' {
-            return Err(HttpInternalError::new(
-                HttpDiagnosticKind::Malformed,
-                "bare LF character without preceding CR in HTTP message",
-                i,
-            ));
-        }
-        i = i.saturating_add(1);
-    }
-    Ok(None)
-}
-
 fn trim_ows(mut data: &[u8]) -> &[u8] {
     while let Some((&first, rest)) = data.split_first() {
         if first == b' ' || first == b'\t' {
@@ -833,26 +961,52 @@ fn is_valid_field_value(data: &[u8]) -> bool {
     true
 }
 
-fn parse_content_length(data: &[u8]) -> Result<u64, ()> {
+fn parse_content_length_list(data: &[u8]) -> Result<u64, ()> {
     if data.is_empty() {
         return Err(());
     }
-    let mut val = 0u64;
-    for &b in data {
-        if !b.is_ascii_digit() {
+    let mut canonical_len: Option<u64> = None;
+    for chunk in data.split(|&b| b == b',') {
+        let trimmed = trim_ows(chunk);
+        if trimmed.is_empty() {
             return Err(());
         }
-        let digit = (b - b'0') as u64;
-        val = val
-            .checked_mul(10)
-            .and_then(|v| v.checked_add(digit))
-            .ok_or(())?;
+        let mut val = 0u64;
+        for &b in trimmed {
+            if !b.is_ascii_digit() {
+                return Err(());
+            }
+            let digit = (b - b'0') as u64;
+            val = val
+                .checked_mul(10)
+                .and_then(|v| v.checked_add(digit))
+                .ok_or(())?;
+        }
+        match canonical_len {
+            None => canonical_len = Some(val),
+            Some(existing) if existing == val => {}
+            Some(_) => return Err(()),
+        }
     }
-    Ok(val)
+    canonical_len.ok_or(())
 }
 
-fn contains_token_case_insensitive(data: &[u8], token: &[u8]) -> bool {
-    for chunk in data.split(|&b| b == b',' || b == b' ' || b == b'\t' || b == b';') {
+fn contains_transfer_coding_token(data: &[u8], token: &[u8]) -> bool {
+    for chunk in data.split(|&b| b == b',') {
+        let trimmed = trim_ows(chunk);
+        let coding = match trimmed.iter().position(|&b| b == b';') {
+            Some(p) => trim_ows(&trimmed[..p]),
+            None => trimmed,
+        };
+        if coding.eq_ignore_ascii_case(token) {
+            return true;
+        }
+    }
+    false
+}
+
+fn contains_connection_token(data: &[u8], token: &[u8]) -> bool {
+    for chunk in data.split(|&b| b == b',') {
         let trimmed = trim_ows(chunk);
         if trimmed.eq_ignore_ascii_case(token) {
             return true;

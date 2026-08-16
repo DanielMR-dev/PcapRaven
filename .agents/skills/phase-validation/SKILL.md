@@ -192,7 +192,48 @@ Phase 7 implements bounded DNS protocol analysis, normalized DNS observations, a
   preventing self-loops, cycles, and forward pointers, with pointer hops capped by `maximum_name_pointer_hops`.
 - Decodes A (IPv4), AAAA (IPv6), CNAME, NS, PTR, MX, and EDNS(0) OPT pseudo-records with extended RCODE and DO bit.
 - CLI adds `pcapraven dns <capture>` with streaming execution and immediate observation row rendering.
-- Exit codes for `dns`: `0` (complete), `1` (fatal failure before useful result), `2` (usage/config error), `3` (useful partial result).
-- Synthetic micro-fixtures with documentation, unit tests, proptests, and `fuzz_dns_parser` are added and pass.
 - HTTP/1.x (Phase 8), TLS (Phase 9), threat detection, and reporting remain strictly future work.
+  That historical gate is superseded by the current Phase 8 gate below.
+
+## Phase 8 Gate
+
+Phase 8 implements bounded HTTP/1.x protocol analysis, normalized HTTP observations, and HTTP CLI inspection.
+- `pcapraven-domain` defines HTTP domain types: `HttpVersion`, `HttpMessageKind`, `HttpByteString`,
+  `HttpRequestMetadata`, `HttpResponseMetadata`, `HttpContentLengthState`, `HttpSelectedHeaders`,
+  `HttpFramingMetadata`, `HttpObservationCompleteness`, `HttpObservation`, `HttpDiagnosticKind`, and `HttpDiagnostic`.
+- `HttpByteString` preserves raw wire bytes and renders via `display_escaped()` with `\xHH` / `\\` notation for terminal safety.
+- `pcapraven-protocols` implements `HttpLimits`, `HttpLimitsBuilder`, and `parse_http_packet`.
+- Candidate classification inspects TCP port 80; non-candidates and non-start midstream packets are handled deterministically.
+- Line scanning is strictly bounded by the minimum of available payload, configured line budget, and header section budget.
+- Header section budget (`maximum_header_section_bytes`) encompasses start-line through terminal `\r\n\r\n`.
+- Oversized selected headers emit `ResourceLimit`, mark `Partial`, and do not silently truncate or retain.
+- Informational selected headers retain first value deterministically and aggregate presence flags.
+- Complete headers with truncated body payload produce `Complete` observation.
+- Strict response status-line requires second `SP`.
+- Content-Length supports comma-delimited identical values; conflicting values mark `Invalid` and `Partial`.
+- Sensitive headers (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`) record presence flags only.
+- CLI adds `pcapraven http <capture>` with streaming execution and bounded table presentation.
+- Synthetic micro-fixtures in `tests/fixtures/http/`, unit tests, proptests, and `fuzz_http_parser` pass.
+- TLS (Phase 9), threat detection, and reporting remain strictly future work.
+  That historical gate is superseded by the current Phase 9 gate below.
+
+## Phase 9 Gate
+
+Phase 9 implements bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis, normalized TLS observations, and TLS CLI inspection.
+- `pcapraven-domain` defines TLS domain types: `TlsVersion`, `TlsRecordContentType`, `TlsHandshakeKind`,
+  `TlsByteString`, `TlsExtensionMetadata`, `TlsClientHelloMetadata`, `TlsServerHelloMetadata`,
+  `TlsObservationCompleteness`, `TlsObservation`, `TlsDiagnosticKind`, and `TlsDiagnostic`.
+- `TlsByteString` preserves raw wire bytes and renders via `display_escaped()` with `\xHH` / `\\` notation for terminal safety.
+- `pcapraven-protocols` implements `TlsLimits`, `TlsLimitsBuilder`, and `parse_tls_packet`.
+- Candidate classification inspects TCP port 443; non-candidates (UDP/443, non-443) and candidate packets without TLS records are handled deterministically.
+- Packet-local multi-record handshake assembly handles fragmented Hello messages across adjacent Handshake records within the same packet up to `maximum_handshake_message_bytes`.
+- Privacy Non-Retention: raw 32-byte randoms, session IDs, key exchange public bytes, PSK binders/identities, early data payloads, certificate DER, and ciphertext payloads are strictly never retained.
+- Decodes ClientHello, ServerHello, and HelloRetryRequest (detected via RFC 9846 SHA-256 random sentinel).
+- Decodes SNI, Supported Versions, Supported Groups, Signature Algorithms, ALPN, Key Share (group ID only), PSK presence, and Early Data presence.
+- Enforces duplicate extension detection per Hello message.
+- CLI adds `pcapraven tls <capture>` with streaming execution and bounded table presentation.
+- Synthetic micro-fixtures in `tests/fixtures/tls/`, unit tests, proptests, and `fuzz_tls_parser` pass.
+- Threat detection heuristics, correlation (Phase 10), and reporting remain strictly future work.
+
+
 

@@ -6,10 +6,10 @@ use pcapraven_domain::{
     PacketReference, PacketTimestamp, PacketTruncationReason, TcpFlags, TcpMetadata,
     TransportLayer,
 };
-use pcapraven_protocols::{parse_http_packet, HttpLimits, HttpLimitsBuilder};
+use pcapraven_protocols::{parse_tls_packet, TlsLimits, TlsLimitsBuilder};
 
 fuzz_target!(|data: &[u8]| {
-    let limits = HttpLimits::default();
+    let limits = TlsLimits::default();
 
     let safe_len_u32 = u32::try_from(data.len()).unwrap_or(u32::MAX);
     let safe_total_len_u16 = u16::try_from(data.len().saturating_add(40)).unwrap_or(u16::MAX);
@@ -35,15 +35,15 @@ fuzz_target!(|data: &[u8]| {
         fragmentation: pcapraven_domain::FragmentationState::NotFragmented,
     };
 
-    // 1. Fuzz TCP on port 80 (Request direction)
-    let tcp_req_packet = NormalizedPacket {
-        reference: pkt_ref,
+    // 1. Fuzz TCP on port 443 (Client direction)
+    let tcp_client_packet = NormalizedPacket {
+        reference: pkt_ref.clone(),
         timestamp: PacketTimestamp::Unavailable,
         link_layer: Some(eth),
         network_layer: Some(NetworkLayer::Ipv4(ip)),
         transport_layer: Some(TransportLayer::Tcp(TcpMetadata {
             source_port: 54321,
-            destination_port: 80,
+            destination_port: 443,
             sequence_number: 1000,
             acknowledgement_number: 2000,
             data_offset_bytes: 20,
@@ -57,28 +57,28 @@ fuzz_target!(|data: &[u8]| {
         completeness: PacketCompleteness::Complete,
     };
 
-    let req_outcome = parse_http_packet(&tcp_req_packet, &limits);
-    assert!(req_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
-    assert!(req_outcome.observations.len() <= 1);
-    for obs in &req_outcome.observations {
-        if obs.completeness.is_complete() {
-            assert!(obs.header_section_bytes <= limits.maximum_header_section_bytes);
-        }
-        if let Some(ref h) = obs.headers.host {
-            assert!(h.len() <= limits.maximum_selected_field_value_bytes);
-            let s = h.display_escaped();
-            assert!(!s.bytes().any(|b| (b < 0x20 && b != 0x09) || b == 0x7F));
+    let client_outcome = parse_tls_packet(&tcp_client_packet, &limits);
+    assert!(client_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+    for obs in &client_outcome.observations {
+        if let Some(ref ch) = obs.client_hello {
+            assert!(ch.cipher_suites.len() <= limits.maximum_cipher_suites_per_client_hello);
+            assert!(ch.extensions.len() <= limits.maximum_extensions_per_hello);
+            if let Some(ref sni) = ch.server_name {
+                assert!(sni.len() <= limits.maximum_server_name_bytes);
+                let s = sni.display_escaped();
+                assert!(!s.bytes().any(|b| (b < 0x20 && b != 0x09) || b == 0x7F));
+            }
         }
     }
 
-    // 2. Fuzz TCP on port 80 (Response direction)
-    let tcp_resp_packet = NormalizedPacket {
-        reference: pkt_ref,
+    // 2. Fuzz TCP on port 443 (Server direction)
+    let tcp_server_packet = NormalizedPacket {
+        reference: pkt_ref.clone(),
         timestamp: PacketTimestamp::Unavailable,
         link_layer: Some(eth),
         network_layer: Some(NetworkLayer::Ipv4(ip)),
         transport_layer: Some(TransportLayer::Tcp(TcpMetadata {
-            source_port: 80,
+            source_port: 443,
             destination_port: 54321,
             sequence_number: 2000,
             acknowledgement_number: 1000,
@@ -93,9 +93,8 @@ fuzz_target!(|data: &[u8]| {
         completeness: PacketCompleteness::Complete,
     };
 
-    let resp_outcome = parse_http_packet(&tcp_resp_packet, &limits);
-    assert!(resp_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
-    assert!(resp_outcome.observations.len() <= 1);
+    let server_outcome = parse_tls_packet(&tcp_server_packet, &limits);
+    assert!(server_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
 
     // 3. Fuzz without network layer
     let no_net_packet = NormalizedPacket {
@@ -105,7 +104,7 @@ fuzz_target!(|data: &[u8]| {
         network_layer: None,
         transport_layer: Some(TransportLayer::Tcp(TcpMetadata {
             source_port: 54321,
-            destination_port: 80,
+            destination_port: 443,
             sequence_number: 1000,
             acknowledgement_number: 2000,
             data_offset_bytes: 20,
@@ -120,28 +119,25 @@ fuzz_target!(|data: &[u8]| {
             reason: PacketTruncationReason::HeaderTruncation,
         },
     };
-    let no_net_outcome = parse_http_packet(&no_net_packet, &limits);
+    let no_net_outcome = parse_tls_packet(&no_net_packet, &limits);
     assert!(no_net_outcome.observations.is_empty());
 
     // 4. Fuzz with tight custom limits
-    if let Ok(tight_limits) = HttpLimitsBuilder::new()
-        .maximum_start_line_bytes(128)
-        .maximum_header_line_bytes(128)
-        .maximum_header_section_bytes(512)
-        .maximum_header_fields(4)
-        .maximum_method_bytes(8)
-        .maximum_request_target_bytes(64)
-        .maximum_selected_field_value_bytes(64)
+    if let Ok(tight_limits) = TlsLimitsBuilder::new()
+        .maximum_records_per_packet(4)
+        .maximum_handshake_messages_per_packet(4)
+        .maximum_handshake_message_bytes(512)
+        .maximum_cipher_suites_per_client_hello(8)
+        .maximum_extensions_per_hello(8)
+        .maximum_supported_versions(4)
+        .maximum_supported_groups(4)
+        .maximum_signature_algorithms(4)
+        .maximum_alpn_protocols(4)
+        .maximum_server_name_bytes(64)
         .maximum_diagnostics_per_packet(4)
         .build()
     {
-        let tight_outcome = parse_http_packet(&tcp_req_packet, &tight_limits);
+        let tight_outcome = parse_tls_packet(&tcp_client_packet, &tight_limits);
         assert!(tight_outcome.diagnostics.len() <= tight_limits.maximum_diagnostics_per_packet);
-        assert!(tight_outcome.observations.len() <= 1);
-        for obs in &tight_outcome.observations {
-            if obs.completeness.is_complete() {
-                assert!(obs.header_section_bytes <= tight_limits.maximum_header_section_bytes);
-            }
-        }
     }
 });

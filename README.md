@@ -14,16 +14,17 @@ skeletons, baseline CI, and tooling**, **Phase 2: Safe PCAP/PCAPNG capture reade
 bidirectional flow reconstruction**, **Phase 5: Checked flow statistics and
 exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspection**,
 **Phase 7: Bounded DNS protocol analysis + normalized DNS observations + DNS CLI inspection**,
-and **Phase 8: Bounded HTTP/1.x metadata analysis + normalized HTTP observations + HTTP CLI inspection**
+**Phase 8: Bounded HTTP/1.x metadata analysis + normalized HTTP observations + HTTP CLI inspection**,
+and **Phase 9: Bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis + normalized TLS observations + TLS CLI inspection**
 are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
-- `pcapraven-domain` defines normalized packet, flow, DNS, and HTTP domain models, traffic statistics, and exact temporal metrics.
-- `pcapraven-protocols` provides bounded packet normalization, bounded DNS wire-format parsing, and bounded HTTP/1.x message header parsing.
+- `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, and TLS domain models, traffic statistics, and exact temporal metrics.
+- `pcapraven-protocols` provides bounded packet normalization, bounded DNS wire-format parsing, bounded HTTP/1.x message header parsing, and bounded TLS 1.2 / TLS 1.3 handshake metadata parsing.
 - `pcapraven-flows` provides stateful bidirectional flow reconstruction, checked traffic statistics accumulation, and exact rational temporal metric calculations.
-- `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, and HTTP inspection.
+- `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, HTTP inspection, and TLS inspection.
 
-### Implemented CLI Commands (Phase 8)
+### Implemented CLI Commands (Phase 9)
 
 ```text
 # Validate capture container integrity and factual metadata:
@@ -38,15 +39,18 @@ pcapraven dns <capture.pcap>
 # Inspect cleartext HTTP/1.x message headers:
 pcapraven http <capture.pcap>
 
+# Inspect visible TLS 1.2 / TLS 1.3 handshake metadata:
+pcapraven tls <capture.pcap>
+
 # Global flags and help:
 pcapraven --help
 pcapraven --version
-pcapraven --quiet http <capture.pcap>
+pcapraven --quiet tls <capture.pcap>
 ```
 
-Higher-level commands (`analyze`, `findings`), TLS handshake decoders (`tls`),
-detection heuristics, and structured reporting (JSON/CSV) remain targets for later roadmap
-phases and are not currently available.
+Higher-level commands (`analyze`, `findings`), detection heuristics, correlation,
+and structured reporting (JSON/CSV) remain targets for later roadmap phases and are
+not currently available.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.
@@ -81,7 +85,7 @@ v1 CLI contract.
 - [Repository structure](MANIFEST.md)
 
 Workspace tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-6-quality-gates),
+workspace quality commands in [Testing](docs/TESTING.md#phase-8-quality-gates),
 the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 

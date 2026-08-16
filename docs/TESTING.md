@@ -65,14 +65,16 @@ Implemented properties include:
 - Inter-arrival sample ordering: `min <= mean <= max` whenever `interval_sample_count > 0`.
 - Missing and non-monotonic timestamps break sequence chains without panic or negative intervals.
 - HTTP wire parser handling of arbitrary TCP byte sequences over port 80 never panics.
+- TLS handshake parser handling of arbitrary TCP byte sequences over port 443 never panics and strictly respects finite bounds.
 
 ### Fuzzing Strategy
 
-Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with five targets:
+Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with six targets:
 `fuzz_pcap_reader` for capture-container parsing, `fuzz_packet_normalizer` for
 protocol normalization, `fuzz_flow_reconstructor` for flow reconstruction
 and traffic/temporal metric invariant validation, `fuzz_dns_parser` for
-bounded DNS wire parsing, and `fuzz_http_parser` for bounded HTTP/1.x wire parsing.
+bounded DNS wire parsing, `fuzz_http_parser` for bounded HTTP/1.x wire parsing,
+and `fuzz_tls_parser` for bounded TLS 1.2 / TLS 1.3 handshake parsing.
 The targets call only public bounded APIs and do not access files or networks.
 The checked-in CI build commands are:
 
@@ -82,6 +84,7 @@ cargo +nightly fuzz build fuzz_packet_normalizer
 cargo +nightly fuzz build fuzz_flow_reconstructor
 cargo +nightly fuzz build fuzz_dns_parser
 cargo +nightly fuzz build fuzz_http_parser
+cargo +nightly fuzz build fuzz_tls_parser
 ```
 
 Long-running `cargo-fuzz` campaigns and additional structured targets remain
@@ -178,6 +181,8 @@ nightly toolchain and pinned `cargo-fuzz = 0.13.2`:
 cargo +nightly fuzz build fuzz_pcap_reader
 cargo +nightly fuzz build fuzz_packet_normalizer
 cargo +nightly fuzz build fuzz_flow_reconstructor
+cargo +nightly fuzz build fuzz_dns_parser
+cargo +nightly fuzz build fuzz_http_parser
 ```
 
 The CI job uses locked dependency resolution for workspace quality, metadata,
@@ -263,7 +268,7 @@ Phase 6 validation confirms:
   exercise all commands, help, version, usage errors, nonexistent files, complete/partial captures,
   quiet mode, UDP/TCP flows, exclusions, early stopping, and determinism.
 
-### Phase 7 Quality Gates
+## Phase 7 Quality Gates (completed)
 
 - **DNS Wire Parser Invariants:** Implements bounded parsing in `pcapraven-protocols` with zero `.unwrap()`,
   zero `.expect()`, zero panics, and checked arithmetic at all offsets.
@@ -282,6 +287,22 @@ Phase 6 validation confirms:
   with streaming output and standard exit codes (0, 1, 2, 3).
 - **Comprehensive Verification:** 11 synthetic micro-fixtures with provenance docs, integration tests in `tests/dns.rs`,
   CLI tests in `tests/cli.rs`, proptests for arbitrary byte sequences, and the `fuzz_dns_parser` fuzz target.
+
+## Phase 8 Quality Gates (completed)
+
+- **Bounded HTTP/1.x Parsing:** Implements bounded cleartext HTTP/1.0 and HTTP/1.1 message header parsing in
+  `pcapraven-protocols` with zero panics, checked arithmetic, and bounded line scanning (`scan_line_bounded`).
+- **Exact Section Budgets:** Enforces `maximum_header_section_bytes` from offset zero through terminal `\r\n\r\n`.
+  Lines exceeding line or section budgets emit `ResourceLimit` and mark `Partial`.
+- **Selected Header Retention & Privacy:** Retains bounded values for `Host`, `User-Agent`, `Server`, `Content-Type`,
+  `Transfer-Encoding`, `Connection`, and `Upgrade`. Oversized values emit `ResourceLimit` and are not retained.
+  Sensitive headers (`Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`) record boolean presence only.
+- **Framing & Strict Status-Line:** Strictly validates 3-digit status codes followed by mandatory second `SP`.
+  Parses comma-delimited identical Content-Length lists per RFC 9110 Section 8.6; flags conflicting framing.
+- **Terminal Safety & CLI Inspection:** `HttpByteString` renders via `display_escaped()` (`\xHH` / `\\`).
+  CLI adds streaming `pcapraven http <capture>` with bounded column presentation and standard exit codes (0, 1, 2, 3).
+- **Verification & Fuzzing:** 12 synthetic micro-fixtures in `tests/fixtures/http/`, integration tests in `tests/http.rs`,
+  CLI tests in `tests/cli.rs`, proptests for arbitrary bytes, and `fuzz_http_parser` fuzz target.
 
 ## Dependency Audits
 

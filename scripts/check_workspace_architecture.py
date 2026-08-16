@@ -48,7 +48,7 @@ EXPECTED = {
 EXPECTED_NAMES = set(EXPECTED)
 EXPECTED_TEST_TARGETS = {
     "pcapraven-pcap": {"reader"},
-    "pcapraven-protocols": {"normalization", "dns", "http"},
+    "pcapraven-protocols": {"normalization", "dns", "http", "tls"},
     "pcapraven-flows": {"reconstruction", "statistics"},
     "pcapraven-cli": {"cli"},
 }

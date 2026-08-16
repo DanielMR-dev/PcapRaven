@@ -9,6 +9,7 @@ pub mod flow;
 pub mod flow_metrics;
 pub mod http;
 pub mod packet;
+pub mod tls;
 
 pub use dns::{
     DnsDiagnostic, DnsDiagnosticKind, DnsEdnsMetadata, DnsEdnsOptionMetadata, DnsFlags,
@@ -36,4 +37,9 @@ pub use packet::{
     PacketNormalizationOutcome, PacketReference, PacketTimestamp, PacketTimestampResolution,
     PacketTruncationReason, TcpFlags, TcpMetadata, TransportLayer, UdpMetadata,
     UnsupportedLayerReason,
+};
+pub use tls::{
+    TlsByteString, TlsClientHelloMetadata, TlsDiagnostic, TlsDiagnosticKind, TlsExtensionMetadata,
+    TlsHandshakeKind, TlsObservation, TlsObservationCompleteness, TlsRecordContentType,
+    TlsServerHelloMetadata, TlsVersion,
 };

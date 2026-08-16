@@ -172,10 +172,22 @@ or `Partial`). Raw text is preserved in `HttpByteString` and rendered via termin
 
 ### TLS Observations
 
-Planned TLS observations represent visible handshake metadata such as record
-and handshake types, versions, bounded cipher/extension identifiers, server
-name indication when visible, and certificate metadata selected by later
-design. They do not imply payload decryption or validation of a peer's trust.
+Phase 9 TLS observations (`TlsObservation` in `pcapraven-domain`) represent factual visible
+TLS 1.2 / TLS 1.3 handshake metadata: record version (`TlsVersion`), handshake kind
+(`TlsHandshakeKind` with `ClientHello`, `ServerHello`, `HelloRetryRequest`), ClientHello metadata
+(`TlsClientHelloMetadata` with `legacy_version`, `session_id_length`, `cipher_suites`, `compression_methods`,
+`server_name`, `supported_versions`, `supported_groups`, `signature_algorithms`, `alpn_protocols`,
+`key_share_groups`, `has_pre_shared_key`, `has_early_data`, `extensions`), ServerHello metadata
+(`TlsServerHelloMetadata` with `legacy_version`, `session_id_echo_length`, `cipher_suite`,
+`compression_method`, `selected_version`, `selected_group`, `selected_alpn`, `has_pre_shared_key`,
+`has_early_data`, `extensions`), declared record length, declared handshake message length, and
+explicit completeness status (`Complete` or `Partial`). Raw text is preserved in `TlsByteString`
+and rendered via terminal-safe `display_escaped()` notation (`\xHH`/`\\`).
+
+**Privacy Non-Retention Invariants:** Raw 32-byte ClientHello / ServerHello random values, session ID
+bytes, key exchange public bytes, PSK identities/binders, early data payloads, certificate DER,
+and ciphertext payloads are strictly NEVER retained. Zero payload decryption or private key recovery
+is performed.
 
 ## Evidence Model
 
