@@ -5,13 +5,14 @@
 Phase 0 product and architecture definition, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion, Phase 3 packet normalization, Phase 4
 bidirectional flow reconstruction, Phase 5 checked flow statistics and exact
-temporal metrics, and Phase 6 initial functional CLI with streaming capture and
-flow inspection are complete. `pcapraven-domain` defines normalized packet, flow,
-statistics, and temporal models, `pcapraven-pcap` provides capture ingestion,
-`pcapraven-protocols` provides packet normalization, `pcapraven-flows`
+temporal metrics, Phase 6 initial functional CLI with streaming capture and
+flow inspection, Phase 7 bounded DNS protocol analysis, and Phase 8 bounded HTTP/1.x
+protocol analysis are complete. `pcapraven-domain` defines normalized packet, flow,
+DNS, and HTTP models, statistics, and temporal metrics, `pcapraven-pcap` provides capture ingestion,
+`pcapraven-protocols` provides packet normalization, DNS parsing, and HTTP/1.x parsing, `pcapraven-flows`
 provides stateful flow reconstruction, traffic statistics, and exact rational
-temporal metrics, and `pcapraven-cli` provides the initial functional CLI.
-Phase 7 covers DNS protocol analysis. Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), threat detection, and reporting remain future work.
+temporal metrics, and `pcapraven-cli` provides the functional CLI.
+Phase 9 (TLS handshake metadata), threat detection, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -255,6 +256,37 @@ data (`NormalizedPacket`), and `pcapraven-domain` defines the capture-independen
   inspection tables to stdout with exact exit codes (0, 1, 2, 3).
 - **Zero Production Dependencies:** Implemented with safe Rust and `std`; `proptest = 1.11.0` is dev-only.
 
+## Phase 9 TLS Handshake Metadata Analysis Boundary
+
+`pcapraven-protocols` derives bounded TLS 1.2 / TLS 1.3 handshake observations from normalized
+packet transport data (`NormalizedPacket`), and `pcapraven-domain` defines the capture-independent TLS models:
+
+- **TLS Domain Models:** `pcapraven-domain` defines `TlsVersion`, `TlsRecordContentType`,
+  `TlsHandshakeKind`, `TlsByteString`, `TlsExtensionMetadata`, `TlsClientHelloMetadata`,
+  `TlsServerHelloMetadata`, `TlsObservationCompleteness`, `TlsObservation`, `TlsDiagnosticKind`,
+  and `TlsDiagnostic`.
+- **Standards Baseline:** RFC 9846 (published July 2026) is the current standard for TLS 1.3
+  (obsoleting RFC 8446). RFC 5246 is historical reference for TLS 1.2.
+- **Candidate Selection:** Transparent candidate classification on TCP port 443 (source or destination).
+  UDP/443 and non-443 traffic are excluded deterministically (`NotTlsCandidate`). Non-TLS payloads on
+  TCP 443 are classified safely as `CandidateWithoutRecord`.
+- **Packet-Local Multi-Record Assembly:** Handshake messages spanning adjacent Handshake records within
+  the *same* packet are assembled up to `maximum_handshake_message_bytes`. Cross-packet TCP stream
+  reassembly is strictly forbidden.
+- **Privacy Non-Retention Invariants (MANDATORY):**
+  - Raw 32-byte ClientHello / ServerHello random values are NEVER retained (only inspected transiently for the HRR sentinel).
+  - Session ID bytes are NEVER retained (only `session_id_length` is recorded).
+  - Key Share public key bytes are NEVER retained (only named group IDs are recorded).
+  - PSK identities and binders are NEVER retained (only boolean presence flag).
+  - Early Data payloads are NEVER retained (only boolean presence flag).
+  - Certificate DER and ciphertext payloads are NEVER retained.
+  - Zero TLS decryption, private key loading, or `SSLKEYLOGFILE` support.
+- **Terminal Safety:** `TlsByteString::display_escaped()` renders strings in deterministic `\xHH` / `\\` notation,
+  preventing terminal escape sequence injection.
+- **CLI Inspection:** `pcapraven tls <capture>` streams capture reading and renders factual inspection
+  tables to stdout with exact exit codes (0, 1, 2, 3).
+- **Zero Production Dependencies:** Implemented with safe Rust and `std`; `proptest = 1.11.0` is dev-only.
+
 ## Crate Responsibilities
 
 The crates have the following responsibilities:
@@ -269,10 +301,10 @@ directions (`FlowDirection`), associations (`FlowPacketAssociation`), completed
 records (`FlowRecord`), end reasons (`FlowEndReason`), traffic statistics
 (`FlowTrafficStatistics`, `FlowTrafficCounters`), temporal metrics (`FlowDuration`,
 `FlowTemporalMetrics`, `FlowInterArrivalMetrics`), DNS observations (`DnsObservation`),
-HTTP observations (`HttpObservation`), protocol observations, evidence, findings,
-severity, confidence, diagnostics, and analysis result metadata. It contains no
-capture parser, protocol parser, CLI, terminal, filesystem orchestration, detector
-implementation, or serializer-specific logic.
+HTTP observations (`HttpObservation`), TLS observations (`TlsObservation`),
+protocol observations, evidence, findings, severity, confidence, diagnostics,
+and analysis result metadata. It contains no capture parser, protocol parser, CLI,
+terminal, filesystem orchestration, detector implementation, or serializer-specific logic.
 
 ### `pcapraven-pcap`
 
@@ -287,9 +319,9 @@ threats; format reports; or interact with users.
 
 Owns normalization of supported network and application protocol data. Normalizes
 Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations, and parses bounded
-DNS wire messages and cleartext HTTP/1.x headers into normalized observations. Future phases
-will derive TLS handshake observations from normalized data. It does not read capture container
-files, reconstruct global flow state, assign security findings, serialize reports, or
+DNS wire messages, cleartext HTTP/1.x headers, and visible TLS 1.2 / TLS 1.3 handshake
+metadata into normalized observations. It does not read capture container files,
+reconstruct global flow state, assign security findings, serialize reports, or
 implement CLI behavior.
 
 ### `pcapraven-flows`

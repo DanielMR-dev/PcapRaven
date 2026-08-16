@@ -9,6 +9,8 @@ pub mod http;
 pub mod http_limits;
 pub mod limits;
 pub mod normalizer;
+pub mod tls;
+pub mod tls_limits;
 
 pub use dns::{DnsPacketDisposition, DnsPacketOutcome, parse_dns_packet};
 pub use dns_limits::{
@@ -31,3 +33,13 @@ pub use limits::{
     NormalizationLimitError, NormalizationLimits, NormalizationLimitsBuilder,
 };
 pub use normalizer::normalize_packet;
+pub use tls::{TlsPacketDisposition, TlsPacketOutcome, parse_tls_packet};
+pub use tls_limits::{
+    HARD_MAX_ALPN_PROTOCOLS, HARD_MAX_CIPHER_SUITES_PER_CLIENT_HELLO,
+    HARD_MAX_DIAGNOSTICS_PER_PACKET, HARD_MAX_EXTENSIONS_PER_HELLO,
+    HARD_MAX_HANDSHAKE_MESSAGE_BYTES, HARD_MAX_HANDSHAKE_MESSAGES_PER_PACKET,
+    HARD_MAX_KEY_SHARE_ENTRIES, HARD_MAX_RECORDS_PER_PACKET, HARD_MAX_SERVER_NAME_BYTES,
+    HARD_MAX_SIGNATURE_ALGORITHMS, HARD_MAX_SUPPORTED_GROUPS, HARD_MAX_SUPPORTED_VERSIONS,
+    HARD_MAX_TOTAL_ALPN_BYTES, MAX_TLS_OPAQUE_RECORD_FRAGMENT_BYTES,
+    MAX_TLS_PLAINTEXT_FRAGMENT_BYTES, TlsLimitError, TlsLimits, TlsLimitsBuilder,
+};

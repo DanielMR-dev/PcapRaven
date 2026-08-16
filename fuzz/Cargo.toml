@@ -48,3 +48,11 @@ path = "fuzz_targets/fuzz_http_parser.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_tls_parser"
+path = "fuzz_targets/fuzz_tls_parser.rs"
+test = false
+doc = false
+bench = false
+

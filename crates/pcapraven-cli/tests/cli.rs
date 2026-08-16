@@ -188,7 +188,7 @@ fn test_help_command() {
     assert!(stdout.contains("flows"));
     assert!(stdout.contains("dns"));
     assert!(stdout.contains("http"));
-    assert!(!stdout.contains("  tls"));
+    assert!(stdout.contains("tls"));
     assert!(!stdout.contains("  findings"));
     assert!(!stdout.contains("  analyze"));
     assert!(stderr.is_empty());
@@ -199,6 +199,15 @@ fn test_http_help_subcommand() {
     let (code, stdout, stderr) = run_cli(&["http", "--help"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("Inspect cleartext HTTP/1.x message headers"));
+    assert!(stdout.contains("--max-records"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_tls_help_subcommand() {
+    let (code, stdout, stderr) = run_cli(&["tls", "--help"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("Inspect visible TLS 1.2 / TLS 1.3 handshake metadata"));
     assert!(stdout.contains("--max-records"));
     assert!(stderr.is_empty());
 }
@@ -861,4 +870,135 @@ fn test_http_cli_malformed_partial_exit_3() {
     assert_eq!(code, 3);
     assert!(stdout.contains("PKT"));
     assert!(stderr.contains("missing mandatory Host header"));
+}
+
+#[test]
+fn test_tls_cli_client_and_server_hello() {
+    let ch_bytes = include_bytes!(
+        "../../../crates/pcapraven-protocols/tests/fixtures/tls/client_hello_tls13.tls"
+    );
+    let sh_bytes = include_bytes!(
+        "../../../crates/pcapraven-protocols/tests/fixtures/tls/server_hello_tls13.tls"
+    );
+
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt1 = make_ipv4_tcp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [192, 168, 1, 100],
+        [93, 184, 216, 34],
+        54321,
+        443,
+        1000,
+        0,
+        0x18,
+        ch_bytes,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt1));
+
+    let pkt2 = make_ipv4_tcp_frame(
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [93, 184, 216, 34],
+        [192, 168, 1, 100],
+        443,
+        54321,
+        2000,
+        1000,
+        0x18,
+        sh_bytes,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 1000, &pkt2));
+
+    let temp = TempCaptureFile::new("tls_handshake.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["tls", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("KIND"));
+    assert!(stdout.contains("ClientHello"));
+    assert!(stdout.contains("ServerHello"));
+    assert!(stdout.contains("example.com"));
+    assert!(stdout.contains("TLS 1.3"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_tls_cli_no_tls_traffic() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt = make_ipv4_udp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [10, 0, 0, 1],
+        [10, 0, 0, 2],
+        1000,
+        53,
+        &[1, 2, 3],
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("no_tls.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["tls", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("SNI"));
+    assert!(!stdout.contains("10.0.0.1"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_tls_cli_quiet_mode() {
+    let ch_bytes = include_bytes!(
+        "../../../crates/pcapraven-protocols/tests/fixtures/tls/client_hello_tls13.tls"
+    );
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt = make_ipv4_tcp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [192, 168, 1, 100],
+        [93, 184, 216, 34],
+        54321,
+        443,
+        1000,
+        0,
+        0x18,
+        ch_bytes,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("tls_quiet.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["-q", "tls", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("ClientHello"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_tls_cli_malformed_partial_exit_3() {
+    let dup_bytes = include_bytes!(
+        "../../../crates/pcapraven-protocols/tests/fixtures/tls/duplicate_extension.tls"
+    );
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt = make_ipv4_tcp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [192, 168, 1, 100],
+        [93, 184, 216, 34],
+        54321,
+        443,
+        1000,
+        0,
+        0x18,
+        dup_bytes,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("tls_partial.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["tls", &temp.path_str()]);
+    assert_eq!(code, 3);
+    assert!(stdout.contains("PKT"));
+    assert!(stderr.contains("duplicate extension"));
 }

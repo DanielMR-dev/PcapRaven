@@ -59,7 +59,10 @@ impl fmt::Display for HttpMessageKind {
     }
 }
 
-/// Bounded byte string preserving raw wire bytes without assuming UTF-8.
+/// Raw byte string representation preserving wire bytes without assuming UTF-8.
+///
+/// Bounded construction and size limits are enforced by upstream protocol parsers
+/// and configuration budgets before domain instantiation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct HttpByteString {
     bytes: Vec<u8>,
@@ -67,6 +70,8 @@ pub struct HttpByteString {
 
 impl HttpByteString {
     /// Creates a new `HttpByteString` from raw bytes.
+    ///
+    /// Upstream callers must ensure byte buffers conform to applicable protocol limits.
     #[must_use]
     pub const fn new(bytes: Vec<u8>) -> Self {
         Self { bytes }

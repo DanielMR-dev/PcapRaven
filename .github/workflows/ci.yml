@@ -188,3 +188,7 @@ jobs:
 
       - name: Build bounded HTTP parser fuzz target
         run: cargo +nightly fuzz build fuzz_http_parser
+
+      - name: Build bounded TLS parser fuzz target
+        run: cargo +nightly fuzz build fuzz_tls_parser
+

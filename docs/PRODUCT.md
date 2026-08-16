@@ -8,10 +8,11 @@ threat-hunting command-line application written in Rust.
 Phase 0 product definition and engineering foundation, Phase 1 workspace
 tooling, Phase 2 capture reader, Phase 3 packet normalization, Phase 4
 bidirectional flow reconstruction, Phase 5 flow statistics and exact
-temporal metrics, and Phase 6 initial functional CLI with streaming
-capture and flow inspection are complete. Phase 7 DNS protocol analysis is
-current. Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata), threat detection
-heuristics, and advanced reporting remain targets for later roadmap phases.
+temporal metrics, Phase 6 initial functional CLI with streaming
+capture and flow inspection, Phase 7 bounded DNS protocol analysis,
+Phase 8 bounded HTTP/1.x protocol analysis, and Phase 9 bounded visible
+TLS 1.2 / TLS 1.3 handshake metadata analysis are complete. Threat detection
+heuristics, correlation, and advanced reporting remain targets for later roadmap phases.
 
 ## Problem Statement
 
@@ -96,14 +97,16 @@ Malformed records should produce bounded diagnostics and permit continued
 analysis when safe. Unsupported input is not equivalent to malicious input.
 Heuristic behavior is described as possible or suspicious, not as proof.
 
-## Current Implemented CLI Contract (Phase 6)
+## Current Implemented CLI Contract (Phase 9)
 
-The initial functional CLI is implemented in `pcapraven-cli` and provides:
+The functional CLI is implemented in `pcapraven-cli` and provides:
 
 ```text
 pcapraven validate <capture> [--max-records <N>]
 pcapraven flows <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>]
 pcapraven dns <capture> [--max-records <N>]
+pcapraven http <capture> [--max-records <N>]
+pcapraven tls <capture> [--max-records <N>]
 pcapraven --help
 pcapraven --version
 pcapraven --quiet <subcommand> <capture>
@@ -117,13 +120,14 @@ pcapraven --quiet <subcommand> <capture>
 | `flows` | Streams capture records through packet normalization and flow reconstruction, immediately emitting closed bidirectional flow records and factual traffic/temporal statistics to stdout in tabular format. |
 | `dns` | Streams capture records through packet normalization and DNS parser, immediately emitting normalized DNS observations to stdout in tabular format. |
 | `http` | Streams capture records through packet normalization and HTTP/1.x parser, immediately emitting normalized cleartext HTTP observations to stdout in tabular format. |
+| `tls` | Streams capture records through packet normalization and TLS parser, immediately emitting normalized visible TLS handshake metadata observations to stdout in tabular format. |
 
 ### Implemented Exit Codes
 
 - `0`: Successful complete command execution.
 - `1`: Fatal input, I/O, or analysis failure before any useful result was produced.
 - `2`: Usage or configuration error (invalid flags, missing arguments, limit errors).
-- `3`: Useful result produced, but analysis/validation was partial (e.g. flow exclusions, degraded temporal metrics, capture recovery/truncation).
+- `3`: Useful result produced, but analysis/validation was partial (e.g. flow exclusions, degraded temporal metrics, capture recovery/truncation, partial protocol parse).
 
 ### Implemented Stream Separation
 
@@ -133,8 +137,8 @@ pcapraven --quiet <subcommand> <capture>
 ## Target v1 CLI Contract
 
 The expanded CLI described below is a target for later roadmap phases. Higher-level
-commands (`analyze`, `findings`), TLS handshake decoders (`tls`), and
-machine-readable formats (`json`, `ndjson`, `csv`) are not yet implemented.
+commands (`analyze`, `findings`) and machine-readable formats (`json`, `ndjson`, `csv`)
+are not yet implemented.
 
 ```text
 pcapraven analyze <capture>

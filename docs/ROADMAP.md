@@ -7,13 +7,13 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, and Phase 7 are complete. Phase 7
-delivered bounded DNS wire-format parsing in `pcapraven-protocols`, normalized DNS observation
-models in `pcapraven-domain`, candidate classification (UDP/TCP port 53), backward pointer
-decompression with cycle prevention, EDNS(0) OPT pseudo-record metadata decoding, terminal-safe
-domain name escaping, the `pcapraven dns <capture>` CLI inspection command, synthetic micro-fixtures,
-property tests, and the `fuzz_dns_parser` target.
-Phase 8 (HTTP/1.x metadata analysis) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, and Phase 8 are complete.
+Phase 8 delivered bounded cleartext HTTP/1.0 and HTTP/1.1 message header parsing in `pcapraven-protocols`,
+normalized HTTP observation models in `pcapraven-domain`, candidate classification (TCP port 80),
+sensitive header masking (Authorization, Cookie, etc.), framing analysis, terminal-safe escaping,
+the `pcapraven http <capture>` CLI inspection command, synthetic micro-fixtures, unit tests, proptests,
+and the `fuzz_http_parser` target.
+Phase 9 (TLS handshake metadata analysis) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -131,9 +131,24 @@ Threat detection heuristics and TLS decoders remain future work.
 
 ## Phase 9 - TLS handshake metadata analysis
 
-Implement bounded visible TLS handshake metadata analysis for the documented
-subset without decryption or trust claims. Emit normalized observations and add
-malformed, property, and fuzz coverage.
+Implemented bounded visible TLS 1.2 and TLS 1.3 handshake metadata analysis
+and normalized TLS observation extraction in `pcapraven-protocols` and `pcapraven-domain`.
+Classified candidate traffic on TCP port 443, implemented packet-local record parsing
+and adjacent multi-record handshake assembly up to `maximum_handshake_message_bytes`
+without cross-packet TCP stream reassembly. Parsed `ClientHello`, `ServerHello`, and
+`HelloRetryRequest` (detected via RFC 9846 SHA-256 random sentinel). Decoded extensions
+including SNI (Server Name Indication), Supported Versions (RFC 9846), Supported Groups,
+Signature Algorithms, ALPN (Application-Layer Protocol Negotiation), Key Share (group ID
+only), Pre-Shared Key (presence flag only), and Early Data (presence flag only). Enforced
+strict privacy non-retention invariants: zero retention of raw 32-byte randoms, session ID
+bytes, key exchange public bytes, PSK identities/binders, early data payloads, certificate DER,
+or ciphertext bytes, with zero payload decryption or private key loading. Enforced finite
+resource bounds on records, messages, bytes, ciphers, extensions, versions, groups, schemes,
+and server name lengths. Implemented terminal-safe byte string escaping (`display_escaped()`),
+the `pcapraven tls <capture>` CLI inspection command with exact exit codes (0 complete, 1 failure,
+2 usage, 3 partial), end-to-end integration tests in `crates/pcapraven-cli/tests/cli.rs`, unit,
+boundary, and property tests in `crates/pcapraven-protocols/tests/tls.rs`, and the `fuzz_tls_parser`
+fuzz target. Threat detection heuristics and correlation remain future work.
 
 ## Phase 10 - Unified protocol observations and evidence
 

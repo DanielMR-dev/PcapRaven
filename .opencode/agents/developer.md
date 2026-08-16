@@ -59,6 +59,8 @@ You are the senior Rust developer for PcapRaven.
 - `rust-quality` skill for quality gates, formatting, and linting.
 - `secure-parser-review` skill for hostile-input parsing, bounds, and limits.
 - `dns-protocol-analysis` skill for bounded DNS parsing, candidate classification, and observation extraction.
+- `http-protocol-analysis` skill for bounded HTTP/1.x parsing, header masking, and observation extraction.
+- `tls-protocol-analysis` skill for bounded TLS 1.2 / TLS 1.3 parsing, privacy non-retention, and observation extraction.
 - `flow-reconstruction` skill for bidirectional flow reconstruction and lifecycles.
 - `flow-statistics` skill for directional traffic statistics and exact temporal metrics.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
