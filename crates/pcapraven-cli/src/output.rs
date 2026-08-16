@@ -237,6 +237,96 @@ pub fn render_dns_row(
     )
 }
 
+/// Renders the HTTP inspection table column header to the provided writer.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_http_table_header(w: &mut impl Write) -> io::Result<()> {
+    writeln!(
+        w,
+        "{:<6} {:<8} {:<21} {:<21} {:<8} {:<8} {:>6} {:<24} {:<20} {:<20} {:>10} {:<10}",
+        "PKT",
+        "KIND",
+        "SRC",
+        "DST",
+        "VER",
+        "METHOD",
+        "STATUS",
+        "TARGET",
+        "HOST",
+        "CONTENT-TYPE",
+        "CL",
+        "TE"
+    )
+}
+
+/// Renders a single factual HTTP observation row to the provided writer.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_http_row(
+    obs: &pcapraven_domain::HttpObservation,
+    w: &mut impl Write,
+) -> io::Result<()> {
+    let src = format!("{}:{}", obs.source_ip, obs.source_port);
+    let dst = format!("{}:{}", obs.destination_ip, obs.destination_port);
+    let kind = obs.message_kind.as_str();
+    let ver = obs.version.as_str();
+
+    let method = match &obs.request {
+        Some(req) => req.method.display_escaped(),
+        None => "-".to_string(),
+    };
+
+    let target = match &obs.request {
+        Some(req) => req.target.display_escaped(),
+        None => "-".to_string(),
+    };
+
+    let status = match &obs.response {
+        Some(resp) => format!("{}", resp.status_code),
+        None => "-".to_string(),
+    };
+
+    let host = match &obs.headers.host {
+        Some(h) => h.display_escaped(),
+        None => "-".to_string(),
+    };
+
+    let content_type = match &obs.headers.content_type {
+        Some(ct) => ct.display_escaped(),
+        None => "-".to_string(),
+    };
+
+    let cl = match &obs.headers.content_length {
+        pcapraven_domain::HttpContentLengthState::Present(v) => format!("{v}"),
+        pcapraven_domain::HttpContentLengthState::Invalid => "invalid".to_string(),
+        pcapraven_domain::HttpContentLengthState::NotPresent => "-".to_string(),
+    };
+
+    let te = match &obs.headers.transfer_encoding {
+        Some(t) => t.display_escaped(),
+        None => "-".to_string(),
+    };
+
+    writeln!(
+        w,
+        "{:<6} {:<8} {:<21} {:<21} {:<8} {:<8} {:>6} {:<24} {:<20} {:<20} {:>10} {:<10}",
+        obs.packet.capture_record_ordinal,
+        kind,
+        src,
+        dst,
+        ver,
+        method,
+        status,
+        target,
+        host,
+        content_type,
+        cl,
+        te,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -362,5 +452,48 @@ mod tests {
 
         let mut writer = FailingWriter;
         assert!(render_dns_row(&obs, &mut writer).is_err());
+    }
+
+    #[test]
+    fn test_render_http_table_header_propagates_writer_error() {
+        let mut writer = FailingWriter;
+        assert!(render_http_table_header(&mut writer).is_err());
+    }
+
+    #[test]
+    fn test_render_http_row_propagates_writer_error() {
+        use pcapraven_domain::{
+            HttpByteString, HttpContentLengthState, HttpFramingMetadata, HttpMessageKind,
+            HttpObservation, HttpObservationCompleteness, HttpRequestMetadata, HttpSelectedHeaders,
+            HttpVersion,
+        };
+
+        let obs = HttpObservation {
+            packet: PacketReference::new(0, None, None, 64, 64, false),
+            timestamp: PacketTimestamp::Unavailable,
+            source_ip: IpAddress::Ipv4([192, 168, 1, 100]),
+            source_port: 54321,
+            destination_ip: IpAddress::Ipv4([93, 184, 216, 34]),
+            destination_port: 80,
+            version: HttpVersion::Http11,
+            message_kind: HttpMessageKind::Request,
+            request: Some(HttpRequestMetadata {
+                method: HttpByteString::new(b"GET".to_vec()),
+                target: HttpByteString::new(b"/index.html".to_vec()),
+            }),
+            response: None,
+            headers: HttpSelectedHeaders {
+                host: Some(HttpByteString::new(b"example.com".to_vec())),
+                content_length: HttpContentLengthState::NotPresent,
+                ..Default::default()
+            },
+            framing: HttpFramingMetadata::default(),
+            declared_field_count: 1,
+            header_section_bytes: 50,
+            completeness: HttpObservationCompleteness::Complete,
+        };
+
+        let mut writer = FailingWriter;
+        assert!(render_http_row(&obs, &mut writer).is_err());
     }
 }

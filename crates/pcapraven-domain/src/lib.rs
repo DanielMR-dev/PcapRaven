@@ -7,6 +7,7 @@
 pub mod dns;
 pub mod flow;
 pub mod flow_metrics;
+pub mod http;
 pub mod packet;
 
 pub use dns::{
@@ -22,6 +23,11 @@ pub use flow::{
 pub use flow_metrics::{
     FlowDuration, FlowInterArrivalMetrics, FlowTemporalMetrics, FlowTemporalUnavailableReason,
     FlowTemporalValue, FlowTimestampCoverage, FlowTrafficCounters, FlowTrafficStatistics,
+};
+pub use http::{
+    HttpByteString, HttpContentLengthState, HttpDiagnostic, HttpDiagnosticKind,
+    HttpFramingMetadata, HttpMessageKind, HttpObservation, HttpObservationCompleteness,
+    HttpRequestMetadata, HttpResponseMetadata, HttpSelectedHeaders, HttpVersion,
 };
 pub use packet::{
     EthernetMetadata, FragmentationState, IpAddress, Ipv4Metadata, Ipv6Metadata, MacAddress,

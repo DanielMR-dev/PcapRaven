@@ -3,13 +3,13 @@
 use libfuzzer_sys::fuzz_target;
 use pcapraven_domain::{
     EthernetMetadata, Ipv4Metadata, MacAddress, NetworkLayer, NormalizedPacket, PacketCompleteness,
-    PacketReference, PacketTimestamp, PacketTruncationReason, TcpMetadata, TransportLayer,
-    UdpMetadata,
+    PacketReference, PacketTimestamp, PacketTruncationReason, TcpFlags, TcpMetadata,
+    TransportLayer,
 };
-use pcapraven_protocols::{parse_dns_packet, DnsLimits, DnsLimitsBuilder};
+use pcapraven_protocols::{parse_http_packet, HttpLimits, HttpLimitsBuilder};
 
 fuzz_target!(|data: &[u8]| {
-    let limits = DnsLimits::default();
+    let limits = HttpLimits::default();
 
     let pkt_ref = PacketReference::new(0, None, None, data.len() as u32, data.len() as u32, false);
     let eth = EthernetMetadata {
@@ -23,47 +23,28 @@ fuzz_target!(|data: &[u8]| {
         header_length: 20,
         dscp: 0,
         ecn: 0,
-        total_length: 100,
+        total_length: 40 + data.len() as u16,
         identification: 1,
         ttl: 64,
-        protocol: 17,
+        protocol: 6,
         source: [192, 168, 1, 100],
-        destination: [8, 8, 8, 8],
+        destination: [93, 184, 216, 34],
         fragmentation: pcapraven_domain::FragmentationState::NotFragmented,
     };
 
-    // 1. Fuzz UDP on port 53
-    let udp_packet = NormalizedPacket {
-        reference: pkt_ref,
-        timestamp: PacketTimestamp::Unavailable,
-        link_layer: Some(eth),
-        network_layer: Some(NetworkLayer::Ipv4(ip)),
-        transport_layer: Some(TransportLayer::Udp(UdpMetadata {
-            source_port: 53535,
-            destination_port: 53,
-            length: 8 + data.len() as u16,
-            checksum: 0,
-        })),
-        payload: Some(data.to_vec()),
-        completeness: PacketCompleteness::Complete,
-    };
-
-    let udp_outcome = parse_dns_packet(&udp_packet, &limits);
-    assert!(udp_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
-
-    // 2. Fuzz TCP on port 53
-    let tcp_packet = NormalizedPacket {
+    // 1. Fuzz TCP on port 80 (Request direction)
+    let tcp_req_packet = NormalizedPacket {
         reference: pkt_ref,
         timestamp: PacketTimestamp::Unavailable,
         link_layer: Some(eth),
         network_layer: Some(NetworkLayer::Ipv4(ip)),
         transport_layer: Some(TransportLayer::Tcp(TcpMetadata {
-            source_port: 53535,
-            destination_port: 53,
+            source_port: 54321,
+            destination_port: 80,
             sequence_number: 1000,
             acknowledgement_number: 2000,
             data_offset_bytes: 20,
-            flags: pcapraven_domain::TcpFlags::default(),
+            flags: TcpFlags::default(),
             window_size: 65535,
             checksum: 0,
             urgent_pointer: 0,
@@ -73,9 +54,33 @@ fuzz_target!(|data: &[u8]| {
         completeness: PacketCompleteness::Complete,
     };
 
-    let tcp_outcome = parse_dns_packet(&tcp_packet, &limits);
-    assert!(tcp_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
-    assert!(tcp_outcome.observations.len() <= limits.maximum_messages_per_packet);
+    let req_outcome = parse_http_packet(&tcp_req_packet, &limits);
+    assert!(req_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+
+    // 2. Fuzz TCP on port 80 (Response direction)
+    let tcp_resp_packet = NormalizedPacket {
+        reference: pkt_ref,
+        timestamp: PacketTimestamp::Unavailable,
+        link_layer: Some(eth),
+        network_layer: Some(NetworkLayer::Ipv4(ip)),
+        transport_layer: Some(TransportLayer::Tcp(TcpMetadata {
+            source_port: 80,
+            destination_port: 54321,
+            sequence_number: 2000,
+            acknowledgement_number: 1000,
+            data_offset_bytes: 20,
+            flags: TcpFlags::default(),
+            window_size: 65535,
+            checksum: 0,
+            urgent_pointer: 0,
+            options_length_bytes: 0,
+        })),
+        payload: Some(data.to_vec()),
+        completeness: PacketCompleteness::Complete,
+    };
+
+    let resp_outcome = parse_http_packet(&tcp_resp_packet, &limits);
+    assert!(resp_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
 
     // 3. Fuzz without network layer
     let no_net_packet = NormalizedPacket {
@@ -83,32 +88,39 @@ fuzz_target!(|data: &[u8]| {
         timestamp: PacketTimestamp::Unavailable,
         link_layer: Some(eth),
         network_layer: None,
-        transport_layer: Some(TransportLayer::Udp(UdpMetadata {
-            source_port: 53535,
-            destination_port: 53,
-            length: 8 + data.len() as u16,
+        transport_layer: Some(TransportLayer::Tcp(TcpMetadata {
+            source_port: 54321,
+            destination_port: 80,
+            sequence_number: 1000,
+            acknowledgement_number: 2000,
+            data_offset_bytes: 20,
+            flags: TcpFlags::default(),
+            window_size: 65535,
             checksum: 0,
+            urgent_pointer: 0,
+            options_length_bytes: 0,
         })),
         payload: Some(data.to_vec()),
         completeness: PacketCompleteness::Partial {
             reason: PacketTruncationReason::HeaderTruncation,
         },
     };
-    let no_net_outcome = parse_dns_packet(&no_net_packet, &limits);
+    let no_net_outcome = parse_http_packet(&no_net_packet, &limits);
     assert!(no_net_outcome.observations.is_empty());
 
     // 4. Fuzz with tight custom limits
-    if let Ok(tight_limits) = DnsLimitsBuilder::new()
-        .maximum_questions_per_message(2)
-        .maximum_resource_records_per_message(4)
-        .maximum_edns_options_per_message(1)
-        .maximum_name_pointer_hops(2)
-        .maximum_total_retained_name_bytes_per_message(256)
-        .maximum_messages_per_packet(2)
+    if let Ok(tight_limits) = HttpLimitsBuilder::new()
+        .maximum_start_line_bytes(128)
+        .maximum_header_line_bytes(128)
+        .maximum_header_section_bytes(512)
+        .maximum_header_fields(4)
+        .maximum_method_bytes(8)
+        .maximum_request_target_bytes(64)
+        .maximum_selected_field_value_bytes(64)
         .maximum_diagnostics_per_packet(4)
         .build()
     {
-        let tight_outcome = parse_dns_packet(&udp_packet, &tight_limits);
+        let tight_outcome = parse_http_packet(&tcp_req_packet, &tight_limits);
         assert!(tight_outcome.diagnostics.len() <= tight_limits.maximum_diagnostics_per_packet);
     }
 });

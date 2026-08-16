@@ -86,7 +86,22 @@ pub fn parse_dns_packet(packet: &NormalizedPacket, limits: &DnsLimits) -> DnsPac
 
     let (source_ip, destination_ip) = match &packet.network_layer {
         Some(net) => (net.source_ip(), net.destination_ip()),
-        None => (IpAddress::Ipv4([0, 0, 0, 0]), IpAddress::Ipv4([0, 0, 0, 0])),
+        None => {
+            let mut diagnostics = Vec::new();
+            if limits.maximum_diagnostics_per_packet > 0 {
+                diagnostics.push(DnsDiagnostic {
+                    kind: DnsDiagnosticKind::Malformed,
+                    message: "missing network layer in normalized packet candidate",
+                    offset: 0,
+                    message_index: 0,
+                });
+            }
+            return DnsPacketOutcome {
+                disposition: DnsPacketDisposition::Partial,
+                observations: Vec::new(),
+                diagnostics,
+            };
+        }
     };
 
     let mut parser = DnsPacketParser {
@@ -376,6 +391,17 @@ impl<'a> DnsPacketParser<'a> {
                     }
                 }
             }
+        }
+
+        if !is_partial && reader.offset < bytes.len() {
+            self.emit_diagnostic(
+                DnsDiagnosticKind::Malformed,
+                "undeclared trailing bytes after DNS message sections",
+                reader.offset,
+                msg_idx,
+            );
+            is_partial = true;
+            partial_reason = "undeclared trailing bytes after DNS sections";
         }
 
         let base_rcode = flags.base_rcode;
@@ -706,10 +732,10 @@ impl<'a> DnsWireReader<'a> {
             // NS (2)
             2 => {
                 let name = self.parse_name()?;
-                if self.offset > ctx.rdata_start + ctx.rdlength as usize {
+                if self.offset != ctx.rdata_start + ctx.rdlength as usize {
                     return Err(DnsParseError::new(
                         DnsDiagnosticKind::Malformed,
-                        "NS domain name consumed more than RDLENGTH bytes",
+                        "NS domain name did not consume exact RDLENGTH bytes",
                     ));
                 }
                 Ok(DnsRdataMetadata::Ns(name))
@@ -717,10 +743,10 @@ impl<'a> DnsWireReader<'a> {
             // CNAME (5)
             5 => {
                 let name = self.parse_name()?;
-                if self.offset > ctx.rdata_start + ctx.rdlength as usize {
+                if self.offset != ctx.rdata_start + ctx.rdlength as usize {
                     return Err(DnsParseError::new(
                         DnsDiagnosticKind::Malformed,
-                        "CNAME domain name consumed more than RDLENGTH bytes",
+                        "CNAME domain name did not consume exact RDLENGTH bytes",
                     ));
                 }
                 Ok(DnsRdataMetadata::Cname(name))
@@ -728,10 +754,10 @@ impl<'a> DnsWireReader<'a> {
             // PTR (12)
             12 => {
                 let name = self.parse_name()?;
-                if self.offset > ctx.rdata_start + ctx.rdlength as usize {
+                if self.offset != ctx.rdata_start + ctx.rdlength as usize {
                     return Err(DnsParseError::new(
                         DnsDiagnosticKind::Malformed,
-                        "PTR domain name consumed more than RDLENGTH bytes",
+                        "PTR domain name did not consume exact RDLENGTH bytes",
                     ));
                 }
                 Ok(DnsRdataMetadata::Ptr(name))
@@ -746,10 +772,10 @@ impl<'a> DnsWireReader<'a> {
                 }
                 let preference = self.read_u16()?;
                 let exchange = self.parse_name()?;
-                if self.offset > ctx.rdata_start + ctx.rdlength as usize {
+                if self.offset != ctx.rdata_start + ctx.rdlength as usize {
                     return Err(DnsParseError::new(
                         DnsDiagnosticKind::Malformed,
-                        "MX exchange name consumed more than RDLENGTH bytes",
+                        "MX preference and exchange name did not consume exact RDLENGTH bytes",
                     ));
                 }
                 Ok(DnsRdataMetadata::Mx {
@@ -759,59 +785,65 @@ impl<'a> DnsWireReader<'a> {
             }
             // OPT (41) - EDNS(0)
             41 => {
-                if matches!(ctx.section, DnsSection::Additional) && ctx.owner_name.is_root() {
-                    let udp_payload_size = ctx.rclass;
-                    let extended_rcode = (ctx.ttl >> 24) as u8;
-                    let version = ((ctx.ttl >> 16) & 0xFF) as u8;
-                    let dnssec_ok = (ctx.ttl & 0x8000) != 0;
-                    let z = (ctx.ttl & 0x7FFF) as u16;
-
-                    let mut opt_offset = ctx.rdata_start;
-                    let opt_end = ctx.rdata_start + ctx.rdlength as usize;
-                    let mut options = Vec::new();
-
-                    while opt_offset < opt_end {
-                        if options.len() >= self.limits.maximum_edns_options_per_message {
-                            break;
-                        }
-                        if opt_offset.saturating_add(4) > opt_end {
-                            return Err(DnsParseError::new(
-                                DnsDiagnosticKind::Incomplete,
-                                "truncated EDNS option header",
-                            ));
-                        }
-                        let code =
-                            u16::from_be_bytes([self.data[opt_offset], self.data[opt_offset + 1]]);
-                        let length = u16::from_be_bytes([
-                            self.data[opt_offset + 2],
-                            self.data[opt_offset + 3],
-                        ]);
-                        opt_offset = opt_offset.saturating_add(4);
-
-                        if opt_offset.saturating_add(length as usize) > opt_end {
-                            return Err(DnsParseError::new(
-                                DnsDiagnosticKind::Incomplete,
-                                "EDNS option length exceeds OPT RDATA boundary",
-                            ));
-                        }
-                        opt_offset = opt_offset.saturating_add(length as usize);
-                        options.push(DnsEdnsOptionMetadata { code, length });
-                    }
-
-                    Ok(DnsRdataMetadata::Opt(DnsEdnsMetadata {
-                        udp_payload_size,
-                        extended_rcode,
-                        version,
-                        dnssec_ok,
-                        z,
-                        options,
-                    }))
-                } else {
-                    Ok(DnsRdataMetadata::Unknown {
-                        rtype: ctx.rtype,
-                        rdlength: ctx.rdlength,
-                    })
+                if !ctx.owner_name.is_root() {
+                    return Err(DnsParseError::new(
+                        DnsDiagnosticKind::Malformed,
+                        "OPT record owner name must be root (.)",
+                    ));
                 }
+                if !matches!(ctx.section, DnsSection::Additional) {
+                    return Err(DnsParseError::new(
+                        DnsDiagnosticKind::Malformed,
+                        "OPT record must only appear in Additional section",
+                    ));
+                }
+                let udp_payload_size = ctx.rclass;
+                let extended_rcode = (ctx.ttl >> 24) as u8;
+                let version = ((ctx.ttl >> 16) & 0xFF) as u8;
+                let dnssec_ok = (ctx.ttl & 0x8000) != 0;
+                let z = (ctx.ttl & 0x7FFF) as u16;
+
+                let mut opt_offset = ctx.rdata_start;
+                let opt_end = ctx.rdata_start + ctx.rdlength as usize;
+                let mut options = Vec::new();
+
+                while opt_offset < opt_end {
+                    if options.len() >= self.limits.maximum_edns_options_per_message {
+                        return Err(DnsParseError::new(
+                            DnsDiagnosticKind::ResourceLimit,
+                            "exceeded maximum EDNS options per message",
+                        ));
+                    }
+                    if opt_offset.saturating_add(4) > opt_end {
+                        return Err(DnsParseError::new(
+                            DnsDiagnosticKind::Incomplete,
+                            "truncated EDNS option header",
+                        ));
+                    }
+                    let code =
+                        u16::from_be_bytes([self.data[opt_offset], self.data[opt_offset + 1]]);
+                    let length =
+                        u16::from_be_bytes([self.data[opt_offset + 2], self.data[opt_offset + 3]]);
+                    opt_offset = opt_offset.saturating_add(4);
+
+                    if opt_offset.saturating_add(length as usize) > opt_end {
+                        return Err(DnsParseError::new(
+                            DnsDiagnosticKind::Incomplete,
+                            "EDNS option length exceeds OPT RDATA boundary",
+                        ));
+                    }
+                    opt_offset = opt_offset.saturating_add(length as usize);
+                    options.push(DnsEdnsOptionMetadata { code, length });
+                }
+
+                Ok(DnsRdataMetadata::Opt(DnsEdnsMetadata {
+                    udp_payload_size,
+                    extended_rcode,
+                    version,
+                    dnssec_ok,
+                    z,
+                    options,
+                }))
             }
             _ => Ok(DnsRdataMetadata::Unknown {
                 rtype: ctx.rtype,

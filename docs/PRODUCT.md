@@ -116,6 +116,7 @@ pcapraven --quiet <subcommand> <capture>
 | `validate` | Streams capture records through the safe reader, validating container integrity, sections, interfaces, linktypes, and timestamp resolutions. Emits factual summary to stdout. |
 | `flows` | Streams capture records through packet normalization and flow reconstruction, immediately emitting closed bidirectional flow records and factual traffic/temporal statistics to stdout in tabular format. |
 | `dns` | Streams capture records through packet normalization and DNS parser, immediately emitting normalized DNS observations to stdout in tabular format. |
+| `http` | Streams capture records through packet normalization and HTTP/1.x parser, immediately emitting normalized cleartext HTTP observations to stdout in tabular format. |
 
 ### Implemented Exit Codes
 
@@ -132,7 +133,7 @@ pcapraven --quiet <subcommand> <capture>
 ## Target v1 CLI Contract
 
 The expanded CLI described below is a target for later roadmap phases. Higher-level
-commands (`analyze`, `findings`), application decoders (`http`, `tls`), and
+commands (`analyze`, `findings`), TLS handshake decoders (`tls`), and
 machine-readable formats (`json`, `ndjson`, `csv`) are not yet implemented.
 
 ```text

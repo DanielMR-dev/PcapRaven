@@ -26,12 +26,13 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 7. Phase 0 product and
+The accepted repository phase for this branch is Phase 8. Phase 0 product and
 governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
 Phase 3 packet normalization work, Phase 4 flow reconstruction, Phase 5
-checked flow statistics and exact temporal metrics, and Phase 6 initial
-functional CLI with streaming capture and flow inspection are complete. Phase 7
-covers DNS protocol analysis. Phase 8 (HTTP/1.x), Phase 9 (TLS handshake metadata),
+checked flow statistics and exact temporal metrics, Phase 6 initial
+functional CLI with streaming capture and flow inspection, and Phase 7
+DNS protocol analysis are complete. Phase 8 covers bounded HTTP/1.x
+protocol analysis and CLI inspection. Phase 9 (TLS handshake metadata)
 and all later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
@@ -49,7 +50,7 @@ and all later capabilities remain out of scope until their roadmap gates are acc
   exception and review.
 - No telemetry, capture upload, or external network request is enabled by
   default.
-- Stdout is requested result output only; diagnostics/logs use stderr/tracing.
+- Stdout is requested result output only; diagnostics/logs use stderr.
 - Never add credentials, real sensitive captures, or unsanitized production
   data.
 - Do not use destructive Git commands or modify unrelated user changes.

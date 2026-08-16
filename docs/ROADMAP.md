@@ -110,9 +110,24 @@ target. Threat detection heuristics and application decoders for HTTP/TLS remain
 
 ## Phase 8 - HTTP/1.x metadata analysis
 
-Implement bounded HTTP/1.x metadata analysis for the documented subset without
-collecting bodies by default. Emit normalized observations and add security,
-fixture, property, and fuzz coverage. Do not add HTTP detections.
+Implemented bounded cleartext HTTP/1.0 and HTTP/1.1 message header parsing and
+normalized HTTP observation extraction in `pcapraven-protocols` and `pcapraven-domain`.
+Classified candidate traffic on TCP port 80, implemented packet-local start-line and
+strict header parsing without cross-packet TCP reassembly, body retention, chunked
+decoding, or decompression. Parsed HTTP methods, request targets, 3-digit status codes,
+and selected headers (Host, User-Agent, Server, Content-Type, Content-Length,
+Transfer-Encoding, Connection, Upgrade). Enforced sensitive header privacy protections
+for Authorization, Proxy-Authorization, Cookie, and Set-Cookie by recording boolean
+presence flags without retaining or serializing header values. Enforced RFC 9112 / 7230
+validation rules including mandatory Host header in HTTP/1.1 requests, rejection of
+duplicate Host headers, rejection of obs-fold line folding, rejection of bare CR/LF,
+rejection of whitespace before colon, validation of non-conflicting Content-Length, and
+detection of conflicting Transfer-Encoding / Content-Length framing. Implemented
+terminal-safe byte string escaping (`display_escaped()`), the `pcapraven http <capture>`
+CLI inspection command with exit code contracts (0 complete, 1 failure, 2 usage, 3 partial),
+end-to-end integration tests in `crates/pcapraven-cli/tests/cli.rs`, unit and property
+tests in `crates/pcapraven-protocols/tests/http.rs`, and the `fuzz_http_parser` fuzz target.
+Threat detection heuristics and TLS decoders remain future work.
 
 ## Phase 9 - TLS handshake metadata analysis
 

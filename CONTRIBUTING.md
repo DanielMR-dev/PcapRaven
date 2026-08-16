@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 are complete. Phase 6
-contributions implemented the initial functional CLI with streaming capture validation
-(`validate`) and flow inspection (`flows`) in `pcapraven-cli`. Do not add application
-protocol decoding (DNS/HTTP/TLS), threat detection, reporting, or advanced CLI commands
-until their respective roadmap phases begin. Phase 7 (DNS protocol analysis) is current.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, and Phase 8
+are complete. Phase 8 contributions implemented bounded cleartext HTTP/1.x message
+header parsing and CLI inspection (`http`) in `pcapraven-protocols` and `pcapraven-cli`.
+Do not add TLS handshake decoding, threat detection, reporting, or advanced CLI commands
+until their respective roadmap phases begin. Phase 9 (TLS handshake metadata analysis) is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.

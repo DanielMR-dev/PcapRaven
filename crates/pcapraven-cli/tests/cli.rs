@@ -187,10 +187,19 @@ fn test_help_command() {
     assert!(stdout.contains("validate"));
     assert!(stdout.contains("flows"));
     assert!(stdout.contains("dns"));
-    assert!(!stdout.contains("  http"));
+    assert!(stdout.contains("http"));
     assert!(!stdout.contains("  tls"));
     assert!(!stdout.contains("  findings"));
     assert!(!stdout.contains("  analyze"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_http_help_subcommand() {
+    let (code, stdout, stderr) = run_cli(&["http", "--help"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("Inspect cleartext HTTP/1.x message headers"));
+    assert!(stdout.contains("--max-records"));
     assert!(stderr.is_empty());
 }
 
@@ -732,4 +741,124 @@ fn test_dns_quiet_mode() {
     assert_eq!(code, 0);
     assert!(stdout.contains("test.local"));
     assert!(stderr.is_empty());
+}
+
+fn make_http_request_tcp_frame(
+    src_ip: [u8; 4],
+    dst_ip: [u8; 4],
+    src_port: u16,
+    dst_port: u16,
+    payload: &[u8],
+) -> Vec<u8> {
+    make_ipv4_tcp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        src_ip,
+        dst_ip,
+        src_port,
+        dst_port,
+        1000,
+        2000,
+        0x18, // PSH, ACK
+        payload,
+    )
+}
+
+#[test]
+fn test_http_cli_valid_request_and_response() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let req_payload =
+        b"GET /index.html HTTP/1.1\r\nHost: example.com\r\nUser-Agent: curl/7.68.0\r\n\r\n";
+    let pkt1 = make_http_request_tcp_frame(
+        [192, 168, 1, 100],
+        [93, 184, 216, 34],
+        54321,
+        80,
+        req_payload,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt1));
+
+    let resp_payload = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 12\r\nServer: Apache\r\n\r\nHello World!";
+    let pkt2 = make_http_request_tcp_frame(
+        [93, 184, 216, 34],
+        [192, 168, 1, 100],
+        80,
+        54321,
+        resp_payload,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(101, 0, &pkt2));
+
+    let temp = TempCaptureFile::new("http_valid.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["http", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("GET"));
+    assert!(stdout.contains("/index.html"));
+    assert!(stdout.contains("example.com"));
+    assert!(stdout.contains("200"));
+    assert!(stdout.contains("text/html"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_http_cli_no_http_traffic() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let pkt = make_ipv4_udp_frame(
+        [0x00, 0x11, 0x22, 0x33, 0x44, 0x55],
+        [0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb],
+        [10, 0, 0, 1],
+        [10, 0, 0, 2],
+        1000,
+        53,
+        &[1, 2, 3],
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("no_http.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["http", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("PKT"));
+    assert!(stdout.contains("TARGET"));
+    assert!(!stdout.contains("10.0.0.1"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_http_cli_quiet_mode() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let req_payload = b"GET / HTTP/1.0\r\n\r\n";
+    let pkt = make_http_request_tcp_frame(
+        [192, 168, 1, 100],
+        [93, 184, 216, 34],
+        54321,
+        80,
+        req_payload,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("http_quiet.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["-q", "http", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("HTTP/1.0"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_http_cli_malformed_partial_exit_3() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    // Missing Host header in HTTP/1.1 request
+    let bad_req = b"GET / HTTP/1.1\r\nUser-Agent: bad\r\n\r\n";
+    let pkt =
+        make_http_request_tcp_frame([192, 168, 1, 100], [93, 184, 216, 34], 54321, 80, bad_req);
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+
+    let temp = TempCaptureFile::new("http_partial.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["http", &temp.path_str()]);
+    assert_eq!(code, 3);
+    assert!(stdout.contains("PKT"));
+    assert!(stderr.contains("missing mandatory Host header"));
 }

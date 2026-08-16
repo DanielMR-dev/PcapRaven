@@ -45,7 +45,7 @@ description: Use for PcapRaven bounded DNS protocol analysis design, implementat
   - Decode standard record types: A (IPv4), AAAA (IPv6), CNAME, NS, PTR, MX.
   - Decode EDNS(0) OPT pseudo-records in the Additional section (UDP payload size,
     extended RCODE, version, DO bit, option TLVs).
-  - Treat unknown/unsupported RR types as opaque byte slices with bounded lengths.
+  - Treat unknown/unsupported RR types as bounded metadata records recording raw rtype and rdlength without unbounded payload retention.
 - **Output Safety & Escaping:**
   - Domain names must be rendered via `display_escaped()` using deterministic `\DDD`
     escaping for control characters, non-ASCII octets, backslashes, and dots within labels.

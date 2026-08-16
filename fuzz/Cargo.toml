@@ -41,3 +41,10 @@ path = "fuzz_targets/fuzz_dns_parser.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_http_parser"
+path = "fuzz_targets/fuzz_http_parser.rs"
+test = false
+doc = false
+bench = false

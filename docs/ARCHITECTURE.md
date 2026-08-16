@@ -231,6 +231,30 @@ data (`NormalizedPacket`), and `pcapraven-domain` defines the capture-independen
   inspection tables to stdout with exact exit codes (0, 1, 2, 3).
 - **Zero Production Dependencies:** Implemented with safe Rust and `std`; `proptest = 1.11.0` is dev-only.
 
+## Phase 8 HTTP/1.x Metadata Analysis Boundary
+
+`pcapraven-protocols` derives bounded HTTP/1.x observations from normalized packet transport
+data (`NormalizedPacket`), and `pcapraven-domain` defines the capture-independent HTTP models:
+
+- **HTTP Domain Models:** `pcapraven-domain` defines `HttpVersion`, `HttpMessageKind`, `HttpByteString`,
+  `HttpRequestMetadata`, `HttpResponseMetadata`, `HttpContentLengthState`, `HttpSelectedHeaders`,
+  `HttpFramingMetadata`, `HttpObservationCompleteness`, `HttpObservation`, `HttpDiagnosticKind`,
+  and `HttpDiagnostic`.
+- **Candidate Selection:** Transparent candidate classification on cleartext TCP port 80.
+- **Packet-Local Scope:** Parses start-lines and headers on packet boundaries without cross-packet
+  TCP stream reassembly, body retention, chunked body decoding, or decompression.
+- **RFC 9112 / 7230 Hardened Parser:** Enforces canonical CRLF line endings (bare CR/LF rejected),
+  rejects whitespace before colon, rejects obs-fold line folding, enforces mandatory Host header
+  on HTTP/1.1 requests, rejects duplicate Host headers, parses decimal Content-Length, and detects
+  conflicting Transfer-Encoding / Content-Length framing.
+- **Privacy Controls:** Enforces sensitive header masking (Authorization, Proxy-Authorization, Cookie,
+  Set-Cookie) by capturing boolean presence flags without retaining header values.
+- **Terminal Safety:** `HttpByteString::display_escaped()` renders bytes safely in `\xHH` / `\\` notation,
+  preventing terminal escape sequence injection.
+- **CLI Inspection:** `pcapraven http <capture>` streams capture reading and renders factual
+  inspection tables to stdout with exact exit codes (0, 1, 2, 3).
+- **Zero Production Dependencies:** Implemented with safe Rust and `std`; `proptest = 1.11.0` is dev-only.
+
 ## Crate Responsibilities
 
 The crates have the following responsibilities:
@@ -244,10 +268,11 @@ metadata (`NormalizedPacket`, `EthernetMetadata`, `Ipv4Metadata`, `Ipv6Metadata`
 directions (`FlowDirection`), associations (`FlowPacketAssociation`), completed
 records (`FlowRecord`), end reasons (`FlowEndReason`), traffic statistics
 (`FlowTrafficStatistics`, `FlowTrafficCounters`), temporal metrics (`FlowDuration`,
-`FlowTemporalMetrics`, `FlowInterArrivalMetrics`), protocol observations,
-evidence, findings, severity, confidence, diagnostics, and analysis result metadata.
-It contains no capture parser, protocol parser, CLI, terminal, filesystem orchestration,
-detector implementation, or serializer-specific logic.
+`FlowTemporalMetrics`, `FlowInterArrivalMetrics`), DNS observations (`DnsObservation`),
+HTTP observations (`HttpObservation`), protocol observations, evidence, findings,
+severity, confidence, diagnostics, and analysis result metadata. It contains no
+capture parser, protocol parser, CLI, terminal, filesystem orchestration, detector
+implementation, or serializer-specific logic.
 
 ### `pcapraven-pcap`
 
@@ -262,8 +287,8 @@ threats; format reports; or interact with users.
 
 Owns normalization of supported network and application protocol data. Normalizes
 Ethernet, IPv4, IPv6, TCP, and UDP into domain packet observations, and parses bounded
-DNS wire messages into normalized DNS observations. Future phases will derive HTTP/1.x
-and TLS handshake observations from normalized data. It does not read capture container
+DNS wire messages and cleartext HTTP/1.x headers into normalized observations. Future phases
+will derive TLS handshake observations from normalized data. It does not read capture container
 files, reconstruct global flow state, assign security findings, serialize reports, or
 implement CLI behavior.
 
@@ -400,12 +425,10 @@ Internal invariant violations are programming defects, not malformed-input
 handling. They should be prevented by types and tests; they must not expose
 sensitive data in diagnostics.
 
-## Logging Policy
+## Logging and Diagnostics Policy
 
-Later analysis phases will use structured `tracing` diagnostics. No tracing
-dependency or logging behavior is present in the current library crates; the
-detailed dependency choice remains subject to the dependency review required
-when CLI/logging behavior is introduced.
+Structured diagnostics and warnings are emitted to stderr via bounded diagnostic
+emitters. No external logging dependency is present in the current library crates.
 
 - Stdout is reserved for requested result output.
 - Logs, warnings, progress, and diagnostics go to stderr.
