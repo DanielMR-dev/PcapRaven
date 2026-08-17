@@ -7,13 +7,14 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 are complete.
-Phase 10 delivered unified protocol observations across DNS, HTTP, and TLS in `pcapraven-domain` (`ProtocolObservationData`,
-`ProtocolObservation`, `ObservationFlowAssociation`, `ProtocolObservationCollection`), explicit flow reconstruction exclusion
-reasons (`FlowExclusionReason`), and structured evidence records (`EvidenceRecord`, `EvidenceMeasurement`, `EvidenceRatio`,
-`SchemaVersion`), featuring exact Euclidean continued-fraction rational comparisons with zero floats (`f32`/`f64`) and zero
-overflow across all `u128` values, terminal safety, and comprehensive integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs`.
-Phase 11 (detection engine architecture) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, and Phase 11 are complete.
+Phase 11 delivered detection engine architecture in `pcapraven-detection` (`Detector`, `DetectorMetadata`, `IncompleteDataPolicy`,
+`DetectorRegistry`, `DetectorConfig`, `DetectorParameters`, `execute_detection`, `DetectionInput`, `DetectionRunOutcome`), and
+finding domain models in `pcapraven-domain` (`DetectorId`, `DetectorVersion`, `FindingReference`, `FindingSubject`, `FindingTitle`,
+`FindingSummary`, `FindingRationale`, `FindingDraft`, `FindingRecord`, `Severity`, `Confidence`), featuring whole-configuration preflight validation,
+deterministic execution ordering, duplicate finding identity collision detection, float-free parameter arithmetic, and comprehensive
+integration tests in `crates/pcapraven-detection/tests/engine.rs`.
+Phase 12 (periodic beaconing detection) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -159,14 +160,17 @@ explicit flow reconstruction exclusion reasons (`FlowExclusionReason`), and stru
 arithmetic in canonical lowest terms with Euclidean continued-fraction total ordering (zero floats,
 zero overflow), bounded descriptions/identifiers with terminal safety, explicit analysis limitations,
 pure `std` domain invariants, and comprehensive integration testing in `crates/pcapraven-domain/tests/observation_evidence.rs`.
-Detection engine architecture and cross-protocol correlation remain future work.
+Detection engine architecture is complete; periodic beaconing detection remains future work.
 
 ## Phase 11 - Detection engine architecture
 
-Implement detector registration/execution contracts, stable identifiers and
-versions, deterministic finding identity, parameter validation, evidence
-requirements, and incomplete-data behavior. Do not yet implement the planned
-behavioral detector families.
+Implemented detector registration/execution contracts, stable identifiers (`DetectorId`) and
+versions (`DetectorVersion`), deterministic finding identity (`FindingReference`), parameter validation
+with whole-configuration preflight (`DetectorParameters`), evidence requirements (`FindingRecord`, `FindingDraft`),
+referential integrity verification, and incomplete-data policies (`IncompleteDataPolicy`). Implemented pure
+`Detector` trait, `DetectorRegistry`, and `execute_detection` in `pcapraven-detection`, finding domain models in
+`pcapraven-domain`, and comprehensive integration tests in `crates/pcapraven-detection/tests/engine.rs`.
+Specific behavioral detector families remain future work.
 
 ## Phase 12 - Periodic beaconing detection
 

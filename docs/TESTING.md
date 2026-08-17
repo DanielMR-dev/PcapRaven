@@ -8,8 +8,9 @@ Phase 4 bidirectional flow reconstruction tests, Phase 5 flow statistics and
 exact temporal metric tests, Phase 6 functional CLI integration tests,
 Phase 7 bounded DNS protocol analysis tests, Phase 8 bounded HTTP/1.x protocol
 analysis tests, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis tests,
-and Phase 10 unified protocol observations and structured evidence integration tests
-are complete. Phase 11 (cross-protocol correlation), detection,
+Phase 10 unified protocol observations and structured evidence integration tests,
+and Phase 11 detection engine architecture tests are complete.
+Phase 12 (periodic beaconing detection), threat detection heuristics,
 and advanced reporting testing remain future phase work.
 
 ## Testing Pyramid
@@ -343,9 +344,27 @@ Phase 10 establishes the cross-protocol observation architecture and immutable s
   anchoring for findings without raw byte retention.
 - **Exact Rational Arithmetic:** `EvidenceRatio` guarantees exact rational arithmetic ($n / d$) in canonical lowest terms via GCD
   and exact total ordering via Euclidean continued fractions without float approximation or arithmetic overflow.
-- **Integration Tests:** 17 comprehensive unit/integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs` verifying
+- **Integration Tests:** 14 comprehensive unit/integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs` verifying
   all observation kinds, flow associations, bounds, schema versions, description sanitization, and exact rational comparisons.
 - **Pure `std` Invariant:** Zero external dependencies added to `pcapraven-domain`.
+
+## Phase 11 Detection Engine Architecture Testing Foundation
+
+Phase 11 establishes test-only stub detectors and integration test suites in `crates/pcapraven-detection/tests/engine.rs`:
+
+- **Test-Only Stubs:** Pure synthetic stubs for zero matches (`NoMatchStubDetector`), single findings (`OneFindingStubDetector`),
+  parameter validation (`ParameterValidationStubDetector`), execution errors (`FailingStubDetector`), incomplete input policies
+  (`IncompleteInputStubDetector`), and duplicate finding draft collisions (`DuplicateDraftsStubDetector`).
+- **Registry & Execution Determinism:** Verifies that detector execution order is strictly sorted by `DetectorId` regardless of registration
+  order, and that duplicate `DetectorId`s are rejected.
+- **Preflight Configuration Validation:** Verifies whole-configuration preflight validation, ensuring invalid parameters on any detector
+  transactionally abort the entire run before evaluating any detector.
+- **Incomplete Input Policies:** Tests `Skip` and `AllowWithLimitations` behavior, enforcing that findings on partial input without
+  supporting limitations are rejected.
+- **Canonical Finding & Evidence Ordering:** Verifies deterministic `FindingReference` (`find:0`, `find:1`, ...) and `EvidenceReference`
+  (`evi:0`, `evi:1`, ...) assignments.
+- **Referential Integrity:** Verifies that findings referencing nonexistent flows or observations are rejected.
+- **Pure `std` Invariant:** Zero external dependencies added to `pcapraven-detection`.
 
 ## Dependency Audits
 
@@ -366,6 +385,10 @@ or network behavior.
 ### `pcapraven-flows` (Phase 4 and Phase 5)
 
 `pcapraven-flows` introduces zero third-party production dependencies.
+
+### `pcapraven-detection` (Phase 11)
+
+`pcapraven-detection` introduces zero third-party production dependencies (pure safe Rust and `std`).
 
 ### `clap = "=4.6.4"` (Phase 6)
 
@@ -399,9 +422,9 @@ runtime.
   purity.
 - Tests may not hide panics or accept broad output merely to tolerate defects.
 
-## Phase 10 Quality Gates
+## Phase 11 Quality Gates
 
-The full workspace verification commands for Phase 10 are:
+The full workspace verification commands for Phase 11 are:
 
 ```text
 # 1. Format check

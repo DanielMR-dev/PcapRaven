@@ -6,6 +6,7 @@
 
 pub mod dns;
 pub mod evidence;
+pub mod finding;
 pub mod flow;
 pub mod flow_metrics;
 pub mod http;
@@ -20,9 +21,16 @@ pub use dns::{
     MAX_DNS_NAME_WIRE_LENGTH,
 };
 pub use evidence::{
-    EvidenceComparison, EvidenceDescription, EvidenceKind, EvidenceLimitation, EvidenceMeasurement,
-    EvidenceMetricKey, EvidenceRatio, EvidenceRecord, EvidenceReference, EvidenceUnit,
-    EvidenceValue, SchemaVersion,
+    EVIDENCE_SCHEMA_VERSION, EvidenceComparison, EvidenceDescription, EvidenceKind,
+    EvidenceLimitation, EvidenceMeasurement, EvidenceMetricKey, EvidenceRatio, EvidenceRecord,
+    EvidenceRecordBuilder, EvidenceReference, EvidenceUnit, EvidenceValidationError, EvidenceValue,
+    PROTOCOL_OBSERVATION_SCHEMA_VERSION, SchemaVersion,
+};
+pub use finding::{
+    Confidence, DetectorId, DetectorVersion, FindingDraft, FindingRationale, FindingRecord,
+    FindingReference, FindingSubject, FindingSummary, FindingTitle, FindingValidationError,
+    MAX_DETECTOR_ID_LENGTH, MAX_FINDING_RATIONALE_LENGTH, MAX_FINDING_SUMMARY_LENGTH,
+    MAX_FINDING_TITLE_LENGTH, Severity,
 };
 pub use flow::{
     FlowDirection, FlowEndReason, FlowEndpoint, FlowExclusionReason, FlowKey,
@@ -38,9 +46,9 @@ pub use http::{
     HttpRequestMetadata, HttpResponseMetadata, HttpSelectedHeaders, HttpVersion,
 };
 pub use observation::{
-    ObservationCompleteness, ObservationFlowAssociation, ObservationReference, ProtocolKind,
-    ProtocolObservation, ProtocolObservationCollection, ProtocolObservationCollectionError,
-    ProtocolObservationData,
+    ObservationCompleteness, ObservationError, ObservationFlowAssociation, ObservationReference,
+    ProtocolKind, ProtocolObservation, ProtocolObservationCollection,
+    ProtocolObservationCollectionError, ProtocolObservationData,
 };
 pub use packet::{
     EthernetMetadata, FragmentationState, IpAddress, Ipv4Metadata, Ipv6Metadata, MacAddress,

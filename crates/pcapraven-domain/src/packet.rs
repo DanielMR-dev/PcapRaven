@@ -3,7 +3,7 @@
 use core::fmt;
 
 /// Stable identity reference tying a normalized packet to its source capture record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PacketReference {
     /// Zero-based sequential emitted record index within the capture stream.
     pub capture_record_ordinal: u64,
@@ -38,6 +38,12 @@ impl PacketReference {
             original_len,
             truncated,
         }
+    }
+
+    /// Returns the zero-based record ordinal within the capture stream.
+    #[must_use]
+    pub const fn capture_record_ordinal(&self) -> u64 {
+        self.capture_record_ordinal
     }
 }
 

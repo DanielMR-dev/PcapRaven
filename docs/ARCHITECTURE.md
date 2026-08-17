@@ -8,14 +8,16 @@ bidirectional flow reconstruction, Phase 5 checked flow statistics and exact
 temporal metrics, Phase 6 initial functional CLI with streaming capture and
 flow inspection, Phase 7 bounded DNS protocol analysis, Phase 8 bounded HTTP/1.x
 protocol analysis, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake
-metadata analysis, and Phase 10 unified protocol observations and structured evidence
-foundation are complete. `pcapraven-domain` defines normalized packet, flow,
-DNS, HTTP, TLS, observation, and evidence models, statistics, and exact temporal metrics,
+metadata analysis, Phase 10 unified protocol observations and structured evidence
+foundation, and Phase 11 detection engine architecture are complete.
+`pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation,
+evidence, and finding models, statistics, and exact temporal metrics,
 `pcapraven-pcap` provides capture ingestion, `pcapraven-protocols` provides packet normalization,
 DNS parsing, HTTP/1.x parsing, and TLS handshake parsing, `pcapraven-flows` provides stateful
-flow reconstruction, traffic statistics, and exact rational temporal metrics, and
-`pcapraven-cli` provides the functional CLI.
-Phase 11 (cross-protocol correlation), threat detection, and reporting remain future work.
+flow reconstruction, traffic statistics, and exact rational temporal metrics,
+`pcapraven-detection` provides detection engine execution pipeline, detector registry,
+and parameter configuration, and `pcapraven-cli` provides the functional CLI.
+Phase 12 (periodic beaconing detection), threat detection heuristics, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -314,6 +316,33 @@ and structured evidence foundation:
 - **Schema Versioning:** `SchemaVersion::CURRENT` (`v1.0`) anchors evidence records for forward/backward compatibility.
 - **Zero External Dependencies:** Implemented purely with safe Rust and `std`.
 
+## Phase 11 Detection Engine Architecture Boundary
+
+`pcapraven-detection` implements the detector evaluation engine, deterministic registry, preflight configuration
+validation, and canonical finding/evidence generation over borrowed domain facts:
+
+- **Finding Domain Models:** `pcapraven-domain` defines `DetectorId`, `DetectorVersion`, `FindingReference`,
+  `FindingSubject`, `FindingTitle`, `FindingSummary`, `FindingRationale`, `FindingDraft`, `FindingRecord`,
+  `Severity`, `Confidence`, and `FindingValidationError`.
+- **Pure Detector Trait:** `Detector` declares pure analytical functions (`metadata()`, `validate_parameters()`,
+  `evaluate()`) evaluated solely over borrowed domain facts (`DetectionInput`) and validated parameters.
+  Detectors perform zero network, filesystem, or process side effects.
+- **Whole-Configuration Preflight Validation:** Validates all detector configurations prior to executing any
+  detector. If any detector configuration fails validation, execution halts transactionally without evaluating
+  any detector.
+- **Deterministic Registry:** `DetectorRegistry` enforces bounded capacity (default 64, hard 256), duplicate
+  `DetectorId` rejection (even across different versions), and strictly sorted execution order by canonical
+  `DetectorId`.
+- **Incomplete Data Policies:** `IncompleteDataPolicy` enforces deterministic handling of partial traffic inputs:
+  - `Skip`: Skips detector evaluation on partial input (`DetectorExecutionStatus::SkippedIncompleteData`).
+  - `AllowWithLimitations`: Evaluates on partial input, requiring all emitted findings to contain explicit
+    `EvidenceLimitation` items.
+- **Canonical Determinism & Identity Assignment:** Accepted finding drafts are deterministically sorted by
+  `(DetectorId, FindingSubject, Title)` and assigned sequential, immutable `FindingReference` and `EvidenceReference`
+  identifiers. Duplicate finding keys `(DetectorId, FindingSubject)` within a detector are strictly rejected.
+- **Zero Float Discipline:** All detection parameter models, ratio calculations, and thresholds operate exclusively
+  over integers, `FlowDuration`, and `EvidenceRatio`.
+
 ## Crate Responsibilities
 
 The crates have the following responsibilities:
@@ -329,8 +358,9 @@ records (`FlowRecord`), end reasons (`FlowEndReason`), traffic statistics
 (`FlowTrafficStatistics`, `FlowTrafficCounters`), temporal metrics (`FlowDuration`,
 `FlowTemporalMetrics`, `FlowInterArrivalMetrics`), DNS observations (`DnsObservation`),
 HTTP observations (`HttpObservation`), TLS observations (`TlsObservation`),
-protocol observations, evidence, findings, severity, confidence, diagnostics,
-and analysis result metadata. It contains no capture parser, protocol parser, CLI,
+protocol observations (`ProtocolObservation`), evidence (`EvidenceRecord`, `EvidenceMeasurement`),
+findings (`FindingRecord`, `FindingSubject`, `DetectorId`, `DetectorVersion`, `Severity`, `Confidence`),
+diagnostics, and analysis result metadata. It contains no capture parser, protocol parser, CLI,
 terminal, filesystem orchestration, detector implementation, or serializer-specific logic.
 
 ### `pcapraven-pcap`
@@ -362,10 +392,10 @@ interact with users.
 
 ### `pcapraven-detection`
 
-Owns detector contracts, detector execution, and heuristic implementations. It
-consumes normalized domain observations and flow information. It does not parse
-external bytes, mutate parser results, own report formatting, or handle CLI
-interaction.
+Owns the detection engine execution pipeline, detector registry, parameter configuration
+validation, and detector traits. It consumes normalized domain observations and flow
+information. It does not parse external bytes, mutate parser results, own report formatting,
+or handle CLI interaction.
 
 ### `pcapraven-reporting`
 

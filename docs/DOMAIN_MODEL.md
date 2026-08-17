@@ -189,55 +189,58 @@ and rendered via terminal-safe `display_escaped()` notation (`\xHH`/`\\`).
 **Privacy Non-Retention Invariants:** Raw 32-byte ClientHello / ServerHello random values, session ID
 bytes, key exchange public bytes, PSK identities/binders, early data payloads, certificate DER,
 and ciphertext payloads are strictly NEVER retained. Zero payload decryption or private key recovery
+is performed.
+
 ### Unified Protocol Observations
 
 Phase 10 unifies protocol observations across DNS, HTTP, and TLS under `pcapraven-domain`:
 
-- `ProtocolKind` identifies the application protocol (`Dns`, `Http`, `Tls`).
-- `ObservationReference` assigns a deterministic, monotonic reference string (`obs:{id}`).
-- `ObservationCompleteness` reflects whether the observation parsed fully (`Complete`) or experienced non-fatal bounded degradation (`Partial`).
-- `ObservationFlowAssociation` explicitly classifies flow linkage:
-  - `Associated(FlowReference)`: Associated with a reconstructed bidirectional flow.
+- `ProtocolKind` identifies the application protocol (`Dns`, `Http`, `Tls`) with total ordering `Dns < Http < Tls`.
+- `ObservationReference` assigns a structural, deterministic capture-local reference `(packet_ordinal, protocol, ordinal_within_packet)` formatted as `obs:{packet_ordinal}:{protocol}:{ordinal_within_packet}`.
+- `ObservationCompleteness` reflects whether the observation parsed fully (`Complete`) or experienced non-fatal bounded degradation (`Partial`). Completeness is strictly derived from the underlying protocol payload and cannot be contradicted.
+- `ObservationFlowAssociation` explicitly classifies flow linkage while preserving packet direction:
+  - `Associated { flow, direction }`: Associated with a reconstructed bidirectional flow and canonical packet direction (`AToB`, `BToA`, `SameEndpoint`).
   - `Excluded(FlowExclusionReason)`: Flow reconstruction was explicitly excluded (e.g. `MissingNetworkLayer`, `MissingTransportLayer`, `FragmentedWithoutTransport`, `UnsupportedTransport`).
   - `Unassociated`: Observation has not been or cannot be associated with a flow.
 - `ProtocolObservationData` is a typed enum wrapping `DnsObservation`, `HttpObservation`, or `TlsObservation`.
-- `ProtocolObservation` records link an observation reference, packet provenance (`PacketReference`), explicit flow association, completeness, and typed observation data.
-- `ProtocolObservationCollection` provides a bounded collection enforcing `maximum_observations` and tracking truncation counters.
+- `ProtocolObservation` records link a structural observation reference, validated packet provenance, explicit flow association, derived completeness, and typed observation data with private fields and invariant validation.
+- `ProtocolObservationCollection` provides a bounded collection enforcing hard maximum capacity (up to 1,000,000 observations), strict reference monotonicity, duplicate reference rejection, and explicit `ResourceLimit` errors on capacity exhaustion.
 
 ## Evidence Model
 
 Phase 10 establishes the structured, immutable evidence foundation in `pcapraven-domain`:
 
-- `SchemaVersion`: Explicit schema versioning (`SchemaVersion::CURRENT = v1.0`) ensuring forward/backward compatibility.
+- `SchemaVersion`: Explicit schema version anchors (`PROTOCOL_OBSERVATION_SCHEMA_VERSION = v1.0`, `EVIDENCE_SCHEMA_VERSION = v1.0`) ensuring forward/backward compatibility.
 - `EvidenceReference`: Stable capture-local reference formatted as `evi:{id}`.
-- `EvidenceKind`: Categorizes evidence into `PacketMeasurement`, `FlowMeasurement`, `ProtocolObservation`, `TemporalMetric`, `RatioComparison`, or `StructuralAnomaly`.
-- `EvidenceDescription`: Bounded (up to 1,024 characters), terminal-safe sanitized factual description.
-- `EvidenceMetricKey`: Bounded (up to 128 characters), terminal-safe metric identifier.
+- `EvidenceKind`: Factual categorization into `PacketMeasurement`, `FlowMeasurement`, `ProtocolObservation`, `TemporalMetric`, `RatioComparison`, or `ProtocolFact`.
+- `EvidenceDescription`: Bounded (up to 512 UTF-8 bytes), terminal-safe validated factual description (rejects control characters and empty text).
+- `EvidenceMetricKey`: Bounded (up to 64 bytes), validated metric identifier matching ASCII grammar `[a-z0-9][a-z0-9._-]*`.
 - `EvidenceRatio`: Exact rational representation ($n / d$) stored as `u128` numerator and `u128` denominator reduced via GCD. Enforces zero float arithmetic (`f32`/`f64`) and exact total ordering via Euclidean continued-fraction decomposition without overflow across all $u128$ ranges.
-- `EvidenceUnit`: Explicit units (`Bytes`, `Packets`, `Nanoseconds`, `Microseconds`, `Milliseconds`, `Seconds`, `Ratio`, `Count`, `PercentageInteger`, `Custom`).
-- `EvidenceValue`: Exact typed value (`Integer(i128)`, `Unsigned(u128)`, `Ratio(EvidenceRatio)`, `Boolean(bool)`, `Text(String)` — zero floats).
-- `EvidenceComparison`: Comparison operator (`Equal`, `NotEqual`, `LessThan`, `LessThanOrEqual`, `GreaterThan`, `GreaterThanOrEqual`, `InRange`, `OutsideRange`).
-- `EvidenceMeasurement`: Structured measurement combining observed value, optional reference threshold, optional comparison operator, and explicit unit.
+- `EvidenceUnit`: Finite explicit units (`Bytes`, `Packets`, `Nanoseconds`, `Microseconds`, `Milliseconds`, `Seconds`, `Ratio`, `Count`, `PercentageInteger`).
+- `EvidenceValue`: Exact typed value (`Integer(i128)`, `Unsigned(u128)`, `Ratio(EvidenceRatio)`, `Boolean(bool)` — zero floats, zero unbounded strings).
+- `EvidenceComparison`: Exact comparison operator (`Equal`, `NotEqual`, `LessThan`, `LessThanOrEqual`, `GreaterThan`, `GreaterThanOrEqual`).
+- `EvidenceMeasurement`: Structured measurement combining observed value, optional reference threshold, optional comparison operator, and explicit unit with validated type/unit compatibility.
 - `EvidenceLimitation`: Explicit analysis limitations affecting evidence interpretation (`TruncatedPayload`, `MissingNetworkLayer`, `IncompleteHandshake`, `PacketCountBudgetReached`, `ObservationBudgetReached`, `FlowBudgetReached`, `HeaderBudgetExceeded`).
-- `EvidenceRecord`: Complete evidence record anchoring schema version, references to packets (`PacketReference`), flows (`FlowReference`), and observations (`ObservationReference`), structured measurements, description, and limitations.
+- `EvidenceRecord`: Validated evidence record with private fields, finite per-record bounds (packets <= 1,024, flows <= 256, observations <= 4,096, measurements <= 256, limitations <= 64), strictly increasing and duplicate-free references, unique metric keys, sorted limitations, and mandatory non-empty supporting content.
 
 Evidence references canonical records rather than copying arbitrary packet payloads.
 Evidence never contains a detector conclusion disguised as an observed fact.
 
 ## Finding Model
 
-A finding is a detector-produced interpretation over normalized domain data.
-Its conceptual envelope contains:
+Phase 11 establishes the finding domain model in `pcapraven-domain`:
 
-- Stable finding identity within the analysis result.
-- Detector identifier, detector version, and finding category/title.
-- Cautious summary of what was detected.
-- Human-readable rationale explaining why it was produced.
-- Structured evidence items.
-- Deduplicated packet, flow, and observation references.
-- Severity and confidence as separate values.
-- Zero or more applicable MITRE ATT&CK mappings.
-- Analysis limitations or suppression-relevant context.
+- `DetectorId`: Namespaced, lowercase ASCII identifier (e.g. `test.synthetic.detector`) matching grammar `^[a-z0-9]+(\.[a-z0-9_-]+)+$` with maximum length 96 bytes.
+- `DetectorVersion`: Semantic version `v{major}.{minor}.{patch}` for detector analytical logic.
+- `FindingReference`: Monotonically assigned unique identifier within a detection run (`find:{ordinal}`).
+- `FindingSubject`: Bounded, deterministic traffic entity references identifying involved packets (<= 1,024), flows (<= 256), and observations (<= 4,096), strictly ordered and duplicate-free. Non-empty support is mandatory.
+- `FindingTitle`: Bounded (up to 128 UTF-8 bytes), terminal-safe concise finding title (rejects control characters and empty text).
+- `FindingSummary`: Bounded (up to 512 UTF-8 bytes), terminal-safe concise summary (rejects control characters and empty text).
+- `FindingRationale`: Bounded (up to 2,048 UTF-8 bytes), terminal-safe explanatory rationale explaining why the detector matched (rejects control characters and empty text).
+- `FindingDraft`: Unassigned finding draft emitted by a detector during evaluation, containing the detector ID, version, subject, title, summary, rationale, severity, confidence, and supporting evidence records.
+- `FindingRecord`: Canonical, immutable finding record constructed by the detection engine, linking an assigned finding reference, detector metadata, validated subject, title, summary, rationale, severity, confidence, and engine-assigned evidence references.
+- `Severity`: Foundational severity classification (`Info`, `Low`, `Medium`, `High`, `Critical`).
+- `Confidence`: Analytical confidence rating (`Low`, `Medium`, `High`), strictly separated from severity.
 
 Canonical semantics are defined in [Detection Model](DETECTION_MODEL.md).
 

@@ -12,8 +12,8 @@ temporal metrics, Phase 6 initial functional CLI with streaming
 capture and flow inspection, Phase 7 bounded DNS protocol analysis,
 Phase 8 bounded HTTP/1.x protocol analysis, Phase 9 bounded visible
 TLS 1.2 / TLS 1.3 handshake metadata analysis, and Phase 10 unified protocol
-observations and structured evidence foundation are complete. Threat detection
-heuristics, correlation, and advanced reporting remain targets for later roadmap phases.
+observations and structured evidence foundation are complete. Detection engine architecture,
+threat detection heuristics, and advanced reporting remain targets for later roadmap phases.
 
 ## Problem Statement
 
@@ -67,7 +67,7 @@ not replace analyst judgment.
 - A graphical user interface, server, daemon, or hosted service in v1.0.0.
 - Compatibility with NetSentinel APIs, data formats, architecture, or source
   code.
-- Threat detection heuristics, cross-protocol correlation, and structured reporting
+- Threat detection heuristics, detection engine architecture, and structured reporting
   in the current phase.
 
 ## Product Principles
@@ -98,7 +98,7 @@ Malformed records should produce bounded diagnostics and permit continued
 analysis when safe. Unsupported input is not equivalent to malicious input.
 Heuristic behavior is described as possible or suspicious, not as proof.
 
-## Current Implemented CLI Contract (Phase 9)
+## Current Implemented CLI Contract (Phase 10)
 
 The functional CLI is implemented in `pcapraven-cli` and provides:
 

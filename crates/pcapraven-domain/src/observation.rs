@@ -1,10 +1,10 @@
 //! Unified protocol observations across DNS, HTTP, and TLS.
 //!
-//! Provides common observation identity, explicit flow association, typed protocol
+//! Provides common structural observation identity, explicit flow association, typed protocol
 //! observation data, derived completeness states, and bounded deterministic collections.
 
 use crate::dns::DnsObservation;
-use crate::flow::{FlowExclusionReason, FlowReference};
+use crate::flow::{FlowDirection, FlowExclusionReason, FlowPacketAssociation, FlowReference};
 use crate::http::HttpObservation;
 use crate::packet::PacketReference;
 use crate::tls::TlsObservation;
@@ -31,6 +31,16 @@ impl ProtocolKind {
             Self::Tls => "TLS",
         }
     }
+
+    /// Returns the lowercase string representation of the protocol kind.
+    #[must_use]
+    pub const fn as_str_lowercase(&self) -> &'static str {
+        match self {
+            Self::Dns => "dns",
+            Self::Http => "http",
+            Self::Tls => "tls",
+        }
+    }
 }
 
 impl fmt::Display for ProtocolKind {
@@ -39,29 +49,60 @@ impl fmt::Display for ProtocolKind {
     }
 }
 
-/// Monotonically assigned unique identifier for a protocol observation within an analysis run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+/// Structural, deterministic unique identifier for a protocol observation within a capture.
+///
+/// Encapsulates packet provenance, protocol family, and the local ordinal of the observation
+/// within that packet. Total ordering is strictly defined as `(packet_ordinal, protocol, ordinal_within_packet)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObservationReference {
-    id: u64,
+    packet_ordinal: u64,
+    protocol: ProtocolKind,
+    ordinal_within_packet: u32,
 }
 
 impl ObservationReference {
-    /// Creates a new observation reference.
+    /// Creates a new structural observation reference.
     #[must_use]
-    pub const fn new(id: u64) -> Self {
-        Self { id }
+    pub const fn new(
+        packet_ordinal: u64,
+        protocol: ProtocolKind,
+        ordinal_within_packet: u32,
+    ) -> Self {
+        Self {
+            packet_ordinal,
+            protocol,
+            ordinal_within_packet,
+        }
     }
 
-    /// Returns the numeric observation identifier.
+    /// Returns the originating capture packet record ordinal.
     #[must_use]
-    pub const fn id(&self) -> u64 {
-        self.id
+    pub const fn packet_ordinal(&self) -> u64 {
+        self.packet_ordinal
+    }
+
+    /// Returns the protocol family of this observation.
+    #[must_use]
+    pub const fn protocol(&self) -> ProtocolKind {
+        self.protocol
+    }
+
+    /// Returns the zero-based index of this observation within the originating packet.
+    #[must_use]
+    pub const fn ordinal_within_packet(&self) -> u32 {
+        self.ordinal_within_packet
     }
 }
 
 impl fmt::Display for ObservationReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "obs:{}", self.id)
+        write!(
+            f,
+            "obs:{}:{}:{}",
+            self.packet_ordinal,
+            self.protocol.as_str_lowercase(),
+            self.ordinal_within_packet
+        )
     }
 }
 
@@ -106,8 +147,13 @@ impl fmt::Display for ObservationCompleteness {
 /// Explicit association between a protocol observation and a reconstructed bidirectional flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ObservationFlowAssociation {
-    /// The observation is associated with a specific reconstructed flow instance.
-    Associated(FlowReference),
+    /// The observation is associated with a specific reconstructed flow instance and direction.
+    Associated {
+        /// Associated flow instance reference.
+        flow: FlowReference,
+        /// Direction of the packet relative to the canonical flow key.
+        direction: FlowDirection,
+    },
     /// The observation originated from a packet that was excluded from flow reconstruction.
     Excluded(FlowExclusionReason),
     /// The observation has not been evaluated for flow association.
@@ -115,10 +161,29 @@ pub enum ObservationFlowAssociation {
 }
 
 impl ObservationFlowAssociation {
+    /// Creates an association from a [`FlowPacketAssociation`], validating that the observation packet matches.
+    pub fn from_flow_packet_association(
+        observation_packet: &PacketReference,
+        association: &FlowPacketAssociation,
+    ) -> Result<Self, ObservationError> {
+        if observation_packet.capture_record_ordinal()
+            != association.packet.capture_record_ordinal()
+        {
+            return Err(ObservationError::FlowAssociationPacketMismatch {
+                observation_packet_ordinal: observation_packet.capture_record_ordinal(),
+                association_packet_ordinal: association.packet.capture_record_ordinal(),
+            });
+        }
+        Ok(Self::Associated {
+            flow: association.flow,
+            direction: association.direction,
+        })
+    }
+
     /// Returns `true` if this association is [`Self::Associated`].
     #[must_use]
     pub const fn is_associated(&self) -> bool {
-        matches!(self, Self::Associated(_))
+        matches!(self, Self::Associated { .. })
     }
 
     /// Returns `true` if this association is [`Self::Excluded`].
@@ -137,7 +202,16 @@ impl ObservationFlowAssociation {
     #[must_use]
     pub const fn flow_reference(&self) -> Option<FlowReference> {
         match self {
-            Self::Associated(flow) => Some(*flow),
+            Self::Associated { flow, .. } => Some(*flow),
+            Self::Excluded(_) | Self::Unassociated => None,
+        }
+    }
+
+    /// Returns the associated flow direction, if any.
+    #[must_use]
+    pub const fn flow_direction(&self) -> Option<FlowDirection> {
+        match self {
+            Self::Associated { direction, .. } => Some(*direction),
             Self::Excluded(_) | Self::Unassociated => None,
         }
     }
@@ -147,7 +221,7 @@ impl ObservationFlowAssociation {
     pub const fn exclusion_reason(&self) -> Option<FlowExclusionReason> {
         match self {
             Self::Excluded(reason) => Some(*reason),
-            Self::Associated(_) | Self::Unassociated => None,
+            Self::Associated { .. } | Self::Unassociated => None,
         }
     }
 }
@@ -155,7 +229,9 @@ impl ObservationFlowAssociation {
 impl fmt::Display for ObservationFlowAssociation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Associated(flow) => write!(f, "Associated({})", flow),
+            Self::Associated { flow, direction } => {
+                write!(f, "Associated({}, {})", flow, direction)
+            }
             Self::Excluded(reason) => write!(f, "Excluded({})", reason),
             Self::Unassociated => f.write_str("Unassociated"),
         }
@@ -181,6 +257,16 @@ impl ProtocolObservationData {
             Self::Dns(_) => ProtocolKind::Dns,
             Self::Http(_) => ProtocolKind::Http,
             Self::Tls(_) => ProtocolKind::Tls,
+        }
+    }
+
+    /// Returns the originating packet reference of the underlying observation.
+    #[must_use]
+    pub fn packet_reference(&self) -> &PacketReference {
+        match self {
+            Self::Dns(obs) => &obs.packet,
+            Self::Http(obs) => &obs.packet,
+            Self::Tls(obs) => &obs.packet,
         }
     }
 
@@ -245,62 +331,119 @@ impl ProtocolObservationData {
     }
 }
 
+/// Errors that can occur during observation validation or construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ObservationError {
+    /// Observation reference packet ordinal does not match payload packet ordinal.
+    PacketReferenceMismatch {
+        /// Packet ordinal declared in the reference.
+        reference_packet_ordinal: u64,
+        /// Packet ordinal declared in the payload.
+        payload_packet_ordinal: u64,
+    },
+    /// Observation reference protocol kind does not match payload protocol kind.
+    ProtocolMismatch {
+        /// Protocol declared in the reference.
+        reference_protocol: ProtocolKind,
+        /// Protocol declared in the payload.
+        payload_protocol: ProtocolKind,
+    },
+    /// Flow association packet does not match the observation packet.
+    FlowAssociationPacketMismatch {
+        /// Observation packet record ordinal.
+        observation_packet_ordinal: u64,
+        /// Association packet record ordinal.
+        association_packet_ordinal: u64,
+    },
+}
+
+impl fmt::Display for ObservationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PacketReferenceMismatch {
+                reference_packet_ordinal,
+                payload_packet_ordinal,
+            } => write!(
+                f,
+                "observation reference packet ordinal ({reference_packet_ordinal}) does not match payload packet ordinal ({payload_packet_ordinal})"
+            ),
+            Self::ProtocolMismatch {
+                reference_protocol,
+                payload_protocol,
+            } => write!(
+                f,
+                "observation reference protocol ({reference_protocol}) does not match payload protocol ({payload_protocol})"
+            ),
+            Self::FlowAssociationPacketMismatch {
+                observation_packet_ordinal,
+                association_packet_ordinal,
+            } => write!(
+                f,
+                "flow association packet ordinal ({association_packet_ordinal}) does not match observation packet ordinal ({observation_packet_ordinal})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ObservationError {}
+
 /// Unified, capture-independent protocol observation record.
 ///
-/// Encapsulates stable identity, packet provenance, flow association, completeness,
-/// and protocol-specific decoded metadata.
+/// Encapsulates structural identity, derived packet provenance, flow association,
+/// strictly derived completeness, and protocol-specific decoded metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtocolObservation {
-    /// Stable identifier for this observation.
-    pub reference: ObservationReference,
-    /// Originating capture packet reference.
-    pub packet_reference: PacketReference,
-    /// Association with a reconstructed bidirectional flow.
-    pub flow_association: ObservationFlowAssociation,
-    /// Derived or explicit completeness state.
-    pub completeness: ObservationCompleteness,
-    /// Protocol-specific observation payload.
-    pub data: ProtocolObservationData,
+    reference: ObservationReference,
+    flow_association: ObservationFlowAssociation,
+    completeness: ObservationCompleteness,
+    data: ProtocolObservationData,
 }
 
 impl ProtocolObservation {
-    /// Creates a new protocol observation, deriving its completeness from the underlying payload.
+    /// Creates a new protocol observation, validating reference and payload provenance invariants.
+    ///
+    /// Completeness is strictly derived from the underlying protocol observation payload.
+    pub fn try_new(
+        reference: ObservationReference,
+        flow_association: ObservationFlowAssociation,
+        data: ProtocolObservationData,
+    ) -> Result<Self, ObservationError> {
+        let payload_packet_ordinal = data.packet_reference().capture_record_ordinal();
+        if reference.packet_ordinal() != payload_packet_ordinal {
+            return Err(ObservationError::PacketReferenceMismatch {
+                reference_packet_ordinal: reference.packet_ordinal(),
+                payload_packet_ordinal,
+            });
+        }
+        if reference.protocol() != data.protocol_kind() {
+            return Err(ObservationError::ProtocolMismatch {
+                reference_protocol: reference.protocol(),
+                payload_protocol: data.protocol_kind(),
+            });
+        }
+        let completeness = data.completeness();
+        Ok(Self {
+            reference,
+            flow_association,
+            completeness,
+            data,
+        })
+    }
+
+    /// Creates a new protocol observation, panicking if invariant validation fails.
+    ///
+    /// Preferred for test constructors where invariant consistency is statically known.
     #[must_use]
     pub fn new(
         reference: ObservationReference,
-        packet_reference: PacketReference,
         flow_association: ObservationFlowAssociation,
         data: ProtocolObservationData,
     ) -> Self {
-        let completeness = data.completeness();
-        Self {
-            reference,
-            packet_reference,
-            flow_association,
-            completeness,
-            data,
-        }
+        Self::try_new(reference, flow_association, data)
+            .expect("protocol observation invariant validation failed")
     }
 
-    /// Creates a new protocol observation with explicit completeness status.
-    #[must_use]
-    pub const fn with_completeness(
-        reference: ObservationReference,
-        packet_reference: PacketReference,
-        flow_association: ObservationFlowAssociation,
-        completeness: ObservationCompleteness,
-        data: ProtocolObservationData,
-    ) -> Self {
-        Self {
-            reference,
-            packet_reference,
-            flow_association,
-            completeness,
-            data,
-        }
-    }
-
-    /// Returns the observation reference.
+    /// Returns the structural observation reference.
     #[must_use]
     pub const fn reference(&self) -> ObservationReference {
         self.reference
@@ -308,8 +451,8 @@ impl ProtocolObservation {
 
     /// Returns the originating packet reference.
     #[must_use]
-    pub const fn packet_reference(&self) -> &PacketReference {
-        &self.packet_reference
+    pub fn packet_reference(&self) -> &PacketReference {
+        self.data.packet_reference()
     }
 
     /// Returns the flow association.
@@ -318,7 +461,7 @@ impl ProtocolObservation {
         &self.flow_association
     }
 
-    /// Returns the completeness state.
+    /// Returns the derived completeness state.
     #[must_use]
     pub const fn completeness(&self) -> ObservationCompleteness {
         self.completeness
@@ -337,11 +480,32 @@ impl ProtocolObservation {
     }
 }
 
-/// Error type when initializing a [`ProtocolObservationCollection`].
+/// Error type when initializing or mutating a [`ProtocolObservationCollection`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtocolObservationCollectionError {
     /// Capacity must be greater than zero.
     ZeroCapacity,
+    /// Capacity exceeds the hard maximum cap.
+    CapacityAboveHardMaximum {
+        /// Requested capacity.
+        requested: usize,
+        /// Maximum allowed capacity.
+        maximum: usize,
+    },
+    /// An observation with this reference was already inserted.
+    DuplicateReference(ObservationReference),
+    /// Observation references must be strictly increasing.
+    OutOfOrderReference {
+        /// Previous highest observation reference.
+        previous: ObservationReference,
+        /// Attempted observation reference.
+        attempted: ObservationReference,
+    },
+    /// Collection reached its configured capacity limit.
+    ResourceLimit {
+        /// Configured maximum capacity.
+        capacity: usize,
+    },
 }
 
 impl fmt::Display for ProtocolObservationCollectionError {
@@ -350,6 +514,24 @@ impl fmt::Display for ProtocolObservationCollectionError {
             Self::ZeroCapacity => {
                 f.write_str("protocol observation collection capacity must be greater than zero")
             }
+            Self::CapacityAboveHardMaximum { requested, maximum } => write!(
+                f,
+                "protocol observation collection capacity ({requested}) exceeds maximum ({maximum})"
+            ),
+            Self::DuplicateReference(obs_ref) => {
+                write!(f, "duplicate observation reference: {obs_ref}")
+            }
+            Self::OutOfOrderReference {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order observation reference: attempted {attempted} after {previous}"
+            ),
+            Self::ResourceLimit { capacity } => write!(
+                f,
+                "protocol observation collection capacity limit ({capacity}) reached"
+            ),
         }
     }
 }
@@ -365,10 +547,23 @@ pub struct ProtocolObservationCollection {
 }
 
 impl ProtocolObservationCollection {
+    /// Default maximum observation capacity (100,000).
+    pub const DEFAULT_MAX_OBSERVATIONS: usize = 100_000;
+    /// Hard maximum observation capacity cap (1,000,000).
+    pub const HARD_MAX_OBSERVATIONS: usize = 1_000_000;
+
     /// Creates a new bounded observation collection with the specified non-zero maximum capacity.
     pub fn new(capacity: usize) -> Result<Self, ProtocolObservationCollectionError> {
         if capacity == 0 {
             return Err(ProtocolObservationCollectionError::ZeroCapacity);
+        }
+        if capacity > Self::HARD_MAX_OBSERVATIONS {
+            return Err(
+                ProtocolObservationCollectionError::CapacityAboveHardMaximum {
+                    requested: capacity,
+                    maximum: Self::HARD_MAX_OBSERVATIONS,
+                },
+            );
         }
         Ok(Self {
             observations: Vec::with_capacity(capacity.min(1024)),
@@ -379,16 +574,37 @@ impl ProtocolObservationCollection {
 
     /// Pushes an observation into the collection.
     ///
-    /// Returns `true` if the observation was accepted.
-    /// If capacity has been reached, sets `is_truncated = true` and returns `false`.
-    pub fn push(&mut self, observation: ProtocolObservation) -> bool {
-        if self.observations.len() < self.capacity {
-            self.observations.push(observation);
-            true
-        } else {
+    /// Verifies strictly increasing reference ordering and capacity limits.
+    /// Failed insertions are strictly transactional and do not mutate existing observations.
+    pub fn push(
+        &mut self,
+        observation: ProtocolObservation,
+    ) -> Result<(), ProtocolObservationCollectionError> {
+        if self.observations.len() >= self.capacity {
             self.is_truncated = true;
-            false
+            return Err(ProtocolObservationCollectionError::ResourceLimit {
+                capacity: self.capacity,
+            });
         }
+
+        if let Some(last) = self.observations.last() {
+            let last_ref = last.reference();
+            let new_ref = observation.reference();
+            if new_ref == last_ref {
+                return Err(ProtocolObservationCollectionError::DuplicateReference(
+                    new_ref,
+                ));
+            }
+            if new_ref < last_ref {
+                return Err(ProtocolObservationCollectionError::OutOfOrderReference {
+                    previous: last_ref,
+                    attempted: new_ref,
+                });
+            }
+        }
+
+        self.observations.push(observation);
+        Ok(())
     }
 
     /// Returns the number of observations currently in the collection.
@@ -409,7 +625,7 @@ impl ProtocolObservationCollection {
         self.capacity
     }
 
-    /// Returns `true` if one or more observations were dropped due to reaching capacity.
+    /// Returns `true` if one or more observations were rejected due to reaching capacity.
     #[must_use]
     pub const fn is_truncated(&self) -> bool {
         self.is_truncated

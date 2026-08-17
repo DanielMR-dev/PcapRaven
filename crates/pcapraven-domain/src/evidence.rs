@@ -19,6 +19,12 @@ const fn gcd(mut a: u128, mut b: u128) -> u128 {
     a
 }
 
+/// Canonical schema version anchor for protocol observations.
+pub const PROTOCOL_OBSERVATION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+
+/// Canonical schema version anchor for structured evidence records.
+pub const EVIDENCE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+
 /// Version of the structured evidence record schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SchemaVersion {
@@ -29,8 +35,8 @@ pub struct SchemaVersion {
 }
 
 impl SchemaVersion {
-    /// Current canonical schema version for Phase 10 (v1.0).
-    pub const CURRENT: Self = Self { major: 1, minor: 0 };
+    /// Current canonical schema version for structured evidence (v1.0).
+    pub const CURRENT: Self = EVIDENCE_SCHEMA_VERSION;
 
     /// Creates a new schema version.
     #[must_use]
@@ -102,8 +108,8 @@ pub enum EvidenceKind {
     TemporalMetric,
     /// Exact rational comparison or ratio measurement.
     RatioComparison,
-    /// Structural or protocol framing anomaly.
-    StructuralAnomaly,
+    /// Factual protocol framing or structural observation.
+    ProtocolFact,
 }
 
 impl EvidenceKind {
@@ -116,7 +122,7 @@ impl EvidenceKind {
             Self::ProtocolObservation => "ProtocolObservation",
             Self::TemporalMetric => "TemporalMetric",
             Self::RatioComparison => "RatioComparison",
-            Self::StructuralAnomaly => "StructuralAnomaly",
+            Self::ProtocolFact => "ProtocolFact",
         }
     }
 }
@@ -127,6 +133,212 @@ impl fmt::Display for EvidenceKind {
     }
 }
 
+/// Errors that can occur when validating evidence structures and measurements.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvidenceValidationError {
+    /// Description must not be empty.
+    EmptyDescription,
+    /// Description exceeds the maximum byte limit.
+    DescriptionTooLong {
+        /// Actual byte length.
+        length: usize,
+        /// Maximum allowed byte length.
+        max: usize,
+    },
+    /// Description contains a prohibited control character.
+    DescriptionControlCharacter {
+        /// Prohibited byte value.
+        byte: u8,
+    },
+    /// Metric key must not be empty.
+    EmptyMetricKey,
+    /// Metric key exceeds the maximum byte limit.
+    MetricKeyTooLong {
+        /// Actual byte length.
+        length: usize,
+        /// Maximum allowed byte length.
+        max: usize,
+    },
+    /// Metric key contains an invalid character or does not match grammar `[a-z0-9][a-z0-9._-]*`.
+    InvalidMetricKeyCharacter {
+        /// Invalid character.
+        character: char,
+    },
+    /// Observed value and threshold value have incompatible types.
+    IncompatibleMeasurementTypes,
+    /// Threshold value provided without a comparison operator.
+    ThresholdWithoutComparison,
+    /// Comparison operator provided without a threshold value.
+    ComparisonWithoutThreshold,
+    /// Measurement unit is incompatible with the value representation.
+    IncompatibleUnitAndValue,
+    /// Percentage value exceeds 100%.
+    PercentageOutOfRange {
+        /// Percentage value.
+        value: u128,
+    },
+    /// Evidence record must contain at least one packet, flow, observation reference, or measurement.
+    EmptyEvidenceRecord,
+    /// Number of packet references exceeds the configured limit.
+    PacketReferencesExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Number of flow references exceeds the configured limit.
+    FlowReferencesExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Number of observation references exceeds the configured limit.
+    ObservationReferencesExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Number of measurements exceeds the configured limit.
+    MeasurementsExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Number of limitations exceeds the configured limit.
+    LimitationsExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Duplicate packet reference.
+    DuplicatePacketReference(PacketReference),
+    /// Packet references must be strictly increasing.
+    OutOfOrderPacketReference {
+        /// Previous highest packet ordinal.
+        previous: u64,
+        /// Attempted packet ordinal.
+        attempted: u64,
+    },
+    /// Duplicate flow reference.
+    DuplicateFlowReference(FlowReference),
+    /// Flow references must be strictly increasing.
+    OutOfOrderFlowReference {
+        /// Previous highest flow ordinal.
+        previous: u64,
+        /// Attempted flow ordinal.
+        attempted: u64,
+    },
+    /// Duplicate observation reference.
+    DuplicateObservationReference(ObservationReference),
+    /// Observation references must be strictly increasing.
+    OutOfOrderObservationReference {
+        /// Previous highest observation reference.
+        previous: ObservationReference,
+        /// Attempted observation reference.
+        attempted: ObservationReference,
+    },
+    /// Duplicate metric key within one evidence record.
+    DuplicateMetricKey(EvidenceMetricKey),
+    /// Duplicate limitation within one evidence record.
+    DuplicateLimitation(EvidenceLimitation),
+}
+
+impl fmt::Display for EvidenceValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyDescription => f.write_str("evidence description cannot be empty"),
+            Self::DescriptionTooLong { length, max } => write!(
+                f,
+                "evidence description length ({length} bytes) exceeds maximum ({max} bytes)"
+            ),
+            Self::DescriptionControlCharacter { byte } => write!(
+                f,
+                "evidence description contains prohibited control character byte 0x{byte:02x}"
+            ),
+            Self::EmptyMetricKey => f.write_str("evidence metric key cannot be empty"),
+            Self::MetricKeyTooLong { length, max } => write!(
+                f,
+                "evidence metric key length ({length} bytes) exceeds maximum ({max} bytes)"
+            ),
+            Self::InvalidMetricKeyCharacter { character } => write!(
+                f,
+                "evidence metric key contains invalid character '{character}'"
+            ),
+            Self::IncompatibleMeasurementTypes => f.write_str(
+                "observed measurement value and threshold value have incompatible types"
+            ),
+            Self::ThresholdWithoutComparison => f.write_str(
+                "evidence threshold value provided without a comparison operator"
+            ),
+            Self::ComparisonWithoutThreshold => f.write_str(
+                "evidence comparison operator provided without a threshold value"
+            ),
+            Self::IncompatibleUnitAndValue => {
+                f.write_str("evidence measurement unit is incompatible with value type")
+            }
+            Self::PercentageOutOfRange { value } => {
+                write!(f, "percentage value ({value}) exceeds 100")
+            }
+            Self::EmptyEvidenceRecord => f.write_str(
+                "evidence record must contain at least one supporting packet, flow, observation, or measurement"
+            ),
+            Self::PacketReferencesExceeded { count, max } => write!(
+                f,
+                "packet references count ({count}) exceeds maximum ({max})"
+            ),
+            Self::FlowReferencesExceeded { count, max } => write!(
+                f,
+                "flow references count ({count}) exceeds maximum ({max})"
+            ),
+            Self::ObservationReferencesExceeded { count, max } => write!(
+                f,
+                "observation references count ({count}) exceeds maximum ({max})"
+            ),
+            Self::MeasurementsExceeded { count, max } => write!(
+                f,
+                "measurements count ({count}) exceeds maximum ({max})"
+            ),
+            Self::LimitationsExceeded { count, max } => write!(
+                f,
+                "limitations count ({count}) exceeds maximum ({max})"
+            ),
+            Self::DuplicatePacketReference(pkt) => {
+                write!(f, "duplicate packet reference: {pkt:?}")
+            }
+            Self::OutOfOrderPacketReference { previous, attempted } => write!(
+                f,
+                "out-of-order packet reference: attempted {attempted} after {previous}"
+            ),
+            Self::DuplicateFlowReference(flow) => {
+                write!(f, "duplicate flow reference: {flow}")
+            }
+            Self::OutOfOrderFlowReference { previous, attempted } => write!(
+                f,
+                "out-of-order flow reference: attempted {attempted} after {previous}"
+            ),
+            Self::DuplicateObservationReference(obs) => {
+                write!(f, "duplicate observation reference: {obs}")
+            }
+            Self::OutOfOrderObservationReference { previous, attempted } => write!(
+                f,
+                "out-of-order observation reference: attempted {attempted} after {previous}"
+            ),
+            Self::DuplicateMetricKey(key) => {
+                write!(f, "duplicate evidence metric key: {key}")
+            }
+            Self::DuplicateLimitation(lim) => {
+                write!(f, "duplicate evidence limitation: {lim}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for EvidenceValidationError {}
+
 /// Concise, terminal-safe factual description of an evidence item.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvidenceDescription {
@@ -134,21 +346,31 @@ pub struct EvidenceDescription {
 }
 
 impl EvidenceDescription {
-    /// Maximum allowed character length for an evidence description.
-    pub const MAX_LENGTH: usize = 1024;
+    /// Maximum allowed UTF-8 encoded byte length for an evidence description (512 bytes).
+    pub const MAX_LENGTH: usize = 512;
 
-    /// Creates a new evidence description, truncating and sanitizing control characters for terminal safety.
-    pub fn new(text: impl Into<String>) -> Self {
-        let raw = text.into();
-        let mut sanitized = String::with_capacity(raw.len().min(Self::MAX_LENGTH));
-        for c in raw.chars().take(Self::MAX_LENGTH) {
-            if c.is_control() && c != '\t' {
-                sanitized.push(' ');
-            } else {
-                sanitized.push(c);
+    /// Creates a new evidence description, validating terminal safety, non-emptiness, and length bounds.
+    pub fn try_new(text: impl AsRef<str>) -> Result<Self, EvidenceValidationError> {
+        let raw = text.as_ref();
+        if raw.is_empty() {
+            return Err(EvidenceValidationError::EmptyDescription);
+        }
+        if raw.len() > Self::MAX_LENGTH {
+            return Err(EvidenceValidationError::DescriptionTooLong {
+                length: raw.len(),
+                max: Self::MAX_LENGTH,
+            });
+        }
+        for c in raw.chars() {
+            if c.is_control() {
+                return Err(EvidenceValidationError::DescriptionControlCharacter {
+                    byte: c as u32 as u8,
+                });
             }
         }
-        Self { text: sanitized }
+        Ok(Self {
+            text: raw.to_string(),
+        })
     }
 
     /// Returns the text as a string slice.
@@ -165,27 +387,50 @@ impl fmt::Display for EvidenceDescription {
 }
 
 /// Namespaced or canonical key identifying a measured metric in an evidence item.
+///
+/// Must match ASCII grammar `[a-z0-9][a-z0-9._-]*` with a maximum length of 64 bytes.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EvidenceMetricKey {
     key: String,
 }
 
 impl EvidenceMetricKey {
-    /// Maximum allowed character length for an evidence metric key.
-    pub const MAX_LENGTH: usize = 128;
+    /// Maximum allowed byte length for an evidence metric key (64 bytes).
+    pub const MAX_LENGTH: usize = 64;
 
-    /// Creates a new evidence metric key.
-    pub fn new(key: impl Into<String>) -> Self {
-        let raw = key.into();
-        let mut sanitized = String::with_capacity(raw.len().min(Self::MAX_LENGTH));
-        for c in raw.chars().take(Self::MAX_LENGTH) {
-            if c.is_control() {
-                sanitized.push('_');
-            } else {
-                sanitized.push(c);
+    /// Creates a new validated evidence metric key.
+    pub fn try_new(key: impl AsRef<str>) -> Result<Self, EvidenceValidationError> {
+        let raw = key.as_ref();
+        if raw.is_empty() {
+            return Err(EvidenceValidationError::EmptyMetricKey);
+        }
+        if raw.len() > Self::MAX_LENGTH {
+            return Err(EvidenceValidationError::MetricKeyTooLong {
+                length: raw.len(),
+                max: Self::MAX_LENGTH,
+            });
+        }
+
+        let bytes = raw.as_bytes();
+        let first = bytes[0];
+        if !first.is_ascii_lowercase() && !first.is_ascii_digit() {
+            return Err(EvidenceValidationError::InvalidMetricKeyCharacter {
+                character: first as char,
+            });
+        }
+
+        for &b in &bytes[1..] {
+            if !b.is_ascii_lowercase() && !b.is_ascii_digit() && b != b'.' && b != b'_' && b != b'-'
+            {
+                return Err(EvidenceValidationError::InvalidMetricKeyCharacter {
+                    character: b as char,
+                });
             }
         }
-        Self { key: sanitized }
+
+        Ok(Self {
+            key: raw.to_string(),
+        })
     }
 
     /// Returns the metric key as a string slice.
@@ -336,7 +581,7 @@ impl fmt::Display for EvidenceRatio {
 }
 
 /// Explicit measurement unit for structured evidence values.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EvidenceUnit {
     /// Count of bytes.
     Bytes,
@@ -356,14 +601,12 @@ pub enum EvidenceUnit {
     Count,
     /// Whole integer percentage (0..=100).
     PercentageInteger,
-    /// Custom explicit unit label.
-    Custom(String),
 }
 
 impl EvidenceUnit {
-    /// Returns the static label for standard units, or custom string slice.
+    /// Returns the static label for the unit.
     #[must_use]
-    pub fn as_str(&self) -> &str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Bytes => "bytes",
             Self::Packets => "packets",
@@ -374,7 +617,6 @@ impl EvidenceUnit {
             Self::Ratio => "ratio",
             Self::Count => "count",
             Self::PercentageInteger => "%",
-            Self::Custom(s) => s.as_str(),
         }
     }
 }
@@ -385,7 +627,7 @@ impl fmt::Display for EvidenceUnit {
     }
 }
 
-/// Strictly typed evidence measurement value without floating-point numbers.
+/// Strictly typed evidence measurement value without floating-point numbers or unbounded text.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EvidenceValue {
     /// Signed 128-bit integer.
@@ -396,12 +638,10 @@ pub enum EvidenceValue {
     Ratio(EvidenceRatio),
     /// Boolean flag.
     Boolean(bool),
-    /// Bounded descriptive text string.
-    Text(String),
 }
 
 impl EvidenceValue {
-    /// Returns `true` if this value is an integer or unsigned number.
+    /// Returns `true` if this value is an integer, unsigned number, or rational ratio.
     #[must_use]
     pub const fn is_numeric(&self) -> bool {
         matches!(self, Self::Integer(_) | Self::Unsigned(_) | Self::Ratio(_))
@@ -415,7 +655,6 @@ impl fmt::Display for EvidenceValue {
             Self::Unsigned(v) => write!(f, "{v}"),
             Self::Ratio(r) => write!(f, "{r}"),
             Self::Boolean(b) => write!(f, "{b}"),
-            Self::Text(s) => f.write_str(s),
         }
     }
 }
@@ -435,10 +674,6 @@ pub enum EvidenceComparison {
     GreaterThan,
     /// Observed value is greater than or equal to threshold.
     GreaterThanOrEqual,
-    /// Observed value falls within acceptable range.
-    InRange,
-    /// Observed value falls outside acceptable range.
-    OutsideRange,
 }
 
 impl EvidenceComparison {
@@ -452,8 +687,6 @@ impl EvidenceComparison {
             Self::LessThanOrEqual => "<=",
             Self::GreaterThan => ">",
             Self::GreaterThanOrEqual => ">=",
-            Self::InRange => "in_range",
-            Self::OutsideRange => "outside_range",
         }
     }
 }
@@ -467,47 +700,136 @@ impl fmt::Display for EvidenceComparison {
 /// Individual factual measurement comparing an observed value against an optional threshold.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EvidenceMeasurement {
-    /// Metric identifier key.
-    pub key: EvidenceMetricKey,
-    /// Observed factual value.
-    pub observed_value: EvidenceValue,
-    /// Optional detector threshold or baseline value.
-    pub threshold_value: Option<EvidenceValue>,
-    /// Optional comparison operator.
-    pub comparison: Option<EvidenceComparison>,
-    /// Measurement unit.
-    pub unit: EvidenceUnit,
+    key: EvidenceMetricKey,
+    observed_value: EvidenceValue,
+    threshold_value: Option<EvidenceValue>,
+    comparison: Option<EvidenceComparison>,
+    unit: EvidenceUnit,
 }
 
 impl EvidenceMeasurement {
+    /// Validates unit and value type compatibility.
+    fn validate_unit_and_value(
+        value: &EvidenceValue,
+        unit: EvidenceUnit,
+    ) -> Result<(), EvidenceValidationError> {
+        match unit {
+            EvidenceUnit::Ratio => {
+                if !matches!(value, EvidenceValue::Ratio(_)) {
+                    return Err(EvidenceValidationError::IncompatibleUnitAndValue);
+                }
+            }
+            EvidenceUnit::PercentageInteger => match value {
+                EvidenceValue::Unsigned(v) => {
+                    if *v > 100 {
+                        return Err(EvidenceValidationError::PercentageOutOfRange { value: *v });
+                    }
+                }
+                EvidenceValue::Integer(v) => {
+                    if *v < 0 || *v > 100 {
+                        return Err(EvidenceValidationError::PercentageOutOfRange {
+                            value: (*v).max(0) as u128,
+                        });
+                    }
+                }
+                EvidenceValue::Ratio(_) | EvidenceValue::Boolean(_) => {
+                    return Err(EvidenceValidationError::IncompatibleUnitAndValue);
+                }
+            },
+            EvidenceUnit::Bytes
+            | EvidenceUnit::Packets
+            | EvidenceUnit::Nanoseconds
+            | EvidenceUnit::Microseconds
+            | EvidenceUnit::Milliseconds
+            | EvidenceUnit::Seconds
+            | EvidenceUnit::Count => match value {
+                EvidenceValue::Integer(_) | EvidenceValue::Unsigned(_) => {}
+                EvidenceValue::Boolean(_) => {
+                    if unit != EvidenceUnit::Count {
+                        return Err(EvidenceValidationError::IncompatibleUnitAndValue);
+                    }
+                }
+                EvidenceValue::Ratio(_) => {
+                    return Err(EvidenceValidationError::IncompatibleUnitAndValue);
+                }
+            },
+        }
+        Ok(())
+    }
+
     /// Creates a factual measurement without an explicit threshold.
-    #[must_use]
-    pub fn new(key: EvidenceMetricKey, observed_value: EvidenceValue, unit: EvidenceUnit) -> Self {
-        Self {
+    pub fn try_new(
+        key: EvidenceMetricKey,
+        observed_value: EvidenceValue,
+        unit: EvidenceUnit,
+    ) -> Result<Self, EvidenceValidationError> {
+        Self::validate_unit_and_value(&observed_value, unit)?;
+        Ok(Self {
             key,
             observed_value,
             threshold_value: None,
             comparison: None,
             unit,
-        }
+        })
     }
 
     /// Creates a measurement comparing an observed value against a threshold.
-    #[must_use]
-    pub fn with_threshold(
+    pub fn try_with_threshold(
         key: EvidenceMetricKey,
         observed_value: EvidenceValue,
         threshold_value: EvidenceValue,
         comparison: EvidenceComparison,
         unit: EvidenceUnit,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, EvidenceValidationError> {
+        Self::validate_unit_and_value(&observed_value, unit)?;
+        Self::validate_unit_and_value(&threshold_value, unit)?;
+
+        // Ensure observed and threshold value variants match
+        match (&observed_value, &threshold_value) {
+            (EvidenceValue::Integer(_), EvidenceValue::Integer(_))
+            | (EvidenceValue::Unsigned(_), EvidenceValue::Unsigned(_))
+            | (EvidenceValue::Ratio(_), EvidenceValue::Ratio(_))
+            | (EvidenceValue::Boolean(_), EvidenceValue::Boolean(_)) => {}
+            _ => return Err(EvidenceValidationError::IncompatibleMeasurementTypes),
+        }
+
+        Ok(Self {
             key,
             observed_value,
             threshold_value: Some(threshold_value),
             comparison: Some(comparison),
             unit,
-        }
+        })
+    }
+
+    /// Returns the metric key.
+    #[must_use]
+    pub const fn key(&self) -> &EvidenceMetricKey {
+        &self.key
+    }
+
+    /// Returns the observed factual value.
+    #[must_use]
+    pub const fn observed_value(&self) -> &EvidenceValue {
+        &self.observed_value
+    }
+
+    /// Returns the optional threshold value.
+    #[must_use]
+    pub const fn threshold_value(&self) -> Option<&EvidenceValue> {
+        self.threshold_value.as_ref()
+    }
+
+    /// Returns the optional comparison operator.
+    #[must_use]
+    pub const fn comparison(&self) -> Option<EvidenceComparison> {
+        self.comparison
+    }
+
+    /// Returns the measurement unit.
+    #[must_use]
+    pub const fn unit(&self) -> EvidenceUnit {
+        self.unit
     }
 }
 
@@ -552,31 +874,47 @@ impl fmt::Display for EvidenceLimitation {
     }
 }
 
-/// Structured, immutable evidence record supporting a detector finding.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvidenceRecord {
-    /// Unique evidence record identifier.
-    pub reference: EvidenceReference,
-    /// Analytical category of this evidence.
-    pub kind: EvidenceKind,
-    /// Concise factual description.
-    pub description: EvidenceDescription,
-    /// Ordered references to supporting packets.
-    pub packet_references: Vec<PacketReference>,
-    /// Ordered references to supporting flow instances.
-    pub flow_references: Vec<FlowReference>,
-    /// Ordered references to supporting protocol observations.
-    pub observation_references: Vec<ObservationReference>,
-    /// Concrete numeric and rational measurements.
-    pub measurements: Vec<EvidenceMeasurement>,
-    /// Incompleteness limitations affecting this evidence.
-    pub limitations: Vec<EvidenceLimitation>,
-    /// Schema version anchor.
-    pub schema_version: SchemaVersion,
+/// Builder for constructing validated [`EvidenceRecord`] instances.
+#[derive(Debug, Clone)]
+pub struct EvidenceRecordBuilder {
+    reference: EvidenceReference,
+    kind: EvidenceKind,
+    description: EvidenceDescription,
+    packet_references: Vec<PacketReference>,
+    flow_references: Vec<FlowReference>,
+    observation_references: Vec<ObservationReference>,
+    measurements: Vec<EvidenceMeasurement>,
+    limitations: Vec<EvidenceLimitation>,
+    schema_version: SchemaVersion,
 }
 
-impl EvidenceRecord {
-    /// Creates a new evidence record with default schema version and empty collections.
+impl EvidenceRecordBuilder {
+    /// Default maximum packet references per evidence record (64).
+    pub const DEFAULT_MAX_PACKET_REFERENCES: usize = 64;
+    /// Hard maximum packet references per evidence record (1,024).
+    pub const HARD_MAX_PACKET_REFERENCES: usize = 1_024;
+
+    /// Default maximum flow references per evidence record (32).
+    pub const DEFAULT_MAX_FLOW_REFERENCES: usize = 32;
+    /// Hard maximum flow references per evidence record (256).
+    pub const HARD_MAX_FLOW_REFERENCES: usize = 256;
+
+    /// Default maximum observation references per evidence record (128).
+    pub const DEFAULT_MAX_OBSERVATION_REFERENCES: usize = 128;
+    /// Hard maximum observation references per evidence record (4,096).
+    pub const HARD_MAX_OBSERVATION_REFERENCES: usize = 4_096;
+
+    /// Default maximum measurements per evidence record (32).
+    pub const DEFAULT_MAX_MEASUREMENTS: usize = 32;
+    /// Hard maximum measurements per evidence record (256).
+    pub const HARD_MAX_MEASUREMENTS: usize = 256;
+
+    /// Default maximum limitations per evidence record (8).
+    pub const DEFAULT_MAX_LIMITATIONS: usize = 8;
+    /// Hard maximum limitations per evidence record (64).
+    pub const HARD_MAX_LIMITATIONS: usize = 64;
+
+    /// Creates a new evidence record builder with required reference, kind, and description.
     #[must_use]
     pub fn new(
         reference: EvidenceReference,
@@ -592,32 +930,244 @@ impl EvidenceRecord {
             observation_references: Vec::new(),
             measurements: Vec::new(),
             limitations: Vec::new(),
-            schema_version: SchemaVersion::CURRENT,
+            schema_version: EVIDENCE_SCHEMA_VERSION,
         }
     }
 
-    /// Appends a packet reference to this evidence record.
-    pub fn add_packet_reference(&mut self, packet: PacketReference) {
+    /// Sets an explicit schema version anchor.
+    #[must_use]
+    pub fn with_schema_version(mut self, schema_version: SchemaVersion) -> Self {
+        self.schema_version = schema_version;
+        self
+    }
+
+    /// Appends a packet reference, enforcing hard cardinality limits, strict ordering, and uniqueness.
+    pub fn add_packet_reference(
+        &mut self,
+        packet: PacketReference,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.packet_references.len() >= Self::HARD_MAX_PACKET_REFERENCES {
+            return Err(EvidenceValidationError::PacketReferencesExceeded {
+                count: self.packet_references.len() + 1,
+                max: Self::HARD_MAX_PACKET_REFERENCES,
+            });
+        }
+        if let Some(last) = self.packet_references.last() {
+            let last_ord = last.capture_record_ordinal();
+            let new_ord = packet.capture_record_ordinal();
+            if new_ord == last_ord {
+                return Err(EvidenceValidationError::DuplicatePacketReference(packet));
+            }
+            if new_ord < last_ord {
+                return Err(EvidenceValidationError::OutOfOrderPacketReference {
+                    previous: last_ord,
+                    attempted: new_ord,
+                });
+            }
+        }
         self.packet_references.push(packet);
+        Ok(self)
     }
 
-    /// Appends a flow reference to this evidence record.
-    pub fn add_flow_reference(&mut self, flow: FlowReference) {
+    /// Appends a flow reference, enforcing hard cardinality limits, strict ordering, and uniqueness.
+    pub fn add_flow_reference(
+        &mut self,
+        flow: FlowReference,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.flow_references.len() >= Self::HARD_MAX_FLOW_REFERENCES {
+            return Err(EvidenceValidationError::FlowReferencesExceeded {
+                count: self.flow_references.len() + 1,
+                max: Self::HARD_MAX_FLOW_REFERENCES,
+            });
+        }
+        if let Some(last) = self.flow_references.last() {
+            let last_ord = last.ordinal();
+            let new_ord = flow.ordinal();
+            if new_ord == last_ord {
+                return Err(EvidenceValidationError::DuplicateFlowReference(flow));
+            }
+            if new_ord < last_ord {
+                return Err(EvidenceValidationError::OutOfOrderFlowReference {
+                    previous: last_ord,
+                    attempted: new_ord,
+                });
+            }
+        }
         self.flow_references.push(flow);
+        Ok(self)
     }
 
-    /// Appends an observation reference to this evidence record.
-    pub fn add_observation_reference(&mut self, obs: ObservationReference) {
+    /// Appends an observation reference, enforcing hard cardinality limits, strict ordering, and uniqueness.
+    pub fn add_observation_reference(
+        &mut self,
+        obs: ObservationReference,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.observation_references.len() >= Self::HARD_MAX_OBSERVATION_REFERENCES {
+            return Err(EvidenceValidationError::ObservationReferencesExceeded {
+                count: self.observation_references.len() + 1,
+                max: Self::HARD_MAX_OBSERVATION_REFERENCES,
+            });
+        }
+        if let Some(last) = self.observation_references.last() {
+            if obs == *last {
+                return Err(EvidenceValidationError::DuplicateObservationReference(obs));
+            }
+            if obs < *last {
+                return Err(EvidenceValidationError::OutOfOrderObservationReference {
+                    previous: *last,
+                    attempted: obs,
+                });
+            }
+        }
         self.observation_references.push(obs);
+        Ok(self)
     }
 
-    /// Appends a measurement to this evidence record.
-    pub fn add_measurement(&mut self, measurement: EvidenceMeasurement) {
+    /// Appends a measurement, enforcing hard cardinality limits and unique metric keys.
+    pub fn add_measurement(
+        &mut self,
+        measurement: EvidenceMeasurement,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.measurements.len() >= Self::HARD_MAX_MEASUREMENTS {
+            return Err(EvidenceValidationError::MeasurementsExceeded {
+                count: self.measurements.len() + 1,
+                max: Self::HARD_MAX_MEASUREMENTS,
+            });
+        }
+        if self
+            .measurements
+            .iter()
+            .any(|m| m.key() == measurement.key())
+        {
+            return Err(EvidenceValidationError::DuplicateMetricKey(
+                measurement.key().clone(),
+            ));
+        }
         self.measurements.push(measurement);
+        Ok(self)
     }
 
-    /// Appends an analytical limitation to this evidence record.
-    pub fn add_limitation(&mut self, limitation: EvidenceLimitation) {
+    /// Appends a limitation, enforcing hard cardinality limits, uniqueness, and sorted order.
+    pub fn add_limitation(
+        &mut self,
+        limitation: EvidenceLimitation,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.limitations.len() >= Self::HARD_MAX_LIMITATIONS {
+            return Err(EvidenceValidationError::LimitationsExceeded {
+                count: self.limitations.len() + 1,
+                max: Self::HARD_MAX_LIMITATIONS,
+            });
+        }
+        if self.limitations.contains(&limitation) {
+            return Err(EvidenceValidationError::DuplicateLimitation(limitation));
+        }
         self.limitations.push(limitation);
+        self.limitations.sort();
+        Ok(self)
+    }
+
+    /// Builds the validated [`EvidenceRecord`].
+    ///
+    /// Fails if all reference and measurement collections are empty.
+    pub fn build(self) -> Result<EvidenceRecord, EvidenceValidationError> {
+        if self.packet_references.is_empty()
+            && self.flow_references.is_empty()
+            && self.observation_references.is_empty()
+            && self.measurements.is_empty()
+        {
+            return Err(EvidenceValidationError::EmptyEvidenceRecord);
+        }
+
+        Ok(EvidenceRecord {
+            reference: self.reference,
+            kind: self.kind,
+            description: self.description,
+            packet_references: self.packet_references,
+            flow_references: self.flow_references,
+            observation_references: self.observation_references,
+            measurements: self.measurements,
+            limitations: self.limitations,
+            schema_version: self.schema_version,
+        })
+    }
+}
+
+/// Structured, immutable evidence record supporting a detector finding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceRecord {
+    reference: EvidenceReference,
+    kind: EvidenceKind,
+    description: EvidenceDescription,
+    packet_references: Vec<PacketReference>,
+    flow_references: Vec<FlowReference>,
+    observation_references: Vec<ObservationReference>,
+    measurements: Vec<EvidenceMeasurement>,
+    limitations: Vec<EvidenceLimitation>,
+    schema_version: SchemaVersion,
+}
+
+impl EvidenceRecord {
+    /// Creates an evidence record builder.
+    #[must_use]
+    pub fn builder(
+        reference: EvidenceReference,
+        kind: EvidenceKind,
+        description: EvidenceDescription,
+    ) -> EvidenceRecordBuilder {
+        EvidenceRecordBuilder::new(reference, kind, description)
+    }
+
+    /// Returns the unique evidence reference.
+    #[must_use]
+    pub const fn reference(&self) -> EvidenceReference {
+        self.reference
+    }
+
+    /// Returns the analytical kind of this evidence.
+    #[must_use]
+    pub const fn kind(&self) -> EvidenceKind {
+        self.kind
+    }
+
+    /// Returns the factual description.
+    #[must_use]
+    pub const fn description(&self) -> &EvidenceDescription {
+        &self.description
+    }
+
+    /// Returns the ordered slice of supporting packet references.
+    #[must_use]
+    pub fn packet_references(&self) -> &[PacketReference] {
+        &self.packet_references
+    }
+
+    /// Returns the ordered slice of supporting flow references.
+    #[must_use]
+    pub fn flow_references(&self) -> &[FlowReference] {
+        &self.flow_references
+    }
+
+    /// Returns the ordered slice of supporting observation references.
+    #[must_use]
+    pub fn observation_references(&self) -> &[ObservationReference] {
+        &self.observation_references
+    }
+
+    /// Returns the slice of concrete measurements.
+    #[must_use]
+    pub fn measurements(&self) -> &[EvidenceMeasurement] {
+        &self.measurements
+    }
+
+    /// Returns the sorted slice of analytical limitations.
+    #[must_use]
+    pub fn limitations(&self) -> &[EvidenceLimitation] {
+        &self.limitations
+    }
+
+    /// Returns the schema version anchor.
+    #[must_use]
+    pub const fn schema_version(&self) -> SchemaVersion {
+        self.schema_version
     }
 }
