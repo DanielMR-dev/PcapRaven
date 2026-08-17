@@ -6,13 +6,16 @@ Phase 0 product and architecture definition, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion, Phase 3 packet normalization, Phase 4
 bidirectional flow reconstruction, Phase 5 checked flow statistics and exact
 temporal metrics, Phase 6 initial functional CLI with streaming capture and
-flow inspection, Phase 7 bounded DNS protocol analysis, and Phase 8 bounded HTTP/1.x
-protocol analysis are complete. `pcapraven-domain` defines normalized packet, flow,
-DNS, and HTTP models, statistics, and temporal metrics, `pcapraven-pcap` provides capture ingestion,
-`pcapraven-protocols` provides packet normalization, DNS parsing, and HTTP/1.x parsing, `pcapraven-flows`
-provides stateful flow reconstruction, traffic statistics, and exact rational
-temporal metrics, and `pcapraven-cli` provides the functional CLI.
-Phase 9 (TLS handshake metadata), threat detection, and reporting remain future work.
+flow inspection, Phase 7 bounded DNS protocol analysis, Phase 8 bounded HTTP/1.x
+protocol analysis, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake
+metadata analysis, and Phase 10 unified protocol observations and structured evidence
+foundation are complete. `pcapraven-domain` defines normalized packet, flow,
+DNS, HTTP, TLS, observation, and evidence models, statistics, and exact temporal metrics,
+`pcapraven-pcap` provides capture ingestion, `pcapraven-protocols` provides packet normalization,
+DNS parsing, HTTP/1.x parsing, and TLS handshake parsing, `pcapraven-flows` provides stateful
+flow reconstruction, traffic statistics, and exact rational temporal metrics, and
+`pcapraven-cli` provides the functional CLI.
+Phase 11 (cross-protocol correlation), threat detection, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -286,6 +289,30 @@ packet transport data (`NormalizedPacket`), and `pcapraven-domain` defines the c
 - **CLI Inspection:** `pcapraven tls <capture>` streams capture reading and renders factual inspection
   tables to stdout with exact exit codes (0, 1, 2, 3).
 - **Zero Production Dependencies:** Implemented with safe Rust and `std`; `proptest = 1.11.0` is dev-only.
+
+## Phase 10 Unified Protocol Observations and Structured Evidence Boundary
+
+`pcapraven-domain` defines the unified application protocol observation architecture, explicit flow associations,
+and structured evidence foundation:
+
+- **Observation Domain Models:** `pcapraven-domain` defines `ProtocolKind`, `ObservationReference`,
+  `ObservationCompleteness`, `ObservationFlowAssociation`, `ProtocolObservationData`, `ProtocolObservation`,
+  `ProtocolObservationCollection`, and `ProtocolObservationCollectionError`.
+- **Unified Observation Architecture:** Wraps DNS, HTTP, and TLS observations in typed `ProtocolObservationData`,
+  maintaining explicit packet provenance (`PacketReference`), explicit flow association (`ObservationFlowAssociation`:
+  `Associated`, `Excluded`, `Unassociated`), and derived/explicit completeness.
+- **Evidence Domain Models:** `pcapraven-domain` defines `SchemaVersion`, `EvidenceReference`, `EvidenceKind`,
+  `EvidenceDescription`, `EvidenceMetricKey`, `EvidenceRatio`, `EvidenceUnit`, `EvidenceValue`, `EvidenceComparison`,
+  `EvidenceMeasurement`, `EvidenceLimitation`, and `EvidenceRecord`.
+- **Exact Rational Arithmetic:** `EvidenceRatio` guarantees exact rational ratios (`numerator / denominator`)
+  in canonical lowest terms via GCD. Compares with exact Euclidean continued-fraction algorithms without floats
+  (`f32`/`f64`) or integer overflow.
+- **Separation of Facts from Detection:** Evidence records capture immutable factual measurements supporting
+  findings, referencing packets, flows, and observations by reference without copying raw bytes.
+- **Terminal Safety & Privacy:** Descriptions and metric keys sanitize control characters and enforce length bounds;
+  sensitive credentials/payloads are never retained.
+- **Schema Versioning:** `SchemaVersion::CURRENT` (`v1.0`) anchors evidence records for forward/backward compatibility.
+- **Zero External Dependencies:** Implemented purely with safe Rust and `std`.
 
 ## Crate Responsibilities
 

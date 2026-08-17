@@ -8,13 +8,15 @@ Phase 2 implements capture-container metadata and owned packet records in
 reference identity, timestamp representation, and layer metadata in
 `pcapraven-domain`. Phase 4 implements the domain flow model and identity
 types (`FlowEndpoint`, `FlowKey`, `FlowDirection`, `FlowReference`,
-`FlowPacketAssociation`, `FlowRecord`, `FlowEndReason`) in `pcapraven-domain`.
+`FlowPacketAssociation`, `FlowRecord`, `FlowEndReason`, `FlowExclusionReason`) in `pcapraven-domain`.
 Phase 5 implements checked directional flow traffic statistics and exact rational
 temporal metrics in `pcapraven-domain`. Phase 7 implements normalized DNS observation
-models (`DnsTransport`, `DnsMessageKind`, `DnsFlags`, `DnsName`, `DnsQuestion`,
-`DnsSection`, `DnsRdataMetadata`, `DnsResourceRecord`, `DnsEdnsMetadata`, `DnsObservation`,
-`DnsDiagnostic`) in `pcapraven-domain`. HTTP/1.x, TLS handshake metadata, and threat findings
-remain future work.
+models in `pcapraven-domain`. Phase 8 implements normalized HTTP/1.x observation models
+in `pcapraven-domain`. Phase 9 implements normalized visible TLS 1.2 / TLS 1.3 handshake
+observation models in `pcapraven-domain`. Phase 10 implements unified protocol observations
+(`ProtocolObservationData`, `ProtocolObservation`, `ObservationFlowAssociation`), bounded collections,
+and the structured evidence foundation (`EvidenceRecord`, `EvidenceRatio`, `EvidenceMeasurement`, `SchemaVersion`)
+in `pcapraven-domain`. Threat findings (Phase 12+) and cross-protocol correlation (Phase 11) remain future work.
 
 ## Modeling Rules
 
@@ -187,23 +189,39 @@ and rendered via terminal-safe `display_escaped()` notation (`\xHH`/`\\`).
 **Privacy Non-Retention Invariants:** Raw 32-byte ClientHello / ServerHello random values, session ID
 bytes, key exchange public bytes, PSK identities/binders, early data payloads, certificate DER,
 and ciphertext payloads are strictly NEVER retained. Zero payload decryption or private key recovery
-is performed.
+### Unified Protocol Observations
+
+Phase 10 unifies protocol observations across DNS, HTTP, and TLS under `pcapraven-domain`:
+
+- `ProtocolKind` identifies the application protocol (`Dns`, `Http`, `Tls`).
+- `ObservationReference` assigns a deterministic, monotonic reference string (`obs:{id}`).
+- `ObservationCompleteness` reflects whether the observation parsed fully (`Complete`) or experienced non-fatal bounded degradation (`Partial`).
+- `ObservationFlowAssociation` explicitly classifies flow linkage:
+  - `Associated(FlowReference)`: Associated with a reconstructed bidirectional flow.
+  - `Excluded(FlowExclusionReason)`: Flow reconstruction was explicitly excluded (e.g. `MissingNetworkLayer`, `MissingTransportLayer`, `FragmentedWithoutTransport`, `UnsupportedTransport`).
+  - `Unassociated`: Observation has not been or cannot be associated with a flow.
+- `ProtocolObservationData` is a typed enum wrapping `DnsObservation`, `HttpObservation`, or `TlsObservation`.
+- `ProtocolObservation` records link an observation reference, packet provenance (`PacketReference`), explicit flow association, completeness, and typed observation data.
+- `ProtocolObservationCollection` provides a bounded collection enforcing `maximum_observations` and tracking truncation counters.
 
 ## Evidence Model
 
-Evidence is a structured, immutable explanation input attached to a finding.
-Each evidence item conceptually contains:
+Phase 10 establishes the structured, immutable evidence foundation in `pcapraven-domain`:
 
-- Evidence kind and stable capture-local reference.
-- A concise factual description safe for output.
-- Typed references to involved packets, flows, and observations.
-- Measurements, thresholds, or compared values with explicit units.
-- Relevant time range and direction when applicable.
-- Completeness limitations that affect interpretation.
+- `SchemaVersion`: Explicit schema versioning (`SchemaVersion::CURRENT = v1.0`) ensuring forward/backward compatibility.
+- `EvidenceReference`: Stable capture-local reference formatted as `evi:{id}`.
+- `EvidenceKind`: Categorizes evidence into `PacketMeasurement`, `FlowMeasurement`, `ProtocolObservation`, `TemporalMetric`, `RatioComparison`, or `StructuralAnomaly`.
+- `EvidenceDescription`: Bounded (up to 1,024 characters), terminal-safe sanitized factual description.
+- `EvidenceMetricKey`: Bounded (up to 128 characters), terminal-safe metric identifier.
+- `EvidenceRatio`: Exact rational representation ($n / d$) stored as `u128` numerator and `u128` denominator reduced via GCD. Enforces zero float arithmetic (`f32`/`f64`) and exact total ordering via Euclidean continued-fraction decomposition without overflow across all $u128$ ranges.
+- `EvidenceUnit`: Explicit units (`Bytes`, `Packets`, `Nanoseconds`, `Microseconds`, `Milliseconds`, `Seconds`, `Ratio`, `Count`, `PercentageInteger`, `Custom`).
+- `EvidenceValue`: Exact typed value (`Integer(i128)`, `Unsigned(u128)`, `Ratio(EvidenceRatio)`, `Boolean(bool)`, `Text(String)` — zero floats).
+- `EvidenceComparison`: Comparison operator (`Equal`, `NotEqual`, `LessThan`, `LessThanOrEqual`, `GreaterThan`, `GreaterThanOrEqual`, `InRange`, `OutsideRange`).
+- `EvidenceMeasurement`: Structured measurement combining observed value, optional reference threshold, optional comparison operator, and explicit unit.
+- `EvidenceLimitation`: Explicit analysis limitations affecting evidence interpretation (`TruncatedPayload`, `MissingNetworkLayer`, `IncompleteHandshake`, `PacketCountBudgetReached`, `ObservationBudgetReached`, `FlowBudgetReached`, `HeaderBudgetExceeded`).
+- `EvidenceRecord`: Complete evidence record anchoring schema version, references to packets (`PacketReference`), flows (`FlowReference`), and observations (`ObservationReference`), structured measurements, description, and limitations.
 
-Evidence references canonical records rather than copying arbitrary packet
-payloads. A bounded excerpt may be introduced only with a documented analytical
-need, format-safe encoding, privacy consideration, and strict size limit.
+Evidence references canonical records rather than copying arbitrary packet payloads.
 Evidence never contains a detector conclusion disguised as an observed fact.
 
 ## Finding Model

@@ -7,13 +7,13 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, and Phase 8 are complete.
-Phase 8 delivered bounded cleartext HTTP/1.0 and HTTP/1.1 message header parsing in `pcapraven-protocols`,
-normalized HTTP observation models in `pcapraven-domain`, candidate classification (TCP port 80),
-sensitive header masking (Authorization, Cookie, etc.), framing analysis, terminal-safe escaping,
-the `pcapraven http <capture>` CLI inspection command, synthetic micro-fixtures, unit tests, proptests,
-and the `fuzz_http_parser` target.
-Phase 9 (TLS handshake metadata analysis) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 are complete.
+Phase 10 delivered unified protocol observations across DNS, HTTP, and TLS in `pcapraven-domain` (`ProtocolObservationData`,
+`ProtocolObservation`, `ObservationFlowAssociation`, `ProtocolObservationCollection`), explicit flow reconstruction exclusion
+reasons (`FlowExclusionReason`), and structured evidence records (`EvidenceRecord`, `EvidenceMeasurement`, `EvidenceRatio`,
+`SchemaVersion`), featuring exact Euclidean continued-fraction rational comparisons with zero floats (`f32`/`f64`) and zero
+overflow across all `u128` values, terminal safety, and comprehensive integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs`.
+Phase 11 (detection engine architecture) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -152,9 +152,14 @@ fuzz target. Threat detection heuristics and correlation remain future work.
 
 ## Phase 10 - Unified protocol observations and evidence
 
-Stabilize shared observation identity, completeness, packet/flow association,
-and structured evidence records across DNS, HTTP, and TLS. Document deterministic
-ordering and prepare versioned result projections.
+Implemented unified protocol observations across DNS, HTTP, and TLS in `pcapraven-domain`
+(`ProtocolObservationData`, `ProtocolObservation`, `ObservationFlowAssociation`, `ProtocolObservationCollection`),
+explicit flow reconstruction exclusion reasons (`FlowExclusionReason`), and structured evidence records
+(`EvidenceRecord`, `EvidenceMeasurement`, `EvidenceRatio`, `SchemaVersion`). Enforced exact rational
+arithmetic in canonical lowest terms with Euclidean continued-fraction total ordering (zero floats,
+zero overflow), bounded descriptions/identifiers with terminal safety, explicit analysis limitations,
+pure `std` domain invariants, and comprehensive integration testing in `crates/pcapraven-domain/tests/observation_evidence.rs`.
+Detection engine architecture and cross-protocol correlation remain future work.
 
 ## Phase 11 - Detection engine architecture
 

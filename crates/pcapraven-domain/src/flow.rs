@@ -280,6 +280,38 @@ impl FlowPacketAssociation {
     }
 }
 
+/// Reason why a normalized packet was not eligible for flow association.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FlowExclusionReason {
+    /// The packet does not contain a normalized network layer.
+    MissingNetworkLayer,
+    /// The packet does not contain a normalized transport layer.
+    MissingTransportLayer,
+    /// The packet is an IP fragment without parsed transport headers.
+    FragmentedWithoutTransport,
+    /// The transport layer protocol is unsupported for flow reconstruction.
+    UnsupportedTransport,
+}
+
+impl FlowExclusionReason {
+    /// Returns a static descriptive label for this exclusion reason.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::MissingNetworkLayer => "MissingNetworkLayer",
+            Self::MissingTransportLayer => "MissingTransportLayer",
+            Self::FragmentedWithoutTransport => "FragmentedWithoutTransport",
+            Self::UnsupportedTransport => "UnsupportedTransport",
+        }
+    }
+}
+
+impl fmt::Display for FlowExclusionReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Reason for closing an active flow instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FlowEndReason {

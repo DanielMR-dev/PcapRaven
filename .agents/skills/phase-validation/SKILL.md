@@ -226,14 +226,32 @@ Phase 9 implements bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis
 - `TlsByteString` preserves raw wire bytes and renders via `display_escaped()` with `\xHH` / `\\` notation for terminal safety.
 - `pcapraven-protocols` implements `TlsLimits`, `TlsLimitsBuilder`, and `parse_tls_packet`.
 - Candidate classification inspects TCP port 443; non-candidates (UDP/443, non-443) and candidate packets without TLS records are handled deterministically.
-- Packet-local multi-record handshake assembly handles fragmented Hello messages across adjacent Handshake records within the same packet up to `maximum_handshake_message_bytes`.
+- Packet-local multi-record handshake assembly handles fragmented Hello messages across adjacent Handshake records within the same packet up to `maximum_handshake_message_bytes`, retaining only unconsumed buffer suffixes.
+- Enforces aggregate per-packet handshake message limits across all records in a packet.
 - Privacy Non-Retention: raw 32-byte randoms, session IDs, key exchange public bytes, PSK binders/identities, early data payloads, certificate DER, and ciphertext payloads are strictly never retained.
 - Decodes ClientHello, ServerHello, and HelloRetryRequest (detected via RFC 9846 SHA-256 random sentinel).
-- Decodes SNI, Supported Versions, Supported Groups, Signature Algorithms, ALPN, Key Share (group ID only), PSK presence, and Early Data presence.
+- Decodes SNI (full list consumption with duplicate `host_name` rejection), Supported Versions (policy: TLS 1.2/1.3 only), Supported Groups, Signature Algorithms, ALPN (cleartext ALPN in TLS 1.3 ServerHello prohibited), Key Share (group ID only; finite entry limits with `ResourceLimit`), PSK presence, and Early Data presence.
+- Enforces maximum record fragment bounds (16 KiB plaintext, 18 KiB opaque) before body processing.
 - Enforces duplicate extension detection per Hello message.
+- Contextually validates ServerHello extension lengths and decouples per-observation completeness from subsequent unrelated packet errors.
 - CLI adds `pcapraven tls <capture>` with streaming execution and bounded table presentation.
-- Synthetic micro-fixtures in `tests/fixtures/tls/`, unit tests, proptests, and `fuzz_tls_parser` pass.
-- Threat detection heuristics, correlation (Phase 10), and reporting remain strictly future work.
+- Synthetic micro-fixtures in `tests/fixtures/tls/`, unit tests, 20 Gate 9.1 regression tests, proptests, and `fuzz_tls_parser` pass.
+- Threat detection heuristics, correlation (Phase 11), and reporting remain strictly future work.
+  That historical gate is superseded by the current Phase 10 gate below.
 
+## Phase 10 Gate
 
+Phase 10 implements unified protocol observations, explicit flow association, and the structured evidence foundation in `pcapraven-domain`.
+- `pcapraven-domain` defines observation domain types: `ProtocolKind`, `ObservationReference`, `ObservationCompleteness`,
+  `ObservationFlowAssociation`, `ProtocolObservationData`, `ProtocolObservation`, `ProtocolObservationCollection`, and `ProtocolObservationCollectionError`.
+- Unified observation architecture wraps DNS, HTTP, and TLS observations in typed `ProtocolObservationData` while preserving packet provenance and explicit flow association (`Associated`, `Excluded`, `Unassociated`).
+- `pcapraven-domain` defines evidence domain types: `SchemaVersion`, `EvidenceReference`, `EvidenceKind`, `EvidenceDescription`,
+  `EvidenceMetricKey`, `EvidenceRatio`, `EvidenceUnit`, `EvidenceValue`, `EvidenceComparison`, `EvidenceMeasurement`, `EvidenceLimitation`, and `EvidenceRecord`.
+- Exact rational arithmetic in `EvidenceRatio`: zero floats (`f32`/`f64`), canonical fraction reduction via GCD, and exact Euclidean continued-fraction comparison across all `u128` pairs without overflow.
+- Evidence records decouple factual context from security findings, referencing packets, flows, and observations by reference without copying raw payloads.
+- Terminal safety and privacy non-retention: descriptions and metric keys sanitize control characters and enforce length bounds; sensitive payloads are never retained.
+- Zero third-party dependencies added to `pcapraven-domain` (pure `std`-only domain types).
+- Comprehensive integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs` pass.
+- Architecture checker updated and verified for Phase 10.
+- Cross-protocol correlation (Phase 11), detection heuristics (Phase 12+), and formal reporting (Phase 14) remain strictly future roadmap phases.
 

@@ -63,6 +63,7 @@ You are the senior Rust developer for PcapRaven.
 - `tls-protocol-analysis` skill for bounded TLS 1.2 / TLS 1.3 parsing, privacy non-retention, and observation extraction.
 - `flow-reconstruction` skill for bidirectional flow reconstruction and lifecycles.
 - `flow-statistics` skill for directional traffic statistics and exact temporal metrics.
+- `observation-evidence-model` skill for unified protocol observations and structured evidence records.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `phase-validation` skill for phase verification checklists.
 
