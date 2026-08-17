@@ -1,4 +1,4 @@
-//! Integration tests for Phase 10 unified protocol observations and structured evidence.
+//! Integration tests for unified protocol observations and structured evidence model.
 
 use pcapraven_domain::*;
 
@@ -8,6 +8,10 @@ fn test_protocol_kind_properties() {
     assert_eq!(ProtocolKind::Http.as_str(), "HTTP");
     assert_eq!(ProtocolKind::Tls.as_str(), "TLS");
 
+    assert_eq!(ProtocolKind::Dns.as_str_lowercase(), "dns");
+    assert_eq!(ProtocolKind::Http.as_str_lowercase(), "http");
+    assert_eq!(ProtocolKind::Tls.as_str_lowercase(), "tls");
+
     assert_eq!(ProtocolKind::Dns.to_string(), "DNS");
     assert_eq!(ProtocolKind::Http.to_string(), "HTTP");
     assert_eq!(ProtocolKind::Tls.to_string(), "TLS");
@@ -15,19 +19,32 @@ fn test_protocol_kind_properties() {
     assert_eq!(ProtocolKind::Dns, ProtocolKind::Dns);
     assert_ne!(ProtocolKind::Dns, ProtocolKind::Http);
     assert!(ProtocolKind::Dns < ProtocolKind::Http);
+    assert!(ProtocolKind::Http < ProtocolKind::Tls);
 }
 
 #[test]
-fn test_observation_reference() {
-    let r1 = ObservationReference::new(0);
-    let r2 = ObservationReference::new(42);
+fn test_observation_reference_structural_determinism_and_ordering() {
+    let r_dns_0 = ObservationReference::new(1, ProtocolKind::Dns, 0);
+    let r_dns_1 = ObservationReference::new(1, ProtocolKind::Dns, 1);
+    let r_http_0 = ObservationReference::new(1, ProtocolKind::Http, 0);
+    let r_tls_0 = ObservationReference::new(1, ProtocolKind::Tls, 0);
+    let r_pkt2_dns = ObservationReference::new(2, ProtocolKind::Dns, 0);
 
-    assert_eq!(r1.id(), 0);
-    assert_eq!(r2.id(), 42);
-    assert_eq!(r1.to_string(), "obs:0");
-    assert_eq!(r2.to_string(), "obs:42");
+    assert_eq!(r_dns_0.packet_ordinal(), 1);
+    assert_eq!(r_dns_0.protocol(), ProtocolKind::Dns);
+    assert_eq!(r_dns_0.ordinal_within_packet(), 0);
 
-    assert!(r1 < r2);
+    assert_eq!(r_dns_0.to_string(), "obs:1:dns:0");
+    assert_eq!(r_dns_1.to_string(), "obs:1:dns:1");
+    assert_eq!(r_http_0.to_string(), "obs:1:http:0");
+    assert_eq!(r_tls_0.to_string(), "obs:1:tls:0");
+    assert_eq!(r_pkt2_dns.to_string(), "obs:2:dns:0");
+
+    // Total ordering: packet_ordinal -> protocol -> ordinal_within_packet
+    assert!(r_dns_0 < r_dns_1);
+    assert!(r_dns_1 < r_http_0);
+    assert!(r_http_0 < r_tls_0);
+    assert!(r_tls_0 < r_pkt2_dns);
 }
 
 #[test]
@@ -47,21 +64,41 @@ fn test_observation_completeness() {
 }
 
 #[test]
-fn test_observation_flow_association() {
+fn test_observation_flow_association_and_direction_preservation() {
     let f_ref = FlowReference::new(10);
-    let assoc = ObservationFlowAssociation::Associated(f_ref);
+    let assoc = ObservationFlowAssociation::Associated {
+        flow: f_ref,
+        direction: FlowDirection::AToB,
+    };
     assert!(assoc.is_associated());
     assert!(!assoc.is_excluded());
     assert!(!assoc.is_unassociated());
     assert_eq!(assoc.flow_reference(), Some(f_ref));
+    assert_eq!(assoc.flow_direction(), Some(FlowDirection::AToB));
     assert_eq!(assoc.exclusion_reason(), None);
-    assert_eq!(assoc.to_string(), "Associated(Flow(10))");
+    assert_eq!(assoc.to_string(), "Associated(Flow(10), A->B)");
+
+    let assoc_b_to_a = ObservationFlowAssociation::Associated {
+        flow: f_ref,
+        direction: FlowDirection::BToA,
+    };
+    assert_eq!(assoc_b_to_a.flow_direction(), Some(FlowDirection::BToA));
+
+    let assoc_same = ObservationFlowAssociation::Associated {
+        flow: f_ref,
+        direction: FlowDirection::SameEndpoint,
+    };
+    assert_eq!(
+        assoc_same.flow_direction(),
+        Some(FlowDirection::SameEndpoint)
+    );
 
     let excl = ObservationFlowAssociation::Excluded(FlowExclusionReason::MissingNetworkLayer);
     assert!(!excl.is_associated());
     assert!(excl.is_excluded());
     assert!(!excl.is_unassociated());
     assert_eq!(excl.flow_reference(), None);
+    assert_eq!(excl.flow_direction(), None);
     assert_eq!(
         excl.exclusion_reason(),
         Some(FlowExclusionReason::MissingNetworkLayer)
@@ -73,8 +110,35 @@ fn test_observation_flow_association() {
     assert!(!unassoc.is_excluded());
     assert!(unassoc.is_unassociated());
     assert_eq!(unassoc.flow_reference(), None);
+    assert_eq!(unassoc.flow_direction(), None);
     assert_eq!(unassoc.exclusion_reason(), None);
     assert_eq!(unassoc.to_string(), "Unassociated");
+}
+
+#[test]
+fn test_observation_flow_association_from_packet_association() {
+    let pkt1 = PacketReference::new(1, None, None, 100, 100, false);
+    let pkt2 = PacketReference::new(2, None, None, 100, 100, false);
+
+    let flow_pkt_assoc =
+        FlowPacketAssociation::new(FlowReference::new(5), pkt1, FlowDirection::AToB);
+
+    // Matching packet ordinal succeeds
+    let assoc =
+        ObservationFlowAssociation::from_flow_packet_association(&pkt1, &flow_pkt_assoc).unwrap();
+    assert_eq!(assoc.flow_reference(), Some(FlowReference::new(5)));
+    assert_eq!(assoc.flow_direction(), Some(FlowDirection::AToB));
+
+    // Mismatched packet ordinal fails
+    let err = ObservationFlowAssociation::from_flow_packet_association(&pkt2, &flow_pkt_assoc)
+        .unwrap_err();
+    assert_eq!(
+        err,
+        ObservationError::FlowAssociationPacketMismatch {
+            observation_packet_ordinal: 2,
+            association_packet_ordinal: 1,
+        }
+    );
 }
 
 #[test]
@@ -110,9 +174,7 @@ fn test_protocol_observation_data_and_completeness_derivation() {
     assert!(data_dns_comp.is_dns());
     assert!(!data_dns_comp.is_http());
     assert!(!data_dns_comp.is_tls());
-    assert!(data_dns_comp.as_dns().is_some());
-    assert!(data_dns_comp.as_http().is_none());
-    assert!(data_dns_comp.as_tls().is_none());
+    assert_eq!(data_dns_comp.packet_reference(), &pkt);
     assert_eq!(
         data_dns_comp.completeness(),
         ObservationCompleteness::Complete
@@ -152,7 +214,7 @@ fn test_protocol_observation_data_and_completeness_derivation() {
     let data_http_comp = ProtocolObservationData::Http(http_complete);
     assert_eq!(data_http_comp.protocol_kind(), ProtocolKind::Http);
     assert!(data_http_comp.is_http());
-    assert!(data_http_comp.as_http().is_some());
+    assert_eq!(data_http_comp.packet_reference(), &pkt);
     assert_eq!(
         data_http_comp.completeness(),
         ObservationCompleteness::Complete
@@ -201,7 +263,7 @@ fn test_protocol_observation_data_and_completeness_derivation() {
     let data_tls_comp = ProtocolObservationData::Tls(tls_complete);
     assert_eq!(data_tls_comp.protocol_kind(), ProtocolKind::Tls);
     assert!(data_tls_comp.is_tls());
-    assert!(data_tls_comp.as_tls().is_some());
+    assert_eq!(data_tls_comp.packet_reference(), &pkt);
     assert_eq!(
         data_tls_comp.completeness(),
         ObservationCompleteness::Complete
@@ -217,13 +279,11 @@ fn test_protocol_observation_data_and_completeness_derivation() {
 }
 
 #[test]
-fn test_protocol_observation_construction_and_accessors() {
-    let pkt = PacketReference::new(1, None, None, 100, 100, false);
-    let obs_ref = ObservationReference::new(5);
-    let flow_assoc = ObservationFlowAssociation::Associated(FlowReference::new(2));
+fn test_protocol_observation_invariant_validation() {
+    let pkt1 = PacketReference::new(1, None, None, 100, 100, false);
 
     let http_obs = HttpObservation {
-        packet: pkt,
+        packet: pkt1,
         timestamp: PacketTimestamp::Unavailable,
         source_ip: IpAddress::Ipv4([192, 168, 1, 1]),
         destination_ip: IpAddress::Ipv4([93, 184, 216, 34]),
@@ -243,36 +303,91 @@ fn test_protocol_observation_construction_and_accessors() {
         completeness: HttpObservationCompleteness::Complete,
     };
 
-    let obs = ProtocolObservation::new(
-        obs_ref,
-        pkt,
+    // Valid observation construction
+    let valid_ref = ObservationReference::new(1, ProtocolKind::Http, 0);
+    let flow_assoc = ObservationFlowAssociation::Associated {
+        flow: FlowReference::new(2),
+        direction: FlowDirection::AToB,
+    };
+
+    let obs = ProtocolObservation::try_new(
+        valid_ref,
         flow_assoc,
         ProtocolObservationData::Http(http_obs.clone()),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(obs.reference(), obs_ref);
-    assert_eq!(obs.packet_reference(), &pkt);
+    assert_eq!(obs.reference(), valid_ref);
+    assert_eq!(obs.packet_reference(), &pkt1);
     assert_eq!(obs.flow_association(), &flow_assoc);
     assert_eq!(obs.completeness(), ObservationCompleteness::Complete);
     assert_eq!(obs.protocol_kind(), ProtocolKind::Http);
-    assert!(obs.data().is_http());
 
-    let obs_explicit_partial = ProtocolObservation::with_completeness(
-        obs_ref,
-        pkt,
+    // Mismatched packet ordinal in reference
+    let bad_pkt_ref = ObservationReference::new(2, ProtocolKind::Http, 0);
+    let err_pkt = ProtocolObservation::try_new(
+        bad_pkt_ref,
         flow_assoc,
-        ObservationCompleteness::Partial,
-        ProtocolObservationData::Http(http_obs),
-    );
+        ProtocolObservationData::Http(http_obs.clone()),
+    )
+    .unwrap_err();
     assert_eq!(
-        obs_explicit_partial.completeness(),
-        ObservationCompleteness::Partial
+        err_pkt,
+        ObservationError::PacketReferenceMismatch {
+            reference_packet_ordinal: 2,
+            payload_packet_ordinal: 1,
+        }
     );
+
+    // Mismatched protocol in reference
+    let bad_proto_ref = ObservationReference::new(1, ProtocolKind::Dns, 0);
+    let err_proto = ProtocolObservation::try_new(
+        bad_proto_ref,
+        flow_assoc,
+        ProtocolObservationData::Http(http_obs.clone()),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err_proto,
+        ObservationError::ProtocolMismatch {
+            reference_protocol: ProtocolKind::Dns,
+            payload_protocol: ProtocolKind::Http,
+        }
+    );
+
+    // Partial payload MUST produce Partial observation (completeness is strictly derived)
+    let mut partial_http_obs = http_obs;
+    partial_http_obs.completeness = HttpObservationCompleteness::Partial {
+        reason: "Truncated",
+    };
+    let partial_obs = ProtocolObservation::try_new(
+        valid_ref,
+        flow_assoc,
+        ProtocolObservationData::Http(partial_http_obs),
+    )
+    .unwrap();
+    assert_eq!(partial_obs.completeness(), ObservationCompleteness::Partial);
 }
 
 #[test]
-fn test_protocol_observation_collection() {
-    assert!(ProtocolObservationCollection::new(0).is_err());
+fn test_protocol_observation_collection_hard_bounds_and_ordering() {
+    // 0 capacity rejected
+    assert_eq!(
+        ProtocolObservationCollection::new(0).unwrap_err(),
+        ProtocolObservationCollectionError::ZeroCapacity
+    );
+
+    // Above hard max rejected
+    assert_eq!(
+        ProtocolObservationCollection::new(
+            ProtocolObservationCollection::HARD_MAX_OBSERVATIONS + 1
+        )
+        .unwrap_err(),
+        ProtocolObservationCollectionError::CapacityAboveHardMaximum {
+            requested: ProtocolObservationCollection::HARD_MAX_OBSERVATIONS + 1,
+            maximum: ProtocolObservationCollection::HARD_MAX_OBSERVATIONS,
+        }
+    );
 
     let mut coll = ProtocolObservationCollection::new(2).unwrap();
     assert_eq!(coll.capacity(), 2);
@@ -280,13 +395,15 @@ fn test_protocol_observation_collection() {
     assert!(coll.is_empty());
     assert!(!coll.is_truncated());
 
-    let pkt = PacketReference::new(1, None, None, 100, 100, false);
-    let obs1 = ProtocolObservation::new(
-        ObservationReference::new(1),
-        pkt,
+    let pkt1 = PacketReference::new(1, None, None, 100, 100, false);
+    let pkt2 = PacketReference::new(2, None, None, 100, 100, false);
+    let pkt3 = PacketReference::new(3, None, None, 100, 100, false);
+
+    let obs1 = ProtocolObservation::try_new(
+        ObservationReference::new(1, ProtocolKind::Http, 0),
         ObservationFlowAssociation::Unassociated,
         ProtocolObservationData::Http(HttpObservation {
-            packet: pkt,
+            packet: pkt1,
             timestamp: PacketTimestamp::Unavailable,
             source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
             destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
@@ -302,13 +419,14 @@ fn test_protocol_observation_collection() {
             header_section_bytes: 0,
             completeness: HttpObservationCompleteness::Complete,
         }),
-    );
-    let obs2 = ProtocolObservation::new(
-        ObservationReference::new(2),
-        pkt,
+    )
+    .unwrap();
+
+    let obs2 = ProtocolObservation::try_new(
+        ObservationReference::new(2, ProtocolKind::Http, 0),
         ObservationFlowAssociation::Unassociated,
         ProtocolObservationData::Http(HttpObservation {
-            packet: pkt,
+            packet: pkt2,
             timestamp: PacketTimestamp::Unavailable,
             source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
             destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
@@ -324,13 +442,14 @@ fn test_protocol_observation_collection() {
             header_section_bytes: 0,
             completeness: HttpObservationCompleteness::Complete,
         }),
-    );
-    let obs3 = ProtocolObservation::new(
-        ObservationReference::new(3),
-        pkt,
+    )
+    .unwrap();
+
+    let obs3 = ProtocolObservation::try_new(
+        ObservationReference::new(3, ProtocolKind::Http, 0),
         ObservationFlowAssociation::Unassociated,
         ProtocolObservationData::Http(HttpObservation {
-            packet: pkt,
+            packet: pkt3,
             timestamp: PacketTimestamp::Unavailable,
             source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
             destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
@@ -346,35 +465,81 @@ fn test_protocol_observation_collection() {
             header_section_bytes: 0,
             completeness: HttpObservationCompleteness::Complete,
         }),
+    )
+    .unwrap();
+
+    assert!(coll.push(obs1.clone()).is_ok());
+    assert_eq!(coll.len(), 1);
+
+    // Duplicate insertion rejected and transactional
+    let dup_err = coll.push(obs1).unwrap_err();
+    assert_eq!(
+        dup_err,
+        ProtocolObservationCollectionError::DuplicateReference(ObservationReference::new(
+            1,
+            ProtocolKind::Http,
+            0
+        ))
+    );
+    assert_eq!(coll.len(), 1);
+
+    assert!(coll.push(obs2).is_ok());
+    assert_eq!(coll.len(), 2);
+
+    // Out of order insertion rejected
+    let mut out_of_order_coll = ProtocolObservationCollection::new(10).unwrap();
+    out_of_order_coll.push(obs3.clone()).unwrap();
+    let ooo_err = out_of_order_coll
+        .push(
+            ProtocolObservation::try_new(
+                ObservationReference::new(1, ProtocolKind::Http, 0),
+                ObservationFlowAssociation::Unassociated,
+                ProtocolObservationData::Http(HttpObservation {
+                    packet: pkt1,
+                    timestamp: PacketTimestamp::Unavailable,
+                    source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
+                    destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
+                    source_port: 1000,
+                    destination_port: 80,
+                    version: HttpVersion::Http11,
+                    message_kind: HttpMessageKind::Request,
+                    request: None,
+                    response: None,
+                    headers: HttpSelectedHeaders::default(),
+                    framing: HttpFramingMetadata::default(),
+                    declared_field_count: 0,
+                    header_section_bytes: 0,
+                    completeness: HttpObservationCompleteness::Complete,
+                }),
+            )
+            .unwrap(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ooo_err,
+        ProtocolObservationCollectionError::OutOfOrderReference {
+            previous: ObservationReference::new(3, ProtocolKind::Http, 0),
+            attempted: ObservationReference::new(1, ProtocolKind::Http, 0),
+        }
     );
 
-    assert!(coll.push(obs1));
-    assert_eq!(coll.len(), 1);
-    assert!(!coll.is_empty());
-    assert!(!coll.is_truncated());
-
-    assert!(coll.push(obs2));
-    assert_eq!(coll.len(), 2);
-    assert!(!coll.is_truncated());
-
-    // 3rd push must fail and mark is_truncated
-    assert!(!coll.push(obs3));
-    assert_eq!(coll.len(), 2);
+    // Capacity reached: explicit ResourceLimit error and marked is_truncated
+    let limit_err = coll.push(obs3).unwrap_err();
+    assert_eq!(
+        limit_err,
+        ProtocolObservationCollectionError::ResourceLimit { capacity: 2 }
+    );
     assert!(coll.is_truncated());
-
-    let count = coll.iter().count();
-    assert_eq!(count, 2);
-
-    let vec = coll.into_vec();
-    assert_eq!(vec.len(), 2);
+    assert_eq!(coll.len(), 2);
 }
 
 #[test]
 fn test_schema_version_anchors() {
-    let cur = SchemaVersion::CURRENT;
-    assert_eq!(cur.major(), 1);
-    assert_eq!(cur.minor(), 0);
-    assert_eq!(cur.to_string(), "v1.0");
+    assert_eq!(PROTOCOL_OBSERVATION_SCHEMA_VERSION.major(), 1);
+    assert_eq!(PROTOCOL_OBSERVATION_SCHEMA_VERSION.minor(), 0);
+    assert_eq!(EVIDENCE_SCHEMA_VERSION.major(), 1);
+    assert_eq!(EVIDENCE_SCHEMA_VERSION.minor(), 0);
+    assert_eq!(SchemaVersion::CURRENT, EVIDENCE_SCHEMA_VERSION);
 
     let v1_0 = SchemaVersion::new(1, 0);
     let v1_1 = SchemaVersion::new(1, 1);
@@ -384,37 +549,102 @@ fn test_schema_version_anchors() {
     assert!(v1_0.is_compatible_with(&v1_0));
     assert!(!v1_0.is_compatible_with(&v1_1));
     assert!(!v2_0.is_compatible_with(&v1_0));
-    assert!(!v1_0.is_compatible_with(&v2_0));
 }
 
 #[test]
-fn test_evidence_reference_and_kind() {
-    let r = EvidenceReference::new(42);
-    assert_eq!(r.id(), 42);
-    assert_eq!(r.to_string(), "evi:42");
+fn test_evidence_description_validation() {
+    // Valid description
+    let d = EvidenceDescription::try_new("Observed asymmetric traffic ratio").unwrap();
+    assert_eq!(d.as_str(), "Observed asymmetric traffic ratio");
 
-    let kinds = [
-        (EvidenceKind::PacketMeasurement, "PacketMeasurement"),
-        (EvidenceKind::FlowMeasurement, "FlowMeasurement"),
-        (EvidenceKind::ProtocolObservation, "ProtocolObservation"),
-        (EvidenceKind::TemporalMetric, "TemporalMetric"),
-        (EvidenceKind::RatioComparison, "RatioComparison"),
-        (EvidenceKind::StructuralAnomaly, "StructuralAnomaly"),
+    // Empty description rejected
+    assert_eq!(
+        EvidenceDescription::try_new("").unwrap_err(),
+        EvidenceValidationError::EmptyDescription
+    );
+
+    // Exact max (512 bytes) accepted
+    let exact_512 = "a".repeat(512);
+    assert!(EvidenceDescription::try_new(&exact_512).is_ok());
+
+    // 513 bytes rejected
+    let over_512 = "a".repeat(513);
+    assert_eq!(
+        EvidenceDescription::try_new(&over_512).unwrap_err(),
+        EvidenceValidationError::DescriptionTooLong {
+            length: 513,
+            max: 512,
+        }
+    );
+
+    // Control characters rejected
+    assert_eq!(
+        EvidenceDescription::try_new("Text with \x00 NUL").unwrap_err(),
+        EvidenceValidationError::DescriptionControlCharacter { byte: 0 }
+    );
+    assert_eq!(
+        EvidenceDescription::try_new("Text with \x1b ESC").unwrap_err(),
+        EvidenceValidationError::DescriptionControlCharacter { byte: 0x1b }
+    );
+    assert_eq!(
+        EvidenceDescription::try_new("Text with \r CR").unwrap_err(),
+        EvidenceValidationError::DescriptionControlCharacter { byte: 0x0d }
+    );
+    assert_eq!(
+        EvidenceDescription::try_new("Text with \n LF").unwrap_err(),
+        EvidenceValidationError::DescriptionControlCharacter { byte: 0x0a }
+    );
+    assert_eq!(
+        EvidenceDescription::try_new("Text with \t TAB").unwrap_err(),
+        EvidenceValidationError::DescriptionControlCharacter { byte: 0x09 }
+    );
+}
+
+#[test]
+fn test_evidence_metric_key_validation() {
+    let valid_keys = [
+        "packet_count",
+        "flow.duration",
+        "interval_mean",
+        "observed-ratio",
+        "dns.query_count",
+        "a1",
+        "test_123.metric-name",
     ];
-
-    for (k, expected) in kinds {
-        assert_eq!(k.as_str(), expected);
-        assert_eq!(k.to_string(), expected);
+    for &k in &valid_keys {
+        assert!(
+            EvidenceMetricKey::try_new(k).is_ok(),
+            "key {k} should be valid"
+        );
     }
-}
 
-#[test]
-fn test_evidence_description_and_metric_key() {
-    let desc = EvidenceDescription::new("Valid description\x1b[31m colored text");
-    assert_eq!(desc.as_str(), "Valid description [31m colored text");
+    // Empty rejected
+    assert_eq!(
+        EvidenceMetricKey::try_new("").unwrap_err(),
+        EvidenceValidationError::EmptyMetricKey
+    );
 
-    let key = EvidenceMetricKey::new("metric.key\x00with_null");
-    assert_eq!(key.as_str(), "metric.key_with_null");
+    // Uppercase rejected
+    assert!(EvidenceMetricKey::try_new("Packet_Count").is_err());
+
+    // Whitespace rejected
+    assert!(EvidenceMetricKey::try_new("foo bar").is_err());
+
+    // Leading punctuation rejected
+    assert!(EvidenceMetricKey::try_new(".metric").is_err());
+    assert!(EvidenceMetricKey::try_new("-metric").is_err());
+
+    // Control characters rejected
+    assert!(EvidenceMetricKey::try_new("foo\x00bar").is_err());
+    assert!(EvidenceMetricKey::try_new("foo\nbar").is_err());
+
+    // Exact max 64 accepted
+    let exact_64 = "a".repeat(64);
+    assert!(EvidenceMetricKey::try_new(&exact_64).is_ok());
+
+    // 65 bytes rejected
+    let over_64 = "a".repeat(65);
+    assert!(EvidenceMetricKey::try_new(&over_64).is_err());
 }
 
 #[test]
@@ -448,18 +678,8 @@ fn test_evidence_ratio_rational_arithmetic_and_comparison() {
     ];
 
     for window in series.windows(2) {
-        assert!(
-            window[0] < window[1],
-            "expected {:?} < {:?}",
-            window[0],
-            window[1]
-        );
-        assert!(
-            window[1] > window[0],
-            "expected {:?} > {:?}",
-            window[1],
-            window[0]
-        );
+        assert!(window[0] < window[1]);
+        assert!(window[1] > window[0]);
     }
 
     // Huge numbers overflow-free comparison
@@ -469,194 +689,163 @@ fn test_evidence_ratio_rational_arithmetic_and_comparison() {
 }
 
 #[test]
-fn test_evidence_value_and_unit() {
-    let val_int = EvidenceValue::Integer(-42);
-    let val_uint = EvidenceValue::Unsigned(100);
-    let val_ratio = EvidenceValue::Ratio(EvidenceRatio::ONE);
-    let val_bool = EvidenceValue::Boolean(true);
-    let val_text = EvidenceValue::Text("test_value".to_string());
+fn test_evidence_measurement_validation() {
+    let key = EvidenceMetricKey::try_new("packet_count").unwrap();
 
-    assert!(val_int.is_numeric());
-    assert!(val_uint.is_numeric());
-    assert!(val_ratio.is_numeric());
-    assert!(!val_bool.is_numeric());
-    assert!(!val_text.is_numeric());
-
-    assert_eq!(val_int.to_string(), "-42");
-    assert_eq!(val_uint.to_string(), "100");
-    assert_eq!(val_ratio.to_string(), "1/1");
-    assert_eq!(val_bool.to_string(), "true");
-    assert_eq!(val_text.to_string(), "test_value");
-
-    let units = [
-        (EvidenceUnit::Bytes, "bytes"),
-        (EvidenceUnit::Packets, "packets"),
-        (EvidenceUnit::Nanoseconds, "ns"),
-        (EvidenceUnit::Microseconds, "us"),
-        (EvidenceUnit::Milliseconds, "ms"),
-        (EvidenceUnit::Seconds, "s"),
-        (EvidenceUnit::Ratio, "ratio"),
-        (EvidenceUnit::Count, "count"),
-        (EvidenceUnit::PercentageInteger, "%"),
-        (
-            EvidenceUnit::Custom("custom_unit".to_string()),
-            "custom_unit",
-        ),
-    ];
-
-    for (u, expected) in units {
-        assert_eq!(u.as_str(), expected);
-        assert_eq!(u.to_string(), expected);
-    }
-}
-
-#[test]
-fn test_evidence_comparison() {
-    let comps = [
-        (EvidenceComparison::Equal, "=="),
-        (EvidenceComparison::NotEqual, "!="),
-        (EvidenceComparison::LessThan, "<"),
-        (EvidenceComparison::LessThanOrEqual, "<="),
-        (EvidenceComparison::GreaterThan, ">"),
-        (EvidenceComparison::GreaterThanOrEqual, ">="),
-        (EvidenceComparison::InRange, "in_range"),
-        (EvidenceComparison::OutsideRange, "outside_range"),
-    ];
-
-    for (c, expected) in comps {
-        assert_eq!(c.as_str(), expected);
-        assert_eq!(c.to_string(), expected);
-    }
-}
-
-#[test]
-fn test_evidence_measurement() {
-    let m1 = EvidenceMeasurement::new(
-        EvidenceMetricKey::new("packet_count"),
+    // Valid measurement without threshold
+    let m1 = EvidenceMeasurement::try_new(
+        key.clone(),
         EvidenceValue::Unsigned(100),
         EvidenceUnit::Packets,
-    );
-    assert_eq!(m1.key.as_str(), "packet_count");
-    assert_eq!(m1.observed_value, EvidenceValue::Unsigned(100));
-    assert!(m1.threshold_value.is_none());
-    assert!(m1.comparison.is_none());
-    assert_eq!(m1.unit, EvidenceUnit::Packets);
+    )
+    .unwrap();
+    assert_eq!(m1.key().as_str(), "packet_count");
+    assert_eq!(m1.observed_value(), &EvidenceValue::Unsigned(100));
+    assert!(m1.threshold_value().is_none());
+    assert!(m1.comparison().is_none());
 
-    let m2 = EvidenceMeasurement::with_threshold(
-        EvidenceMetricKey::new("payload_ratio"),
-        EvidenceValue::Ratio(EvidenceRatio::from_fraction(3, 4).unwrap()),
-        EvidenceValue::Ratio(EvidenceRatio::from_fraction(1, 2).unwrap()),
+    // Valid measurement with threshold
+    let ratio_key = EvidenceMetricKey::try_new("ratio_metric").unwrap();
+    let r_obs = EvidenceRatio::from_fraction(3, 4).unwrap();
+    let r_thresh = EvidenceRatio::from_fraction(1, 2).unwrap();
+    let m2 = EvidenceMeasurement::try_with_threshold(
+        ratio_key,
+        EvidenceValue::Ratio(r_obs),
+        EvidenceValue::Ratio(r_thresh),
         EvidenceComparison::GreaterThan,
         EvidenceUnit::Ratio,
-    );
-    assert_eq!(m2.key.as_str(), "payload_ratio");
+    )
+    .unwrap();
+    assert_eq!(m2.observed_value(), &EvidenceValue::Ratio(r_obs));
+    assert_eq!(m2.threshold_value(), Some(&EvidenceValue::Ratio(r_thresh)));
+    assert_eq!(m2.comparison(), Some(EvidenceComparison::GreaterThan));
+
+    // Incompatible value and threshold types (Unsigned vs Ratio)
+    let incomp_err = EvidenceMeasurement::try_with_threshold(
+        key.clone(),
+        EvidenceValue::Unsigned(100),
+        EvidenceValue::Ratio(r_thresh),
+        EvidenceComparison::GreaterThan,
+        EvidenceUnit::Packets,
+    )
+    .unwrap_err();
     assert_eq!(
-        m2.observed_value,
-        EvidenceValue::Ratio(EvidenceRatio::from_fraction(3, 4).unwrap())
+        incomp_err,
+        EvidenceValidationError::IncompatibleUnitAndValue
     );
+
+    // Incompatible unit and value (Ratio unit with Unsigned value)
+    let unit_err = EvidenceMeasurement::try_new(
+        key.clone(),
+        EvidenceValue::Unsigned(50),
+        EvidenceUnit::Ratio,
+    )
+    .unwrap_err();
+    assert_eq!(unit_err, EvidenceValidationError::IncompatibleUnitAndValue);
+
+    // Percentage > 100 rejected
+    let pct_key = EvidenceMetricKey::try_new("loss_pct").unwrap();
+    let pct_err = EvidenceMeasurement::try_new(
+        pct_key,
+        EvidenceValue::Unsigned(101),
+        EvidenceUnit::PercentageInteger,
+    )
+    .unwrap_err();
     assert_eq!(
-        m2.threshold_value,
-        Some(EvidenceValue::Ratio(
-            EvidenceRatio::from_fraction(1, 2).unwrap()
-        ))
+        pct_err,
+        EvidenceValidationError::PercentageOutOfRange { value: 101 }
     );
-    assert_eq!(m2.comparison, Some(EvidenceComparison::GreaterThan));
 }
 
 #[test]
-fn test_evidence_limitation() {
-    let lims = [
-        (EvidenceLimitation::TruncatedPayload, "TruncatedPayload"),
-        (
-            EvidenceLimitation::MissingNetworkLayer,
-            "MissingNetworkLayer",
-        ),
-        (
-            EvidenceLimitation::IncompleteHandshake,
-            "IncompleteHandshake",
-        ),
-        (
-            EvidenceLimitation::PacketCountBudgetReached,
-            "PacketCountBudgetReached",
-        ),
-        (
-            EvidenceLimitation::ObservationBudgetReached,
-            "ObservationBudgetReached",
-        ),
-        (EvidenceLimitation::FlowBudgetReached, "FlowBudgetReached"),
-        (
-            EvidenceLimitation::HeaderBudgetExceeded,
-            "HeaderBudgetExceeded",
-        ),
-    ];
-
-    for (l, expected) in lims {
-        assert_eq!(l.as_str(), expected);
-        assert_eq!(l.to_string(), expected);
-    }
-}
-
-#[test]
-fn test_evidence_record_full_workflow() {
-    let mut record = EvidenceRecord::new(
+fn test_evidence_record_builder_bounds_and_uniqueness() {
+    let desc = EvidenceDescription::try_new("Valid evidence record").unwrap();
+    let mut builder = EvidenceRecord::builder(
         EvidenceReference::new(1),
-        EvidenceKind::RatioComparison,
-        EvidenceDescription::new("Observed asymmetric traffic ratio"),
+        EvidenceKind::ProtocolFact,
+        desc.clone(),
     );
 
-    record.add_packet_reference(PacketReference::new(1, None, None, 100, 100, false));
-    record.add_flow_reference(FlowReference::new(0));
-    record.add_observation_reference(ObservationReference::new(42));
-    record.add_measurement(EvidenceMeasurement::with_threshold(
-        EvidenceMetricKey::new("bytes_a_to_b_ratio"),
-        EvidenceValue::Ratio(EvidenceRatio::from_fraction(9, 10).unwrap()),
-        EvidenceValue::Ratio(EvidenceRatio::from_fraction(1, 2).unwrap()),
-        EvidenceComparison::GreaterThan,
-        EvidenceUnit::Ratio,
-    ));
-    record.add_limitation(EvidenceLimitation::TruncatedPayload);
-
-    assert_eq!(record.reference, EvidenceReference::new(1));
-    assert_eq!(record.kind, EvidenceKind::RatioComparison);
+    // Cannot build empty evidence record
     assert_eq!(
-        record.description.as_str(),
-        "Observed asymmetric traffic ratio"
+        builder.clone().build().unwrap_err(),
+        EvidenceValidationError::EmptyEvidenceRecord
     );
-    assert_eq!(record.packet_references.len(), 1);
-    assert_eq!(record.flow_references.len(), 1);
-    assert_eq!(record.observation_references.len(), 1);
-    assert_eq!(record.measurements.len(), 1);
-    assert_eq!(record.limitations.len(), 1);
-    assert_eq!(record.schema_version, SchemaVersion::CURRENT);
-}
 
-#[test]
-fn test_evidence_ratio_grid_ordering() {
-    let test_numerators: [u64; 10] = [0, 1, 2, 3, 5, 7, 10, 100, 999, 10000];
-    let test_denominators: [u64; 9] = [1, 2, 3, 4, 7, 10, 100, 999, 10000];
+    let pkt1 = PacketReference::new(1, None, None, 100, 100, false);
+    let pkt2 = PacketReference::new(2, None, None, 100, 100, false);
+    builder.add_packet_reference(pkt1).unwrap();
 
-    for &n1 in &test_numerators {
-        for &d1 in &test_denominators {
-            let r1 = EvidenceRatio::from_fraction(n1 as u128, d1 as u128).unwrap();
-            for &n2 in &test_numerators {
-                for &d2 in &test_denominators {
-                    let r2 = EvidenceRatio::from_fraction(n2 as u128, d2 as u128).unwrap();
+    // Duplicate packet reference rejected
+    assert_eq!(
+        builder.add_packet_reference(pkt1).unwrap_err(),
+        EvidenceValidationError::DuplicatePacketReference(pkt1)
+    );
 
-                    let prod1 = (n1 as u128) * (d2 as u128);
-                    let prod2 = (n2 as u128) * (d1 as u128);
-                    let expected_ord = prod1.cmp(&prod2);
-
-                    assert_eq!(
-                        r1.cmp(&r2),
-                        expected_ord,
-                        "comparison mismatch for {}/{} vs {}/{}",
-                        n1,
-                        d1,
-                        n2,
-                        d2
-                    );
-                }
-            }
+    // Out-of-order packet reference rejected
+    let mut ooo_builder = builder.clone();
+    ooo_builder.add_packet_reference(pkt2).unwrap();
+    assert_eq!(
+        ooo_builder.add_packet_reference(pkt1).unwrap_err(),
+        EvidenceValidationError::OutOfOrderPacketReference {
+            previous: 2,
+            attempted: 1
         }
-    }
+    );
+
+    // Flow references duplicate and ordering
+    builder.add_flow_reference(FlowReference::new(1)).unwrap();
+    assert_eq!(
+        builder
+            .add_flow_reference(FlowReference::new(1))
+            .unwrap_err(),
+        EvidenceValidationError::DuplicateFlowReference(FlowReference::new(1))
+    );
+
+    // Observation references duplicate and ordering
+    let obs_ref1 = ObservationReference::new(1, ProtocolKind::Http, 0);
+    builder.add_observation_reference(obs_ref1).unwrap();
+    assert_eq!(
+        builder.add_observation_reference(obs_ref1).unwrap_err(),
+        EvidenceValidationError::DuplicateObservationReference(obs_ref1)
+    );
+
+    // Measurements unique metric keys
+    let m1 = EvidenceMeasurement::try_new(
+        EvidenceMetricKey::try_new("metric_a").unwrap(),
+        EvidenceValue::Unsigned(10),
+        EvidenceUnit::Count,
+    )
+    .unwrap();
+    builder.add_measurement(m1.clone()).unwrap();
+
+    assert_eq!(
+        builder.add_measurement(m1).unwrap_err(),
+        EvidenceValidationError::DuplicateMetricKey(
+            EvidenceMetricKey::try_new("metric_a").unwrap()
+        )
+    );
+
+    // Limitations unique and sorted
+    builder
+        .add_limitation(EvidenceLimitation::TruncatedPayload)
+        .unwrap();
+    assert_eq!(
+        builder
+            .add_limitation(EvidenceLimitation::TruncatedPayload)
+            .unwrap_err(),
+        EvidenceValidationError::DuplicateLimitation(EvidenceLimitation::TruncatedPayload)
+    );
+
+    // Build successful record
+    let record = builder.build().unwrap();
+    assert_eq!(record.reference(), EvidenceReference::new(1));
+    assert_eq!(record.kind(), EvidenceKind::ProtocolFact);
+    assert_eq!(record.description().as_str(), "Valid evidence record");
+    assert_eq!(record.packet_references().len(), 1);
+    assert_eq!(record.flow_references().len(), 1);
+    assert_eq!(record.observation_references().len(), 1);
+    assert_eq!(record.measurements().len(), 1);
+    assert_eq!(record.limitations().len(), 1);
+    assert_eq!(record.schema_version(), EVIDENCE_SCHEMA_VERSION);
 }

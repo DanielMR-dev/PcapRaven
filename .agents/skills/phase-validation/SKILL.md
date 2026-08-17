@@ -253,5 +253,19 @@ Phase 10 implements unified protocol observations, explicit flow association, an
 - Zero third-party dependencies added to `pcapraven-domain` (pure `std`-only domain types).
 - Comprehensive integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs` pass.
 - Architecture checker updated and verified for Phase 10.
-- Cross-protocol correlation (Phase 11), detection heuristics (Phase 12+), and formal reporting (Phase 14) remain strictly future roadmap phases.
+- Detection engine architecture (Phase 11) is current; periodic beaconing detection (Phase 12) and formal reporting (Phase 16) remain strictly future roadmap phases.
+  That historical gate is superseded by the current Phase 11 gate below.
+
+## Phase 11 Gate
+
+Phase 11 implements the detection engine architecture in `pcapraven-detection` and finding domain models in `pcapraven-domain`.
+- `pcapraven-domain` defines finding domain models: `DetectorId`, `DetectorVersion`, `FindingReference`, `FindingSubject`, `FindingTitle`, `FindingSummary`, `FindingRationale`, `FindingDraft`, `FindingRecord`, `Severity`, `Confidence`, and `FindingValidationError`.
+- `pcapraven-detection` defines detector trait and metadata: `Detector`, `DetectorMetadata`, and `IncompleteDataPolicy` (`Skip`, `AllowWithLimitations`).
+- `pcapraven-detection` defines parameter models: `DetectorParameterKey`, `DetectorParameterValue` (strictly zero floats: `Boolean`, `Unsigned`, `Signed`, `Ratio`, `Duration`), `DetectorParameters`, `DetectorParametersBuilder`, `DetectorConfig`, and `DetectorConfigurations`.
+- `pcapraven-detection` defines deterministic registry: `DetectorRegistry` with capacity limits, duplicate ID rejection, and execution order strictly sorted by canonical `DetectorId`.
+- Whole-configuration preflight validation: invalid parameters on any detector transactionally abort the entire execution before evaluating any detector.
+- Detection engine execution pipeline: `execute_detection` consumes borrowed domain facts (`DetectionInput`), enforces incomplete data policies, verifies referential integrity against flows and observations, detects duplicate finding key collisions `(DetectorId, FindingSubject)`, enforces total output bounds, and assigns canonical `FindingReference` and `EvidenceReference` ordinals.
+- Zero third-party production dependencies added to `pcapraven-detection` or `pcapraven-domain` (pure safe Rust and `std`).
+- Comprehensive integration tests in `crates/pcapraven-detection/tests/engine.rs` pass.
+- Periodic beaconing detection (Phase 12), DNS anomaly heuristics (Phase 13), C2 heuristics (Phase 14), and formal reporting (Phase 16) remain strictly future roadmap phases.
 

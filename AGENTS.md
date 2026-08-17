@@ -26,15 +26,16 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 10. Phase 0 product and
+The accepted repository phase for this branch is Phase 11. Phase 0 product and
 governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
 Phase 3 packet normalization work, Phase 4 flow reconstruction, Phase 5
 checked flow statistics and exact temporal metrics, Phase 6 initial
 functional CLI with streaming capture and flow inspection, Phase 7
-DNS protocol analysis, Phase 8 bounded HTTP/1.x protocol analysis, and
-Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis are complete.
-Phase 10 covers unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio` metrics, and schema anchors in `pcapraven-domain`.
-Phase 11 (DNS / HTTP / TLS cross-protocol correlation) and all later capabilities remain out of scope until their roadmap gates are accepted.
+DNS protocol analysis, Phase 8 bounded HTTP/1.x protocol analysis,
+Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis, and
+Phase 10 unified protocol observations and structured evidence foundation are complete.
+Phase 11 covers detection engine architecture, detector traits and metadata, parameter configuration, detector registry, execution pipeline, and finding domain models.
+Phase 12 (periodic beaconing detection) and all later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 
@@ -68,15 +69,16 @@ prohibited workspace, source, fixture, CI, parser, flow, protocol, detection,
 reporting, and CLI implementation; it is complete and remains the boundary for
 historical Phase 0 work.
 
-Phase 10 retains Rust Edition 2024, resolver 3, and the exact seven-package main
+Phase 11 retains Rust Edition 2024, resolver 3, and the exact seven-package main
 workspace graph in `docs/ARCHITECTURE.md`. Capture-container behavior is owned
 by `pcapraven-pcap`, domain packet, flow, statistics, temporal, DNS, HTTP, TLS,
-observation, and evidence representations by `pcapraven-domain`, protocol normalization,
+observation, evidence, and finding representations by `pcapraven-domain`, protocol normalization,
 DNS parsing, HTTP parsing, and TLS handshake parsing by `pcapraven-protocols`,
 flow reconstruction, checked traffic statistics, and exact temporal metrics by
-`pcapraven-flows`, and functional CLI orchestration for `validate`, `flows`, `dns`, `http`, and `tls`
-by `pcapraven-cli`; `pcapraven-detection` and `pcapraven-reporting` remain
-skeletons. The workspace lint policy forbids project `unsafe` code by default.
+`pcapraven-flows`, detection engine architecture, registry, configuration, and execution
+pipeline by `pcapraven-detection`, and functional CLI orchestration for `validate`, `flows`, `dns`, `http`, and `tls`
+by `pcapraven-cli`; `pcapraven-reporting` remains a skeleton. The workspace lint policy
+forbids project `unsafe` code by default.
 The declared MSRV is Rust 1.85; the pinned development toolchain is separate.
 Any future dependency must undergo the version, feature, MSRV, license,
 maintenance, transitive-footprint, and unsafe usage review required by the

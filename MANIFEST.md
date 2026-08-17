@@ -12,8 +12,9 @@ analysis with normalized DNS observations and DNS CLI inspection,
 Phase 8 bounded HTTP/1.x metadata analysis with normalized HTTP observations
 and HTTP CLI inspection, Phase 9 bounded visible TLS 1.2 / TLS 1.3
 handshake metadata analysis with normalized TLS observations and TLS CLI inspection,
-and Phase 10 unified protocol observations and structured evidence foundation are complete.
-Phase 11 (DNS / HTTP / TLS cross-protocol correlation) and later analysis capabilities remain future work.
+Phase 10 unified protocol observations and structured evidence foundation, and
+Phase 11 detection engine architecture are complete.
+Phase 12 (periodic beaconing detection) and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -36,12 +37,13 @@ Phase 11 (DNS / HTTP / TLS cross-protocol correlation) and later analysis capabi
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
 | `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
 | `.agents/skills/cli-contract/SKILL.md` | Reusable command-line interface, streaming orchestration, and exit status procedure. |
+| `.agents/skills/detection-engine/SKILL.md` | Reusable detection engine architecture, detector registration, configuration, and evaluation procedure. |
 | `.agents/skills/dns-protocol-analysis/SKILL.md` | Reusable DNS wire parser, candidate classification, and observation extraction procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
@@ -55,6 +57,7 @@ Phase 11 (DNS / HTTP / TLS cross-protocol correlation) and later analysis capabi
 | `crates/pcapraven-domain/src/lib.rs` | Domain library entry point and type exports. |
 | `crates/pcapraven-domain/src/dns.rs` | Normalized DNS observation model, question, RR, EDNS metadata, and diagnostic types. |
 | `crates/pcapraven-domain/src/evidence.rs` | Structured evidence records, exact rational `EvidenceRatio`, measurements, and schema anchors. |
+| `crates/pcapraven-domain/src/finding.rs` | Finding domain models, detector identifiers, detector versions, severity, confidence, subjects, and records. |
 | `crates/pcapraven-domain/src/http.rs` | Normalized HTTP/1.x observation model, request/response metadata, selected headers, sensitive flags, and diagnostic types. |
 | `crates/pcapraven-domain/src/observation.rs` | Unified protocol observations, explicit flow associations, completeness states, and bounded collections. |
 | `crates/pcapraven-domain/src/tls.rs` | Normalized TLS 1.2 / TLS 1.3 handshake observation model, Hello metadata, extension metadata, and diagnostic types. |
@@ -92,7 +95,13 @@ Phase 11 (DNS / HTTP / TLS cross-protocol correlation) and later analysis capabi
 | `crates/pcapraven-flows/tests/reconstruction.rs` | Unit, boundary, lifecycle, and property tests for flow reconstruction. |
 | `crates/pcapraven-flows/tests/statistics.rs` | Unit, boundary, lifecycle, and property tests for flow statistics and exact temporal metrics. |
 | `crates/pcapraven-detection/Cargo.toml` | Detection library package manifest. |
-| `crates/pcapraven-detection/src/lib.rs` | Detection Phase 1 documentation skeleton. |
+| `crates/pcapraven-detection/src/lib.rs` | Detection library entry point and re-exports. |
+| `crates/pcapraven-detection/src/config.rs` | Detector configuration, typed parameters, and validated parameter keys. |
+| `crates/pcapraven-detection/src/detector.rs` | Pure Detector trait, detector metadata, and incomplete data policies. |
+| `crates/pcapraven-detection/src/engine.rs` | Detection engine execution pipeline, borrowed domain input, preflight validation, and canonical assignment. |
+| `crates/pcapraven-detection/src/error.rs` | Structured error models for detector config, registry, evaluation, and engine output. |
+| `crates/pcapraven-detection/src/registry.rs` | Deterministic bounded registry for active compiled detectors. |
+| `crates/pcapraven-detection/tests/engine.rs` | Integration tests for detection engine, registry ordering, preflight config, and deterministic finding generation. |
 | `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
 | `crates/pcapraven-reporting/src/lib.rs` | Reporting Phase 1 documentation skeleton. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
@@ -114,7 +123,7 @@ Phase 11 (DNS / HTTP / TLS cross-protocol correlation) and later analysis capabi
 The former duplicate skill copies are intentionally absent. Future capture
 fixtures, threat detection heuristics, correlation, reporters, and advanced CLI commands
 are not current inventory and may be added only by their owning roadmap phases.
-The excluded `fuzz/` project is current Phase 9 inventory but is not one of the
+The excluded `fuzz/` project is current Phase 11 inventory but is not one of the
 seven main workspace packages.
 
 ## Inventory Rules
