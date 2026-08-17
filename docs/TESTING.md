@@ -5,9 +5,12 @@
 Phase 0 documentation and governance work, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion tests, Phase 3 protocol normalization tests,
 Phase 4 bidirectional flow reconstruction tests, Phase 5 flow statistics and
-exact temporal metric tests, and Phase 6 functional CLI integration tests
-are complete. Application decoders (DNS, HTTP, TLS), detection, and advanced
-reporting testing remain future phase work.
+exact temporal metric tests, Phase 6 functional CLI integration tests,
+Phase 7 bounded DNS protocol analysis tests, Phase 8 bounded HTTP/1.x protocol
+analysis tests, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis tests,
+and Phase 10 unified protocol observations and structured evidence integration tests
+are complete. Phase 11 (cross-protocol correlation), detection,
+and advanced reporting testing remain future phase work.
 
 ## Testing Pyramid
 
@@ -304,6 +307,46 @@ Phase 6 validation confirms:
 - **Verification & Fuzzing:** 12 synthetic micro-fixtures in `tests/fixtures/http/`, integration tests in `tests/http.rs`,
   CLI tests in `tests/cli.rs`, proptests for arbitrary bytes, and `fuzz_http_parser` fuzz target.
 
+## Phase 9 Quality Gates (completed)
+
+- **Bounded Visible TLS 1.2 / TLS 1.3 Handshake Parsing:** Implements bounded handshake parsing in
+  `pcapraven-protocols` with zero panics, checked slice arithmetic, finite bounds, and RFC 9846 / RFC 5246 compliance.
+- **Packet-Wide Handshake Limits & Multi-Record Assembly:** Tracks aggregate handshake messages per packet
+  across all records. Assembles multi-record handshakes in the same packet by retaining only unconsumed buffer
+  suffixes, eliminating duplicate message emissions.
+- **Privacy Non-Retention Invariants (MANDATORY):**
+  - Raw 32-byte ClientHello / ServerHello random values are NEVER retained (only inspected transiently for the HRR sentinel).
+  - Session ID bytes are NEVER retained (only `session_id_length` is recorded).
+  - Key Share public key bytes are NEVER retained (only named group IDs are recorded).
+  - PSK identities and binders are NEVER retained (only boolean presence flag).
+  - Early Data payloads are NEVER retained (only boolean presence flag).
+  - Certificate DER and ciphertext payloads are NEVER retained.
+  - Zero TLS decryption, private key loading, or `SSLKEYLOGFILE` support.
+- **Hardened Gate 9.1 Rules:** Complete SNI list consumption with duplicate `host_name` rejection; client key-share
+  count bounds with `ResourceLimit` emission and zero key-exchange bytes; maximum record fragment limits (16 KiB
+  plaintext, 18 KiB opaque) checked before body processing; server selected-version policy (only TLS 1.2 or TLS 1.3
+  accepted as complete selections); cleartext ALPN in TLS 1.3 ServerHello rejected (`Malformed`/`Partial`); contextual
+  ServerHello extension validation; decoupled per-observation completeness.
+- **Terminal Safety & CLI Inspection:** `TlsByteString` renders via `display_escaped()` (`\xHH` / `\\`).
+  CLI adds streaming `pcapraven tls <capture>` with bounded column presentation and standard exit codes (0, 1, 2, 3).
+- **Verification & Fuzzing:** 12 synthetic micro-fixtures in `tests/fixtures/tls/`, comprehensive integration and regression
+  tests in `tests/tls.rs`, CLI tests in `tests/cli.rs`, proptests for arbitrary bytes, and `fuzz_tls_parser` fuzz target.
+
+## Phase 10 Unified Protocol Observations and Structured Evidence Foundation
+
+Phase 10 establishes the cross-protocol observation architecture and immutable structured evidence records in `pcapraven-domain`:
+
+- **Unified Protocol Observations:** Integrates DNS, HTTP, and TLS domain observations into `ProtocolObservationData`,
+  linking packet provenance (`PacketReference`), explicit flow associations (`Associated`, `Excluded`, `Unassociated`),
+  derived completeness, and bounded collection enforcement.
+- **Structured Evidence Records:** Provides typed measurements, comparisons, descriptions, limitations, and `SchemaVersion`
+  anchoring for findings without raw byte retention.
+- **Exact Rational Arithmetic:** `EvidenceRatio` guarantees exact rational arithmetic ($n / d$) in canonical lowest terms via GCD
+  and exact total ordering via Euclidean continued fractions without float approximation or arithmetic overflow.
+- **Integration Tests:** 17 comprehensive unit/integration tests in `crates/pcapraven-domain/tests/observation_evidence.rs` verifying
+  all observation kinds, flow associations, bounds, schema versions, description sanitization, and exact rational comparisons.
+- **Pure `std` Invariant:** Zero external dependencies added to `pcapraven-domain`.
+
 ## Dependency Audits
 
 ### `pcap-parser = 0.17.0` (Phase 2)
@@ -355,3 +398,33 @@ runtime.
 - Machine output tests validate syntax, schema semantics, ordering, and stdout
   purity.
 - Tests may not hide panics or accept broad output merely to tolerate defects.
+
+## Phase 10 Quality Gates
+
+The full workspace verification commands for Phase 10 are:
+
+```text
+# 1. Format check
+cargo fmt --all -- --check
+
+# 2. Workspace lints
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+# 3. Full workspace tests
+cargo test --workspace --all-features --locked
+
+# 4. CLI end-to-end integration tests
+cargo test -p pcapraven-cli --locked
+
+# 5. Documentation build
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+# 6. Architecture & dependency validation
+python3 scripts/check_workspace_architecture.py
+
+# 7. MSRV check
+cargo +1.85.0 check --workspace --all-targets --locked
+
+# 8. Excluded fuzz targets build
+cargo +nightly fuzz build
+```

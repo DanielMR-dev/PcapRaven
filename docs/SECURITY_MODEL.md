@@ -9,8 +9,11 @@ contains a bounded library-only PCAP/PCAPNG container reader in
 normalization in `pcapraven-protocols`. Phase 4 adds deterministic bidirectional
 flow reconstruction, Phase 5 adds checked flow traffic statistics and exact
 rational temporal metrics in `pcapraven-flows`, Phase 6 adds initial functional
-CLI orchestration (`validate` and `flows`) in `pcapraven-cli`, and Phase 7 adds
-bounded DNS protocol analysis and DNS inspection (`pcapraven dns`).
+CLI orchestration (`validate` and `flows`), Phase 7 adds bounded DNS protocol analysis
+and DNS inspection (`pcapraven dns`), Phase 8 adds bounded HTTP/1.x protocol analysis
+and HTTP inspection (`pcapraven http`), Phase 9 adds bounded visible TLS 1.2 / TLS 1.3
+handshake metadata analysis and TLS inspection (`pcapraven tls`), and Phase 10 adds
+unified protocol observations and structured evidence foundation in `pcapraven-domain`.
 
 ## Assets
 
@@ -106,8 +109,15 @@ The Phase 7 DNS, Phase 8 HTTP, and Phase 9 TLS parsers in `pcapraven-protocols` 
   reject whitespace before colon, reject obs-fold line folding, enforce mandatory Host header on HTTP/1.1 requests,
   reject duplicate Host headers, parse decimal Content-Length, and detect conflicting Transfer-Encoding / Content-Length framing.
 - **TLS:** Enforce packet-local record parsing without cross-packet TCP stream reassembly. Assemble adjacent
-  Handshake records in the same packet up to `maximum_handshake_message_bytes`. Enforce maximum record fragment
-  bounds (16 KiB plaintext, 18 KiB opaque). Detect duplicate extensions per Hello message.
+  Handshake records in the same packet up to `maximum_handshake_message_bytes` while retaining only unconsumed
+  buffer suffixes to prevent duplicate message emissions. Enforce packet-wide handshake message limits across
+  all records in a packet. Enforce maximum record fragment bounds (16 KiB plaintext, 18 KiB opaque) on complete
+  records before body processing. Full SNI `ServerNameList` consumption with duplicate `host_name` rejection.
+  Enforce finite bounds on client key-shares (emitting `ResourceLimit` and marking `Partial` on limit reached,
+  with zero key exchange bytes retained). Enforce server selected-version policy (only TLS 1.2 or TLS 1.3 are valid
+  complete selections). Prohibit cleartext ALPN in TLS 1.3 ServerHello (`Malformed` and `Partial`). Contextually
+  validate ServerHello extensions and decouple per-observation completeness from subsequent unrelated packet errors.
+  Detect duplicate extensions per Hello message.
 - **Privacy Non-Retention Invariants (MANDATORY):**
   - Raw 32-byte ClientHello / ServerHello random values are NEVER retained (only inspected transiently for the HRR sentinel).
   - Session ID bytes are NEVER retained (only `session_id_length` is recorded).

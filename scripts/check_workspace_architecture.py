@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the Phase 8 Cargo package roles and audited dependency topology."""
+"""Check the Phase 10 Cargo package roles and audited dependency topology."""
 
 from __future__ import annotations
 
@@ -47,6 +47,7 @@ EXPECTED = {
 
 EXPECTED_NAMES = set(EXPECTED)
 EXPECTED_TEST_TARGETS = {
+    "pcapraven-domain": {"observation_evidence"},
     "pcapraven-pcap": {"reader"},
     "pcapraven-protocols": {"normalization", "dns", "http", "tls"},
     "pcapraven-flows": {"reconstruction", "statistics"},

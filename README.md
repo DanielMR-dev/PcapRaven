@@ -15,16 +15,17 @@ bidirectional flow reconstruction**, **Phase 5: Checked flow statistics and
 exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspection**,
 **Phase 7: Bounded DNS protocol analysis + normalized DNS observations + DNS CLI inspection**,
 **Phase 8: Bounded HTTP/1.x metadata analysis + normalized HTTP observations + HTTP CLI inspection**,
-and **Phase 9: Bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis + normalized TLS observations + TLS CLI inspection**
+**Phase 9: Bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis + normalized TLS observations + TLS CLI inspection**,
+and **Phase 10: Unified protocol observations + structured evidence foundation**
 are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
-- `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, and TLS domain models, traffic statistics, and exact temporal metrics.
+- `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, and TLS domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
 - `pcapraven-protocols` provides bounded packet normalization, bounded DNS wire-format parsing, bounded HTTP/1.x message header parsing, and bounded TLS 1.2 / TLS 1.3 handshake metadata parsing.
 - `pcapraven-flows` provides stateful bidirectional flow reconstruction, checked traffic statistics accumulation, and exact rational temporal metric calculations.
 - `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, HTTP inspection, and TLS inspection.
 
-### Implemented CLI Commands (Phase 9)
+### Implemented CLI Commands (Phase 10)
 
 ```text
 # Validate capture container integrity and factual metadata:
@@ -85,7 +86,7 @@ v1 CLI contract.
 - [Repository structure](MANIFEST.md)
 
 Workspace tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-8-quality-gates),
+workspace quality commands in [Testing](docs/TESTING.md#phase-10-quality-gates),
 the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 

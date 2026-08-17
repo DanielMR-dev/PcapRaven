@@ -56,6 +56,7 @@ struct TlsParserContext<'a> {
     limits: &'a TlsLimits,
     diagnostics: Vec<TlsDiagnostic>,
     observations: Vec<TlsObservation>,
+    handshake_messages_parsed: usize,
     is_partial: bool,
 }
 
@@ -88,6 +89,13 @@ struct ParsedServerHelloExtensions {
     has_pre_shared_key: bool,
     has_early_data: bool,
     extensions: Vec<TlsExtensionMetadata>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HandshakeBufferProgress {
+    consumed_bytes: usize,
+    needs_more_data: bool,
+    terminal: bool,
 }
 
 /// Parses a [`NormalizedPacket`] for visible TLS 1.2 / TLS 1.3 handshake metadata.
@@ -188,6 +196,7 @@ pub fn parse_tls_packet(packet: &NormalizedPacket, limits: &TlsLimits) -> TlsPac
         limits,
         diagnostics: Vec::new(),
         observations: Vec::new(),
+        handshake_messages_parsed: 0,
         is_partial: false,
     };
 
@@ -233,7 +242,7 @@ fn parse_records(payload: &[u8], ctx: &mut TlsParserContext<'_>) {
     let mut offset = 0usize;
     let mut records_parsed = 0usize;
 
-    // Buffer for packet-local multi-record handshake assembly
+    // Buffer for packet-local multi-record handshake assembly containing only unconsumed bytes
     let mut pending_handshake: Option<(TlsVersion, u16, Vec<u8>)> = None;
 
     while offset < payload.len() {
@@ -263,6 +272,29 @@ fn parse_records(payload: &[u8], ctx: &mut TlsParserContext<'_>) {
         let record_version = TlsVersion::from_wire(raw_version);
         let record_length = u16::from_be_bytes([payload[offset + 3], payload[offset + 4]]) as usize;
 
+        // Bounded fragment checks applied before slicing or accepting record body
+        if content_type == TlsRecordContentType::Handshake {
+            if record_length > MAX_TLS_PLAINTEXT_FRAGMENT_BYTES {
+                ctx.is_partial = true;
+                ctx.emit_diagnostic(
+                    TlsDiagnosticKind::ResourceLimit,
+                    format!(
+                        "plaintext handshake record fragment ({record_length} bytes) exceeds {MAX_TLS_PLAINTEXT_FRAGMENT_BYTES}-byte protocol limit"
+                    ),
+                );
+                break;
+            }
+        } else if record_length > MAX_TLS_OPAQUE_RECORD_FRAGMENT_BYTES {
+            ctx.is_partial = true;
+            ctx.emit_diagnostic(
+                TlsDiagnosticKind::ResourceLimit,
+                format!(
+                    "TLS record length ({record_length} bytes) exceeds maximum fragment limit ({MAX_TLS_OPAQUE_RECORD_FRAGMENT_BYTES} bytes)"
+                ),
+            );
+            break;
+        }
+
         let record_body_start = offset.saturating_add(5);
         let record_end = match record_body_start.checked_add(record_length) {
             Some(end) => end,
@@ -278,22 +310,13 @@ fn parse_records(payload: &[u8], ctx: &mut TlsParserContext<'_>) {
 
         if record_end > payload.len() {
             ctx.is_partial = true;
-            if record_length > MAX_TLS_OPAQUE_RECORD_FRAGMENT_BYTES {
-                ctx.emit_diagnostic(
-                    TlsDiagnosticKind::ResourceLimit,
-                    format!(
-                        "TLS record length ({record_length} bytes) exceeds maximum fragment limit ({MAX_TLS_OPAQUE_RECORD_FRAGMENT_BYTES} bytes)"
-                    ),
-                );
-            } else {
-                ctx.emit_diagnostic(
-                    TlsDiagnosticKind::Truncated,
-                    format!(
-                        "TLS record body truncated by packet boundary (expected {record_length} bytes, available {})",
-                        payload.len().saturating_sub(record_body_start)
-                    ),
-                );
-            }
+            ctx.emit_diagnostic(
+                TlsDiagnosticKind::Truncated,
+                format!(
+                    "TLS record body truncated by packet boundary (expected {record_length} bytes, available {})",
+                    payload.len().saturating_sub(record_body_start)
+                ),
+            );
             break;
         }
 
@@ -301,18 +324,7 @@ fn parse_records(payload: &[u8], ctx: &mut TlsParserContext<'_>) {
         records_parsed = records_parsed.saturating_add(1);
 
         if content_type == TlsRecordContentType::Handshake {
-            if record_length > MAX_TLS_PLAINTEXT_FRAGMENT_BYTES {
-                ctx.is_partial = true;
-                ctx.emit_diagnostic(
-                    TlsDiagnosticKind::ResourceLimit,
-                    format!(
-                        "plaintext handshake record fragment ({record_length} bytes) exceeds 16384-byte protocol limit"
-                    ),
-                );
-                break;
-            }
-
-            if let Some((init_ver, init_rec_len, ref mut buf)) = pending_handshake {
+            if let Some((init_ver, init_rec_len, mut buf)) = pending_handshake.take() {
                 // Continue packet-local assembly of adjacent Handshake record
                 let available_budget = ctx
                     .limits
@@ -327,19 +339,31 @@ fn parse_records(payload: &[u8], ctx: &mut TlsParserContext<'_>) {
                             ctx.limits.maximum_handshake_message_bytes
                         ),
                     );
-                    pending_handshake = None;
                     break;
                 }
                 buf.extend_from_slice(record_body);
-                if process_handshake_buffer(init_ver, init_rec_len, buf, ctx) {
-                    pending_handshake = None;
+                let progress = process_handshake_buffer(init_ver, init_rec_len, &buf, ctx);
+                if progress.terminal {
+                    break;
+                } else if progress.needs_more_data {
+                    pending_handshake = Some((
+                        init_ver,
+                        init_rec_len,
+                        buf[progress.consumed_bytes..].to_vec(),
+                    ));
                 }
             } else {
-                let mut buf = record_body.to_vec();
                 let initial_rec_len = u16::try_from(record_length).unwrap_or(u16::MAX);
-                if !process_handshake_buffer(record_version, initial_rec_len, &mut buf, ctx) {
-                    // Message is incomplete in this record, keep pending for subsequent records in the same packet
-                    pending_handshake = Some((record_version, initial_rec_len, buf));
+                let progress =
+                    process_handshake_buffer(record_version, initial_rec_len, record_body, ctx);
+                if progress.terminal {
+                    break;
+                } else if progress.needs_more_data {
+                    pending_handshake = Some((
+                        record_version,
+                        initial_rec_len,
+                        record_body[progress.consumed_bytes..].to_vec(),
+                    ));
                 }
             }
         } else {
@@ -367,19 +391,17 @@ fn parse_records(payload: &[u8], ctx: &mut TlsParserContext<'_>) {
 }
 
 /// Attempts to parse complete handshake messages from `buf`.
-/// Returns `true` if all data in `buf` was completely consumed or encountered a terminal condition.
-/// Returns `false` if `buf` ends with a partially present handshake message that needs more bytes.
+/// Returns [`HandshakeBufferProgress`] with consumed byte count, need-more-data flag, and terminal flag.
 fn process_handshake_buffer(
     record_version: TlsVersion,
     record_length: u16,
-    buf: &mut [u8],
+    buf: &[u8],
     ctx: &mut TlsParserContext<'_>,
-) -> bool {
+) -> HandshakeBufferProgress {
     let mut offset = 0usize;
-    let mut messages_parsed = 0usize;
 
     while offset < buf.len() {
-        if messages_parsed >= ctx.limits.maximum_handshake_messages_per_packet {
+        if ctx.handshake_messages_parsed >= ctx.limits.maximum_handshake_messages_per_packet {
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::ResourceLimit,
@@ -388,12 +410,20 @@ fn process_handshake_buffer(
                     ctx.limits.maximum_handshake_messages_per_packet
                 ),
             );
-            return true;
+            return HandshakeBufferProgress {
+                consumed_bytes: offset,
+                needs_more_data: false,
+                terminal: true,
+            };
         }
 
         if buf.len().saturating_sub(offset) < 4 {
             // Incomplete handshake header: need more record data
-            return false;
+            return HandshakeBufferProgress {
+                consumed_bytes: offset,
+                needs_more_data: true,
+                terminal: false,
+            };
         }
 
         let msg_type = buf[offset];
@@ -409,7 +439,11 @@ fn process_handshake_buffer(
                     TlsDiagnosticKind::ResourceLimit,
                     "handshake message length exceeds addressable bounds".to_string(),
                 );
-                return true;
+                return HandshakeBufferProgress {
+                    consumed_bytes: offset,
+                    needs_more_data: false,
+                    terminal: true,
+                };
             }
         };
 
@@ -422,7 +456,11 @@ fn process_handshake_buffer(
                     ctx.limits.maximum_handshake_message_bytes
                 ),
             );
-            return true;
+            return HandshakeBufferProgress {
+                consumed_bytes: offset,
+                needs_more_data: false,
+                terminal: true,
+            };
         }
 
         let msg_body_start = offset.saturating_add(4);
@@ -434,17 +472,25 @@ fn process_handshake_buffer(
                     TlsDiagnosticKind::Malformed,
                     "handshake message length arithmetic overflow".to_string(),
                 );
-                return true;
+                return HandshakeBufferProgress {
+                    consumed_bytes: offset,
+                    needs_more_data: false,
+                    terminal: true,
+                };
             }
         };
 
         if msg_end > buf.len() {
             // Need more data from subsequent record in this packet
-            return false;
+            return HandshakeBufferProgress {
+                consumed_bytes: offset,
+                needs_more_data: true,
+                terminal: false,
+            };
         }
 
         let body = &buf[msg_body_start..msg_end];
-        messages_parsed = messages_parsed.saturating_add(1);
+        ctx.handshake_messages_parsed = ctx.handshake_messages_parsed.saturating_add(1);
 
         match msg_type {
             1 => {
@@ -456,14 +502,18 @@ fn process_handshake_buffer(
                 parse_server_hello(record_version, record_length, msg_length, body, ctx);
             }
             _ => {
-                // Other handshake type: skip safely
+                // Other handshake type: safely skipped
             }
         }
 
         offset = msg_end;
     }
 
-    true
+    HandshakeBufferProgress {
+        consumed_bytes: offset,
+        needs_more_data: false,
+        terminal: false,
+    }
 }
 
 fn parse_client_hello(
@@ -473,17 +523,6 @@ fn parse_client_hello(
     body: &[u8],
     ctx: &mut TlsParserContext<'_>,
 ) {
-    // ClientHello structure:
-    // legacy_version (2 bytes)
-    // random (32 bytes) -> NOT RETAINED
-    // session_id_length (1 byte)
-    // session_id (0..32 bytes) -> NOT RETAINED
-    // cipher_suites_length (2 bytes)
-    // cipher_suites (2..2^16-2 bytes)
-    // compression_methods_length (1 byte)
-    // compression_methods (1..2^8-1 bytes)
-    // extensions_length (2 bytes) [optional]
-    // extensions (0..2^16-1 bytes)
     if body.len() < 35 {
         ctx.is_partial = true;
         ctx.emit_diagnostic(
@@ -546,6 +585,7 @@ fn parse_client_hello(
         return;
     }
 
+    let mut msg_is_partial = false;
     let cipher_suites_slice = &body[cursor..cursor + cipher_suites_len];
     cursor = cursor.saturating_add(cipher_suites_len);
 
@@ -556,6 +596,7 @@ fn parse_client_hello(
         if cipher_suites.len() < ctx.limits.maximum_cipher_suites_per_client_hello {
             cipher_suites.push(u16::from_be_bytes([chunk[0], chunk[1]]));
         } else {
+            msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::ResourceLimit,
@@ -605,6 +646,7 @@ fn parse_client_hello(
 
     if cursor < body.len() {
         if body.len().saturating_sub(cursor) < 2 {
+            msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Truncated,
@@ -615,6 +657,7 @@ fn parse_client_hello(
             cursor = cursor.saturating_add(2);
 
             if body.len().saturating_sub(cursor) != extensions_len {
+                msg_is_partial = true;
                 ctx.is_partial = true;
                 ctx.emit_diagnostic(
                     TlsDiagnosticKind::Malformed,
@@ -625,7 +668,12 @@ fn parse_client_hello(
                 );
             } else {
                 let ext_slice = &body[cursor..cursor + extensions_len];
-                parse_client_hello_extensions(ext_slice, &mut parsed_exts, ctx);
+                parse_client_hello_extensions(
+                    ext_slice,
+                    &mut parsed_exts,
+                    &mut msg_is_partial,
+                    ctx,
+                );
             }
         }
     }
@@ -657,7 +705,7 @@ fn parse_client_hello(
         server_hello: None,
         declared_record_bytes: record_length,
         declared_handshake_bytes: msg_length,
-        completeness: if ctx.is_partial {
+        completeness: if msg_is_partial {
             TlsObservationCompleteness::Partial
         } else {
             TlsObservationCompleteness::Complete
@@ -670,6 +718,7 @@ fn parse_client_hello(
 fn parse_client_hello_extensions(
     ext_slice: &[u8],
     parsed: &mut ParsedClientHelloExtensions,
+    msg_is_partial: &mut bool,
     ctx: &mut TlsParserContext<'_>,
 ) {
     let mut offset = 0usize;
@@ -677,6 +726,7 @@ fn parse_client_hello_extensions(
 
     while offset < ext_slice.len() {
         if parsed.extensions.len() >= ctx.limits.maximum_extensions_per_hello {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::ResourceLimit,
@@ -689,6 +739,7 @@ fn parse_client_hello_extensions(
         }
 
         if ext_slice.len().saturating_sub(offset) < 4 {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Truncated,
@@ -703,6 +754,7 @@ fn parse_client_hello_extensions(
         offset = offset.saturating_add(4);
 
         if ext_slice.len().saturating_sub(offset) < ext_len_usize {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Truncated,
@@ -717,6 +769,7 @@ fn parse_client_hello_extensions(
         offset = offset.saturating_add(ext_len_usize);
 
         if seen_types.contains(&ext_type) {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Malformed,
@@ -735,6 +788,7 @@ fn parse_client_hello_extensions(
             0 => {
                 // Server Name Indication (RFC 6066)
                 if ext_data.len() < 2 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
                     ctx.emit_diagnostic(
                         TlsDiagnosticKind::Malformed,
@@ -742,32 +796,64 @@ fn parse_client_hello_extensions(
                     );
                 } else {
                     let list_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-                    if ext_data.len().saturating_sub(2) != list_len || list_len < 3 {
+                    if ext_data.len().saturating_sub(2) != list_len || list_len == 0 {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
                         ctx.emit_diagnostic(
                             TlsDiagnosticKind::Malformed,
                             "SNI extension list length mismatch".to_string(),
                         );
                     } else {
-                        let name_type = ext_data[2];
-                        if name_type == 0 {
-                            // host_name
-                            if ext_data.len() < 5 {
+                        let mut s_cursor = 2usize;
+                        let mut host_name_count = 0usize;
+                        while s_cursor < ext_data.len() {
+                            if ext_data.len().saturating_sub(s_cursor) < 3 {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
                                 ctx.emit_diagnostic(
                                     TlsDiagnosticKind::Malformed,
-                                    "SNI host_name entry truncated".to_string(),
+                                    "SNI entry truncated before name header".to_string(),
                                 );
-                            } else {
-                                let name_len =
-                                    u16::from_be_bytes([ext_data[3], ext_data[4]]) as usize;
-                                if ext_data.len().saturating_sub(5) < name_len || name_len == 0 {
+                                break;
+                            }
+                            let name_type = ext_data[s_cursor];
+                            let name_len = u16::from_be_bytes([
+                                ext_data[s_cursor + 1],
+                                ext_data[s_cursor + 2],
+                            ]) as usize;
+                            s_cursor = s_cursor.saturating_add(3);
+                            if ext_data.len().saturating_sub(s_cursor) < name_len {
+                                *msg_is_partial = true;
+                                ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::Malformed,
+                                    "SNI entry name truncated".to_string(),
+                                );
+                                break;
+                            }
+                            if name_type == 0 {
+                                // host_name
+                                if name_len == 0 {
+                                    *msg_is_partial = true;
                                     ctx.is_partial = true;
                                     ctx.emit_diagnostic(
                                         TlsDiagnosticKind::Malformed,
-                                        "invalid SNI host_name length".to_string(),
+                                        "invalid SNI host_name length of zero".to_string(),
                                     );
-                                } else if name_len > ctx.limits.maximum_server_name_bytes {
+                                    break;
+                                }
+                                if host_name_count > 0 {
+                                    *msg_is_partial = true;
+                                    ctx.is_partial = true;
+                                    ctx.emit_diagnostic(
+                                        TlsDiagnosticKind::Malformed,
+                                        "duplicate host_name entry in SNI list".to_string(),
+                                    );
+                                    break;
+                                }
+                                host_name_count = host_name_count.saturating_add(1);
+                                if name_len > ctx.limits.maximum_server_name_bytes {
+                                    *msg_is_partial = true;
                                     ctx.is_partial = true;
                                     ctx.emit_diagnostic(
                                         TlsDiagnosticKind::ResourceLimit,
@@ -778,10 +864,12 @@ fn parse_client_hello_extensions(
                                     );
                                 } else {
                                     parsed.server_name = Some(TlsByteString::new(
-                                        ext_data[5..5 + name_len].to_vec(),
+                                        ext_data[s_cursor..s_cursor + name_len].to_vec(),
                                     ));
                                 }
                             }
+                            // Unknown name_type: structurally validate and skip
+                            s_cursor = s_cursor.saturating_add(name_len);
                         }
                     }
                 }
@@ -789,6 +877,7 @@ fn parse_client_hello_extensions(
             43 => {
                 // Supported Versions (RFC 9846 / RFC 8446)
                 if ext_data.is_empty() {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
                     ctx.emit_diagnostic(
                         TlsDiagnosticKind::Malformed,
@@ -800,6 +889,7 @@ fn parse_client_hello_extensions(
                         || list_len % 2 != 0
                         || list_len == 0
                     {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
                         ctx.emit_diagnostic(
                             TlsDiagnosticKind::Malformed,
@@ -815,6 +905,7 @@ fn parse_client_hello_extensions(
                                     .supported_versions
                                     .push(TlsVersion::from_wire(ver_code));
                             } else {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
                                 ctx.emit_diagnostic(
                                     TlsDiagnosticKind::ResourceLimit,
@@ -832,11 +923,24 @@ fn parse_client_hello_extensions(
             10 => {
                 // Supported Groups (RFC 8422 / RFC 9846)
                 if ext_data.len() < 2 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
+                    ctx.emit_diagnostic(
+                        TlsDiagnosticKind::Malformed,
+                        "supported_groups extension too short for list length".to_string(),
+                    );
                 } else {
                     let list_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-                    if ext_data.len().saturating_sub(2) != list_len || list_len % 2 != 0 {
+                    if ext_data.len().saturating_sub(2) != list_len
+                        || list_len % 2 != 0
+                        || list_len == 0
+                    {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            "supported_groups extension list length mismatch".to_string(),
+                        );
                     } else {
                         for chunk in ext_data[2..2 + list_len].chunks_exact(2) {
                             if parsed.supported_groups.len() < ctx.limits.maximum_supported_groups {
@@ -844,7 +948,15 @@ fn parse_client_hello_extensions(
                                     .supported_groups
                                     .push(u16::from_be_bytes([chunk[0], chunk[1]]));
                             } else {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::ResourceLimit,
+                                    format!(
+                                        "supported_groups count exceeds limit of {}",
+                                        ctx.limits.maximum_supported_groups
+                                    ),
+                                );
                                 break;
                             }
                         }
@@ -854,11 +966,24 @@ fn parse_client_hello_extensions(
             13 => {
                 // Signature Algorithms (RFC 5246 / RFC 9846)
                 if ext_data.len() < 2 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
+                    ctx.emit_diagnostic(
+                        TlsDiagnosticKind::Malformed,
+                        "signature_algorithms extension too short for list length".to_string(),
+                    );
                 } else {
                     let list_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-                    if ext_data.len().saturating_sub(2) != list_len || list_len % 2 != 0 {
+                    if ext_data.len().saturating_sub(2) != list_len
+                        || list_len % 2 != 0
+                        || list_len == 0
+                    {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            "signature_algorithms extension list length mismatch".to_string(),
+                        );
                     } else {
                         for chunk in ext_data[2..2 + list_len].chunks_exact(2) {
                             if parsed.signature_algorithms.len()
@@ -868,7 +993,15 @@ fn parse_client_hello_extensions(
                                     .signature_algorithms
                                     .push(u16::from_be_bytes([chunk[0], chunk[1]]));
                             } else {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::ResourceLimit,
+                                    format!(
+                                        "signature_algorithms count exceeds limit of {}",
+                                        ctx.limits.maximum_signature_algorithms
+                                    ),
+                                );
                                 break;
                             }
                         }
@@ -878,11 +1011,21 @@ fn parse_client_hello_extensions(
             16 => {
                 // ALPN (RFC 7301)
                 if ext_data.len() < 2 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
+                    ctx.emit_diagnostic(
+                        TlsDiagnosticKind::Malformed,
+                        "ALPN extension too short for list length".to_string(),
+                    );
                 } else {
                     let list_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-                    if ext_data.len().saturating_sub(2) != list_len {
+                    if ext_data.len().saturating_sub(2) != list_len || list_len == 0 {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            "ALPN extension list length mismatch".to_string(),
+                        );
                     } else {
                         let mut p_cursor = 2usize;
                         let mut total_alpn_bytes = 0usize;
@@ -890,20 +1033,44 @@ fn parse_client_hello_extensions(
                             let p_len = ext_data[p_cursor] as usize;
                             p_cursor = p_cursor.saturating_add(1);
                             if ext_data.len().saturating_sub(p_cursor) < p_len || p_len == 0 {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::Malformed,
+                                    "invalid ALPN protocol entry length".to_string(),
+                                );
                                 break;
                             }
-                            if parsed.alpn_protocols.len() < ctx.limits.maximum_alpn_protocols
-                                && total_alpn_bytes.saturating_add(p_len)
-                                    <= ctx.limits.maximum_total_alpn_bytes
-                            {
-                                total_alpn_bytes = total_alpn_bytes.saturating_add(p_len);
-                                parsed.alpn_protocols.push(TlsByteString::new(
-                                    ext_data[p_cursor..p_cursor + p_len].to_vec(),
-                                ));
-                            } else {
+                            if parsed.alpn_protocols.len() >= ctx.limits.maximum_alpn_protocols {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::ResourceLimit,
+                                    format!(
+                                        "ALPN protocol count exceeds limit of {}",
+                                        ctx.limits.maximum_alpn_protocols
+                                    ),
+                                );
+                                break;
                             }
+                            if total_alpn_bytes.saturating_add(p_len)
+                                > ctx.limits.maximum_total_alpn_bytes
+                            {
+                                *msg_is_partial = true;
+                                ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::ResourceLimit,
+                                    format!(
+                                        "total ALPN bytes exceed limit of {}",
+                                        ctx.limits.maximum_total_alpn_bytes
+                                    ),
+                                );
+                                break;
+                            }
+                            total_alpn_bytes = total_alpn_bytes.saturating_add(p_len);
+                            parsed.alpn_protocols.push(TlsByteString::new(
+                                ext_data[p_cursor..p_cursor + p_len].to_vec(),
+                            ));
                             p_cursor = p_cursor.saturating_add(p_len);
                         }
                     }
@@ -912,16 +1079,32 @@ fn parse_client_hello_extensions(
             51 => {
                 // Key Share (RFC 9846)
                 if ext_data.len() < 2 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
+                    ctx.emit_diagnostic(
+                        TlsDiagnosticKind::Malformed,
+                        "key_share extension too short for list length".to_string(),
+                    );
                 } else {
                     let list_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-                    if ext_data.len().saturating_sub(2) != list_len {
+                    if ext_data.len().saturating_sub(2) != list_len || list_len == 0 {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            "key_share extension list length mismatch".to_string(),
+                        );
                     } else {
                         let mut ks_cursor = 2usize;
                         while ks_cursor < ext_data.len() {
                             if ext_data.len().saturating_sub(ks_cursor) < 4 {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::Malformed,
+                                    "key_share entry truncated before key exchange length"
+                                        .to_string(),
+                                );
                                 break;
                             }
                             let group =
@@ -932,13 +1115,30 @@ fn parse_client_hello_extensions(
                             ]) as usize;
                             ks_cursor = ks_cursor.saturating_add(4);
                             if ext_data.len().saturating_sub(ks_cursor) < key_len {
+                                *msg_is_partial = true;
                                 ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::Malformed,
+                                    "key_share entry truncated inside key exchange payload"
+                                        .to_string(),
+                                );
                                 break;
                             }
                             // Retain group ID only, NEVER RETAIN KEY EXCHANGE BYTES!
                             if parsed.key_share_groups.len() < ctx.limits.maximum_key_share_entries
                             {
                                 parsed.key_share_groups.push(group);
+                            } else {
+                                *msg_is_partial = true;
+                                ctx.is_partial = true;
+                                ctx.emit_diagnostic(
+                                    TlsDiagnosticKind::ResourceLimit,
+                                    format!(
+                                        "ClientHello key_share count exceeds limit of {}",
+                                        ctx.limits.maximum_key_share_entries
+                                    ),
+                                );
+                                break;
                             }
                             ks_cursor = ks_cursor.saturating_add(key_len);
                         }
@@ -967,15 +1167,6 @@ fn parse_server_hello(
     body: &[u8],
     ctx: &mut TlsParserContext<'_>,
 ) {
-    // ServerHello structure:
-    // legacy_version (2 bytes)
-    // random (32 bytes) -> checked for HRR sentinel, NOT RETAINED
-    // session_id_echo_length (1 byte)
-    // session_id_echo (0..32 bytes) -> NOT RETAINED
-    // cipher_suite (2 bytes)
-    // compression_method (1 byte)
-    // extensions_length (2 bytes) [optional]
-    // extensions (0..2^16-1 bytes)
     if body.len() < 38 {
         ctx.is_partial = true;
         ctx.emit_diagnostic(
@@ -1024,6 +1215,7 @@ fn parse_server_hello(
         return;
     }
 
+    let mut msg_is_partial = false;
     let cipher_suite = u16::from_be_bytes([body[cursor], body[cursor + 1]]);
     let compression_method = body[cursor + 2];
     cursor = cursor.saturating_add(3);
@@ -1032,6 +1224,7 @@ fn parse_server_hello(
 
     if cursor < body.len() {
         if body.len().saturating_sub(cursor) < 2 {
+            msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Truncated,
@@ -1042,6 +1235,7 @@ fn parse_server_hello(
             cursor = cursor.saturating_add(2);
 
             if body.len().saturating_sub(cursor) != extensions_len {
+                msg_is_partial = true;
                 ctx.is_partial = true;
                 ctx.emit_diagnostic(
                     TlsDiagnosticKind::Malformed,
@@ -1052,7 +1246,13 @@ fn parse_server_hello(
                 );
             } else {
                 let ext_slice = &body[cursor..cursor + extensions_len];
-                parse_server_hello_extensions(is_hrr, ext_slice, &mut parsed_exts, ctx);
+                parse_server_hello_extensions(
+                    is_hrr,
+                    ext_slice,
+                    &mut parsed_exts,
+                    &mut msg_is_partial,
+                    ctx,
+                );
             }
         }
     }
@@ -1061,19 +1261,28 @@ fn parse_server_hello(
     let final_version = if let Some(v) = parsed_exts.selected_version {
         v
     } else {
-        match legacy_version {
-            TlsVersion::Tls12 => TlsVersion::Tls12,
-            TlsVersion::Tls10 | TlsVersion::Tls11 | TlsVersion::Ssl30 => {
-                ctx.is_partial = true;
-                ctx.emit_diagnostic(
-                    TlsDiagnosticKind::Unsupported,
-                    format!("{legacy_version} negotiation is outside Phase 9 supported subset (TLS 1.2 / TLS 1.3)"),
-                );
-                legacy_version
-            }
-            other => other,
-        }
+        legacy_version
     };
+
+    if !matches!(final_version, TlsVersion::Tls12 | TlsVersion::Tls13) {
+        msg_is_partial = true;
+        ctx.is_partial = true;
+        ctx.emit_diagnostic(
+            TlsDiagnosticKind::Unsupported,
+            format!("{final_version} negotiation is outside Phase 9 supported subset (TLS 1.2 / TLS 1.3)"),
+        );
+    }
+
+    // Enforce TLS 1.3 ServerHello ALPN restriction: plaintext ALPN in TLS 1.3 ServerHello is invalid
+    if final_version == TlsVersion::Tls13 && parsed_exts.selected_alpn.is_some() {
+        msg_is_partial = true;
+        ctx.is_partial = true;
+        ctx.emit_diagnostic(
+            TlsDiagnosticKind::Malformed,
+            "ALPN extension in TLS 1.3 ServerHello is invalid; ALPN must be encrypted in EncryptedExtensions".to_string(),
+        );
+        parsed_exts.selected_alpn = None;
+    }
 
     let obs = TlsObservation {
         packet: ctx.packet_ref,
@@ -1099,7 +1308,7 @@ fn parse_server_hello(
         }),
         declared_record_bytes: record_length,
         declared_handshake_bytes: msg_length,
-        completeness: if ctx.is_partial {
+        completeness: if msg_is_partial {
             TlsObservationCompleteness::Partial
         } else {
             TlsObservationCompleteness::Complete
@@ -1113,6 +1322,7 @@ fn parse_server_hello_extensions(
     is_hrr: bool,
     ext_slice: &[u8],
     parsed: &mut ParsedServerHelloExtensions,
+    msg_is_partial: &mut bool,
     ctx: &mut TlsParserContext<'_>,
 ) {
     let mut offset = 0usize;
@@ -1120,6 +1330,7 @@ fn parse_server_hello_extensions(
 
     while offset < ext_slice.len() {
         if parsed.extensions.len() >= ctx.limits.maximum_extensions_per_hello {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::ResourceLimit,
@@ -1132,6 +1343,7 @@ fn parse_server_hello_extensions(
         }
 
         if ext_slice.len().saturating_sub(offset) < 4 {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Truncated,
@@ -1146,6 +1358,7 @@ fn parse_server_hello_extensions(
         offset = offset.saturating_add(4);
 
         if ext_slice.len().saturating_sub(offset) < ext_len_usize {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Truncated,
@@ -1160,6 +1373,7 @@ fn parse_server_hello_extensions(
         offset = offset.saturating_add(ext_len_usize);
 
         if seen_types.contains(&ext_type) {
+            *msg_is_partial = true;
             ctx.is_partial = true;
             ctx.emit_diagnostic(
                 TlsDiagnosticKind::Malformed,
@@ -1178,6 +1392,7 @@ fn parse_server_hello_extensions(
             43 => {
                 // Supported Versions (RFC 9846) in ServerHello contains a single selected u16 version
                 if ext_data.len() != 2 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
                     ctx.emit_diagnostic(
                         TlsDiagnosticKind::Malformed,
@@ -1196,7 +1411,15 @@ fn parse_server_hello_extensions(
                 if is_hrr {
                     // In HelloRetryRequest, key_share is just the selected named group (2 bytes)
                     if ext_data.len() != 2 {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            format!(
+                                "HelloRetryRequest key_share extension length is {} (expected 2)",
+                                ext_data.len()
+                            ),
+                        );
                     } else {
                         parsed.selected_group =
                             Some(u16::from_be_bytes([ext_data[0], ext_data[1]]));
@@ -1204,12 +1427,22 @@ fn parse_server_hello_extensions(
                 } else {
                     // In ServerHello, key_share is KeyShareEntry (group u16 + key_exchange vector)
                     if ext_data.len() < 4 {
+                        *msg_is_partial = true;
                         ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            "ServerHello key_share entry too short for header".to_string(),
+                        );
                     } else {
                         let group = u16::from_be_bytes([ext_data[0], ext_data[1]]);
                         let key_len = u16::from_be_bytes([ext_data[2], ext_data[3]]) as usize;
                         if ext_data.len().saturating_sub(4) != key_len {
+                            *msg_is_partial = true;
                             ctx.is_partial = true;
+                            ctx.emit_diagnostic(
+                                TlsDiagnosticKind::Malformed,
+                                "ServerHello key_share entry length mismatch".to_string(),
+                            );
                         } else {
                             // Retain group ID only! NEVER RETAIN KEY EXCHANGE BYTES.
                             parsed.selected_group = Some(group);
@@ -1220,12 +1453,31 @@ fn parse_server_hello_extensions(
             16 => {
                 // ALPN in TLS 1.2 ServerHello
                 if ext_data.len() < 3 {
+                    *msg_is_partial = true;
                     ctx.is_partial = true;
+                    ctx.emit_diagnostic(
+                        TlsDiagnosticKind::Malformed,
+                        "ServerHello ALPN extension too short".to_string(),
+                    );
                 } else {
                     let list_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-                    if ext_data.len().saturating_sub(2) == list_len {
+                    if ext_data.len().saturating_sub(2) != list_len {
+                        *msg_is_partial = true;
+                        ctx.is_partial = true;
+                        ctx.emit_diagnostic(
+                            TlsDiagnosticKind::Malformed,
+                            "ServerHello ALPN list length mismatch".to_string(),
+                        );
+                    } else {
                         let proto_len = ext_data[2] as usize;
-                        if ext_data.len().saturating_sub(3) == proto_len && proto_len > 0 {
+                        if ext_data.len().saturating_sub(3) != proto_len || proto_len == 0 {
+                            *msg_is_partial = true;
+                            ctx.is_partial = true;
+                            ctx.emit_diagnostic(
+                                TlsDiagnosticKind::Malformed,
+                                "invalid ServerHello ALPN protocol string length".to_string(),
+                            );
+                        } else {
                             parsed.selected_alpn =
                                 Some(TlsByteString::new(ext_data[3..3 + proto_len].to_vec()));
                         }
@@ -1233,9 +1485,29 @@ fn parse_server_hello_extensions(
                 }
             }
             41 => {
-                parsed.has_pre_shared_key = true;
+                // Pre-Shared Key (RFC 9846) in ServerHello contains selected_identity (uint16)
+                if ext_data.len() != 2 {
+                    *msg_is_partial = true;
+                    ctx.is_partial = true;
+                    ctx.emit_diagnostic(
+                        TlsDiagnosticKind::Malformed,
+                        format!(
+                            "ServerHello pre_shared_key extension length is {} (expected 2)",
+                            ext_data.len()
+                        ),
+                    );
+                } else {
+                    parsed.has_pre_shared_key = true;
+                }
             }
             42 => {
+                // Early Data (RFC 9846) is not permitted in normal ServerHello
+                *msg_is_partial = true;
+                ctx.is_partial = true;
+                ctx.emit_diagnostic(
+                    TlsDiagnosticKind::Malformed,
+                    "early_data extension in ServerHello is invalid in TLS 1.3".to_string(),
+                );
                 parsed.has_early_data = true;
             }
             _ => {}

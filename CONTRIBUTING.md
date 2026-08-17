@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, and Phase 9
-are complete. Phase 9 contributions implemented bounded visible TLS 1.2 / TLS 1.3
-handshake metadata parsing and CLI inspection (`tls`) in `pcapraven-protocols` and `pcapraven-cli`.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10
+are complete. Phase 10 contributions implemented unified protocol observations, explicit flow associations,
+and structured evidence records with exact rational `EvidenceRatio` metrics in `pcapraven-domain`.
 Do not add threat detection heuristics, correlation, reporting, or advanced CLI commands
-until their respective roadmap phases begin. Phase 10 (Unified protocol observations and evidence) is next.
+until their respective roadmap phases begin. Phase 11 (Cross-protocol correlation) is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -50,9 +50,9 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 8 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, and CLI
+Phase 10 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, and CLI
 integration tests, baseline quality commands, fuzz-target builds, and architecture checker
-described in [Testing](docs/TESTING.md#phase-8-quality-gates). The pinned development
+described in [Testing](docs/TESTING.md#phase-10-quality-gates). The pinned development
 toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
 the CLI orchestrates streaming execution and human inspection output.
 

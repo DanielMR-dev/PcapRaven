@@ -10,8 +10,9 @@ tooling, Phase 2 capture reader, Phase 3 packet normalization, Phase 4
 bidirectional flow reconstruction, Phase 5 flow statistics and exact
 temporal metrics, Phase 6 initial functional CLI with streaming
 capture and flow inspection, Phase 7 bounded DNS protocol analysis,
-Phase 8 bounded HTTP/1.x protocol analysis, and Phase 9 bounded visible
-TLS 1.2 / TLS 1.3 handshake metadata analysis are complete. Threat detection
+Phase 8 bounded HTTP/1.x protocol analysis, Phase 9 bounded visible
+TLS 1.2 / TLS 1.3 handshake metadata analysis, and Phase 10 unified protocol
+observations and structured evidence foundation are complete. Threat detection
 heuristics, correlation, and advanced reporting remain targets for later roadmap phases.
 
 ## Problem Statement
@@ -66,7 +67,7 @@ not replace analyst judgment.
 - A graphical user interface, server, daemon, or hosted service in v1.0.0.
 - Compatibility with NetSentinel APIs, data formats, architecture, or source
   code.
-- Phase 7 application protocol decoders, threat detection, and structured reporting
+- Threat detection heuristics, cross-protocol correlation, and structured reporting
   in the current phase.
 
 ## Product Principles

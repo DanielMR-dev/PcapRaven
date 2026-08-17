@@ -3,10 +3,12 @@
 ## Purpose and Status
 
 This document defines the target contract for detectors and findings. Through
-Phase 6, PcapRaven contains capture ingestion, protocol normalization, flow
-reconstruction, checked flow statistics/exact temporal metrics, and initial
-functional CLI inspection (`validate` and `flows`); the detection crate remains
-a documented skeleton, and capture diagnostics and flow exclusions are not security findings.
+Phase 10, PcapRaven contains capture ingestion, protocol normalization, flow
+reconstruction, checked flow statistics/exact temporal metrics, DNS protocol analysis,
+HTTP/1.x protocol analysis, TLS handshake analysis, unified protocol observations,
+and structured evidence models in `pcapraven-domain`, alongside functional CLI inspection
+(`validate`, `flows`, `dns`, `http`, `tls`); the detection crate remains
+a documented skeleton, and capture diagnostics and protocol exclusions are not security findings.
 
 ## Separation from Parsing
 

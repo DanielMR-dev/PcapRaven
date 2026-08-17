@@ -59,13 +59,33 @@ fuzz_target!(|data: &[u8]| {
 
     let client_outcome = parse_tls_packet(&tcp_client_packet, &limits);
     assert!(client_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+    assert!(client_outcome.observations.len() <= limits.maximum_handshake_messages_per_packet);
     for obs in &client_outcome.observations {
         if let Some(ref ch) = obs.client_hello {
             assert!(ch.cipher_suites.len() <= limits.maximum_cipher_suites_per_client_hello);
             assert!(ch.extensions.len() <= limits.maximum_extensions_per_hello);
+            assert!(ch.supported_versions.len() <= limits.maximum_supported_versions);
+            assert!(ch.supported_groups.len() <= limits.maximum_supported_groups);
+            assert!(ch.signature_algorithms.len() <= limits.maximum_signature_algorithms);
+            assert!(ch.alpn_protocols.len() <= limits.maximum_alpn_protocols);
+            assert!(ch.key_share_groups.len() <= limits.maximum_key_share_entries);
             if let Some(ref sni) = ch.server_name {
                 assert!(sni.len() <= limits.maximum_server_name_bytes);
                 let s = sni.display_escaped();
+                assert!(!s.bytes().any(|b| (b < 0x20 && b != 0x09) || b == 0x7F));
+            }
+            for alpn in &ch.alpn_protocols {
+                let s = alpn.display_escaped();
+                assert!(!s.bytes().any(|b| (b < 0x20 && b != 0x09) || b == 0x7F));
+            }
+        }
+        if let Some(ref sh) = obs.server_hello {
+            assert!(sh.extensions.len() <= limits.maximum_extensions_per_hello);
+            if sh.selected_version == Some(pcapraven_domain::TlsVersion::Tls13) {
+                assert!(sh.selected_alpn.is_none());
+            }
+            if let Some(ref alpn) = sh.selected_alpn {
+                let s = alpn.display_escaped();
                 assert!(!s.bytes().any(|b| (b < 0x20 && b != 0x09) || b == 0x7F));
             }
         }
@@ -95,6 +115,15 @@ fuzz_target!(|data: &[u8]| {
 
     let server_outcome = parse_tls_packet(&tcp_server_packet, &limits);
     assert!(server_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+    assert!(server_outcome.observations.len() <= limits.maximum_handshake_messages_per_packet);
+    for obs in &server_outcome.observations {
+        if let Some(ref sh) = obs.server_hello {
+            assert!(sh.extensions.len() <= limits.maximum_extensions_per_hello);
+            if sh.selected_version == Some(pcapraven_domain::TlsVersion::Tls13) {
+                assert!(sh.selected_alpn.is_none());
+            }
+        }
+    }
 
     // 3. Fuzz without network layer
     let no_net_packet = NormalizedPacket {
@@ -134,10 +163,23 @@ fuzz_target!(|data: &[u8]| {
         .maximum_signature_algorithms(4)
         .maximum_alpn_protocols(4)
         .maximum_server_name_bytes(64)
+        .maximum_key_share_entries(4)
         .maximum_diagnostics_per_packet(4)
         .build()
     {
         let tight_outcome = parse_tls_packet(&tcp_client_packet, &tight_limits);
         assert!(tight_outcome.diagnostics.len() <= tight_limits.maximum_diagnostics_per_packet);
+        assert!(tight_outcome.observations.len() <= tight_limits.maximum_handshake_messages_per_packet);
+        for obs in &tight_outcome.observations {
+            if let Some(ref ch) = obs.client_hello {
+                assert!(ch.cipher_suites.len() <= tight_limits.maximum_cipher_suites_per_client_hello);
+                assert!(ch.extensions.len() <= tight_limits.maximum_extensions_per_hello);
+                assert!(ch.supported_versions.len() <= tight_limits.maximum_supported_versions);
+                assert!(ch.supported_groups.len() <= tight_limits.maximum_supported_groups);
+                assert!(ch.signature_algorithms.len() <= tight_limits.maximum_signature_algorithms);
+                assert!(ch.alpn_protocols.len() <= tight_limits.maximum_alpn_protocols);
+                assert!(ch.key_share_groups.len() <= tight_limits.maximum_key_share_entries);
+            }
+        }
     }
 });
