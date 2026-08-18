@@ -275,14 +275,39 @@ Phase 12 implements explainable periodic beaconing detection over exact directio
 - `pcapraven-detection` implements `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`, version `1.0.0`, policy `Skip`).
 - Evaluates directional temporal metrics independently for Direction A -> B (`a_to_b_inter_arrival`) and Direction B -> A (`b_to_a_inter_arrival`).
 - Enforces strict statistical invariants:
-  - Clean timestamps: zero discontinuities (`discontinuity_count == 0`).
+  - Clean timestamps: zero discontinuities (`discontinuity_count == 0`), no unavailable/invalid/non-monotonic timestamps, and flow not stopped by analysis limit (`FlowEndReason != AnalysisStopped`).
   - Sample count: $N \ge \text{minimum\_interval\_samples}$ (default 6, hard minimum 3).
   - Mean interval: $\mu \ge \text{minimum\_mean\_interval}$ (default 1s).
-  - Jitter ratio: $\delta_{MAD} / \mu \le \text{maximum\_jitter\_ratio}$ (default 10%).
-  - Spread ratio: $(\text{max} - \text{min}) / \mu \le \text{maximum\_spread\_ratio}$ (default 25%).
-- Exact rational arithmetic: evaluates all conditions via cross-multiplication with checked unsigned arithmetic without floating-point numbers (`f32`/`f64`).
-- Structured evidence: constructs directional `FlowMeasurement` evidence drafts with strict metric keys (`interval_samples`, `jitter_ratio`, `maximum_interval`, `mean_interval`, `minimum_interval`, `spread_ratio`) and threshold comparisons.
+  - Jitter ratio: $\delta_{MAD} / \mu \le \text{maximum\_jitter\_ratio}$ (default 10%, bounded $0..=1$).
+  - Spread ratio: $(\text{max} - \text{min}) / \mu \le \text{maximum\_spread\_ratio}$ (default 25%, bounded $0..=1$).
+- Exact rational arithmetic: constructs exact duration ratios using `compute_duration_ratio` (with cross-cancellation GCD and checked multiplication) and compares using `EvidenceRatio::Ord` without floating-point numbers (`f32`/`f64`) or intermediate cross-multiplication overflow.
+- Structured evidence: constructs directional `TemporalMetric` evidence drafts with strict metric keys (`discontinuity_count`, `interval_sample_count`, `maximum_interval`, `mean_absolute_successive_interval_delta`, `mean_interval`, `minimum_interval`, `relative_jitter_ratio`, `spread_ratio`, `successive_delta_sample_count`) and threshold comparisons.
+- Engine output bounding: emits findings into an engine-controlled bounded sink (`DetectorDraftSink`). Reaching capacity yields `ResourceLimited` and transactionally discards partial findings.
+- Canonical sorting: accepted drafts are sorted by `(FindingSubject, FindingTitle)` prior to sequential identifier assignment.
 - Emits at most 1 finding per matching flow, with `Severity::Low`, `Confidence::Medium`, and cautious explanatory wording.
 - Full verification: integration tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs`, documentation in `docs/detectors/PERIODIC_BEACONING.md`, and skill in `.agents/skills/periodic-beaconing/SKILL.md`.
 - DNS anomaly heuristics (Phase 13), C2 heuristics (Phase 14), and formal reporting (Phase 16) remain strictly future roadmap phases.
+  That historical gate is superseded by the current Phase 13 gate below.
+
+## Phase 13 Gate
+
+Phase 13 implements explainable DNS anomaly and possible tunneling detection over normalized DNS observations in `pcapraven-detection`.
+- `pcapraven-detection` implements `DnsLongQueryNameDetector` (`dns.long_query_name`, version `1.0.0`, policy `Skip`, severity `Info`, confidence `Medium`, evidence kind `ProtocolObservation`).
+- `pcapraven-detection` implements `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, version `1.0.0`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `RatioComparison`).
+- `pcapraven-detection` implements `label_octet_diversity_ratio` as a pure helper function:
+  - Exact rational formula: `distinct label octets / label length` (`EvidenceRatio`).
+  - Fixed-size `[bool; 256]` bitmap memory without heap allocations.
+  - Zero floats (`f32`/`f64`), zero logarithms, zero Shannon entropy approximations.
+- Enforces strict parameter validation:
+  - `DnsLongQueryNameDetector`: `minimum_qname_wire_length` ($1..=255$, default 120), `minimum_label_length` ($1..=63$, default 40), `minimum_label_octet_diversity_ratio` ($0..=1$, default 1/3).
+  - `DnsPossibleTunnelingDetector`: `minimum_query_observations` ($2..=u64::MAX$, default 8), `minimum_candidate_query_ratio` ($0 < r \le 1$, default 3/4), `minimum_qname_wire_length` ($1..=255$, default 120), `minimum_label_length` ($1..=63$, default 40), `minimum_label_octet_diversity_ratio` ($0..=1$, default 1/3), `maximum_tracked_dns_flows` ($1..=1\_000\_000$, default 65_536).
+- Structured evidence with strictly sorted alphabetical metric keys:
+  - `DnsLongQueryNameDetector`: `matching_question_count`, `maximum_label_length`, `maximum_label_octet_diversity_ratio`, `maximum_qname_wire_length`, `question_count`.
+  - `DnsPossibleTunnelingDetector`: `candidate_query_count`, `candidate_query_ratio`, `dns_query_observation_count`, `maximum_label_length`, `maximum_label_octet_diversity_ratio`, `maximum_qname_wire_length`.
+- Resource and sink bounding: flow aggregation is bounded by `maximum_tracked_dns_flows` (exceeding returns `ResourceLimited`); findings are emitted into `DetectorDraftSink`.
+- Non-attribution principle: rationales clearly describe factual observations and emphasize benign alternatives (CDNs, anti-spam lookups, DKIM/SPF TXT records, security scanners) without claiming confirmed malware or C2.
+- Full verification: integration tests in `crates/pcapraven-detection/tests/dns_anomaly.rs`, documentation in `docs/detectors/DNS_ANOMALY_TUNNELING.md`, and skill in `.agents/skills/dns-detection/SKILL.md`.
+- Connection/C2-like behavioral heuristics (Phase 14) and formal reporting (Phase 16) remain strictly future roadmap phases.
+
+
 

@@ -66,6 +66,7 @@ You are the senior Rust developer for PcapRaven.
 - `observation-evidence-model` skill for unified protocol observations and structured evidence records.
 - `detection-engine` skill for detection engine architecture, detector registration, configuration, and finding generation.
 - `periodic-beaconing` skill for explainable periodic beaconing detection over exact directional flow temporal metrics.
+- `dns-detection` skill for explainable DNS anomaly and possible tunneling detection over normalized DNS observations.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `phase-validation` skill for phase verification checklists.
 

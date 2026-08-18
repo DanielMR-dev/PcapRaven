@@ -7,10 +7,10 @@ Phase 2 capture-container ingestion tests, Phase 3 protocol normalization tests,
 Phase 4 bidirectional flow reconstruction tests, Phase 5 flow statistics and
 exact temporal metric tests, Phase 6 functional CLI integration tests,
 Phase 7 bounded DNS protocol analysis tests, Phase 8 bounded HTTP/1.x protocol
-analysis tests, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis tests,
 Phase 10 unified protocol observations and structured evidence integration tests,
-and Phase 11 detection engine architecture tests are complete.
-Phase 12 (periodic beaconing detection), threat detection heuristics,
+Phase 11 detection engine architecture tests, Phase 12 explainable periodic beaconing
+detection tests, and Phase 13 explainable DNS anomaly and possible tunneling detection tests are complete.
+Phase 14 (connection/C2-like behavioral heuristics), further threat detection heuristics,
 and advanced reporting testing remain future phase work.
 
 ## Testing Pyramid
@@ -365,6 +365,18 @@ Phase 11 establishes test-only stub detectors and integration test suites in `cr
   (`evi:0`, `evi:1`, ...) assignments.
 - **Referential Integrity:** Verifies that findings referencing nonexistent flows or observations are rejected.
 - **Pure `std` Invariant:** Zero external dependencies added to `pcapraven-detection`.
+
+## Phase 12 Periodic Beaconing Detection Validation (completed)
+
+Phase 12 validation and Phase 12.1 hardening confirm:
+
+- **Periodic Beaconing Detector Implementation:** `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`, v1.0.0, policy `Skip`, severity `Low`, confidence `Medium`) implemented in `crates/pcapraven-detection/src/periodic_beaconing.rs`.
+- **Directional Analysis:** Evaluates directional inter-arrival metrics for Direction A -> B (`a_to_b_inter_arrival`) and Direction B -> A (`b_to_a_inter_arrival`) independently.
+- **Exact Rational Metrics & Comparisons:** Constructs exact rational ratios using `compute_duration_ratio` (cross-cancellation GCD + checked multiplication) and compares against threshold parameters (`maximum_jitter_ratio: 0..=1`, `maximum_spread_ratio: 0..=1`, `minimum_interval_samples >= 3`, `minimum_mean_interval > 0`) using `EvidenceRatio::Ord` without intermediate cross-multiplication overflow or floating-point approximation.
+- **Structured Evidence Records:** Emits structured `TemporalMetric` evidence drafts with 9 canonical measurements (`discontinuity_count`, `interval_sample_count`, `maximum_interval`, `mean_absolute_successive_interval_delta`, `mean_interval`, `minimum_interval`, `relative_jitter_ratio`, `spread_ratio`, `successive_delta_sample_count`).
+- **Engine Output Bounding:** Detectors emit findings into an engine-controlled bounded sink (`DetectorDraftSink`). Sink capacity exhaustion transactionally returns `DetectorExecutionStatus::ResourceLimited` with zero partial findings accepted.
+- **Canonical Identity Determinism:** Accepted finding drafts are sorted canonically by `(FindingSubject, FindingTitle)` prior to sequential identifier assignment (`find:{ordinal}`, `evi:{ordinal}`).
+- **Comprehensive Integration Tests:** Unit and integration tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs` verify clean matches in both directions, discontinuity rejection, insufficient samples, short mean intervals, jitter/spread threshold rejections, ratio bounds `0..=1`, large `u128` values, coverage/end reason rejections, TCP/UDP qualification, and sink capacity limits.
 
 ## Dependency Audits
 

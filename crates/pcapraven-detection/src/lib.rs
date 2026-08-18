@@ -6,6 +6,7 @@
 
 pub mod config;
 pub mod detector;
+pub mod dns_anomaly;
 pub mod engine;
 pub mod error;
 pub mod periodic_beaconing;
@@ -16,7 +17,10 @@ pub use config::{
     DetectorParameterValue, DetectorParameters, DetectorParametersBuilder,
     MAX_PARAMETER_KEY_LENGTH,
 };
-pub use detector::{Detector, DetectorMetadata, IncompleteDataPolicy};
+pub use detector::{Detector, DetectorDraftSink, DetectorMetadata, IncompleteDataPolicy};
+pub use dns_anomaly::{
+    DnsLongQueryNameDetector, DnsPossibleTunnelingDetector, label_octet_diversity_ratio,
+};
 pub use engine::{
     DetectionInput, DetectionInputCompleteness, DetectionInputLimitation, DetectionLimits,
     DetectionLimitsBuilder, DetectionRunOutcome, DetectorExecutionRecord, DetectorExecutionStatus,
@@ -25,6 +29,7 @@ pub use engine::{
 pub use error::{
     DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
     DetectionOutputError, DetectorConfigError, DetectorExecutionError, DetectorRegistryError,
+    MAX_DETECTOR_ERROR_MESSAGE_LENGTH,
 };
 pub use periodic_beaconing::PeriodicBeaconingDetector;
 pub use registry::DetectorRegistry;

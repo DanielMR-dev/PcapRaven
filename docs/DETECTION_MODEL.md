@@ -8,8 +8,9 @@ reconstruction, checked flow statistics/exact temporal metrics, DNS protocol ana
 HTTP/1.x protocol analysis, TLS handshake analysis, unified protocol observations,
 structured evidence models, and finding models in `pcapraven-domain`, alongside functional CLI inspection
 (`validate`, `flows`, `dns`, `http`, `tls`) in `pcapraven-cli`, detection engine architecture
-in `pcapraven-detection`, and the explainable periodic beaconing detector (`behavior.periodic_beaconing`).
-Specific threat detection rules for DNS tunneling (Phase 13) and C2-like behaviors (Phase 14) remain targets for later roadmap phases.
+in `pcapraven-detection`, the explainable periodic beaconing detector (`behavior.periodic_beaconing`),
+and explainable DNS anomaly and possible tunneling detectors (`dns.long_query_name`, `dns.possible_tunneling`).
+Specific threat detection rules for C2-like behaviors (Phase 14) remain targets for later roadmap phases.
 
 ## Separation from Parsing
 
@@ -108,10 +109,10 @@ A detector records the measurements it used, including sample count, duration,
 threshold, observed value, and relevant direction where applicable. The
 rationale connects those facts to the detector rule in plain language.
 
-For example, a future periodicity finding would identify the flow, packet time
-series or derived intervals, sample count, regularity statistic, configured
-threshold, capture gaps, and the exact comparison that matched. It would not
-merely state "beaconing detected."
+For example, a periodicity finding (`behavior.periodic_beaconing`) identifies the flow,
+directional temporal metrics, sample count, mean interval, jitter ratio, spread ratio,
+configured thresholds, capture timestamp coverage, and the exact comparisons that matched.
+It does not merely state "beaconing detected."
 
 ## Incomplete Data
 
@@ -124,17 +125,18 @@ Parser diagnostics are contextual input, not automatic security evidence.
 Resource limits that omit required samples must be reflected in completion
 state and detector behavior.
 
-## Finding Identity, Ordering, and Deduplication
+## Finding Identity, Ordering, and Canonical Determinism
 
 Finding identity is deterministic for the same tool version, configuration,
 and normalized input. It is derived from stable detector and subject identity,
-not processing order or randomized hashes. Exact encoding is deferred until
-the detection engine and report schemas are designed.
+not processing order or randomized hashes. Monotonic finding identifiers (`find:{ordinal}`)
+and evidence identifiers (`evi:{ordinal}`) are sequentially assigned by the engine.
 
-Detectors define a subject and deduplication scope. Duplicate evidence is
-collapsed without losing distinct affected references. Findings are ordered by
-stable detector identifier and subject/evidence keys after any explicit
-severity ordering required by a report. Concurrency must not alter results.
+Detectors define finding subjects referencing involved packets, flows, and observations.
+Within each detector, accepted finding drafts are sorted canonically by `(FindingSubject, FindingTitle)`
+prior to sequential identifier assignment. Duplicate finding identities (`DetectorId + FindingSubject`)
+within a detector are strictly rejected. Global findings are ordered by registered detector order
+(`DetectorId`) and canonical draft sort order. Concurrency and detector emission order do not alter results.
 
 ## MITRE ATT&CK Mappings
 

@@ -13,9 +13,10 @@ Phase 8 bounded HTTP/1.x metadata analysis with normalized HTTP observations
 and HTTP CLI inspection, Phase 9 bounded visible TLS 1.2 / TLS 1.3
 handshake metadata analysis with normalized TLS observations and TLS CLI inspection,
 Phase 10 unified protocol observations and structured evidence foundation,
-Phase 11 detection engine architecture, and
-Phase 12 explainable periodic beaconing detection are complete.
-Phase 13 (DNS anomaly and possible tunneling heuristics) and later analysis capabilities remain future work.
+Phase 11 detection engine architecture,
+Phase 12 explainable periodic beaconing detection, and
+Phase 13 explainable DNS anomaly and possible tunneling detection are complete.
+Phase 14 (connection/C2-like behavioral heuristics) and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -38,14 +39,16 @@ Phase 13 (DNS anomaly and possible tunneling heuristics) and later analysis capa
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `docs/detectors/PERIODIC_BEACONING.md` | Specification and statistical contract for the periodic beaconing detector. |
+| `docs/detectors/DNS_ANOMALY_TUNNELING.md` | Specification and analytical contract for DNS anomaly and possible tunneling detectors. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
 | `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
 | `.agents/skills/cli-contract/SKILL.md` | Reusable command-line interface, streaming orchestration, and exit status procedure. |
 | `.agents/skills/detection-engine/SKILL.md` | Reusable detection engine architecture, detector registration, configuration, and evaluation procedure. |
+| `.agents/skills/dns-detection/SKILL.md` | Reusable DNS anomaly and possible tunneling detection procedure. |
 | `.agents/skills/dns-protocol-analysis/SKILL.md` | Reusable DNS wire parser, candidate classification, and observation extraction procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
@@ -104,9 +107,11 @@ Phase 13 (DNS anomaly and possible tunneling heuristics) and later analysis capa
 | `crates/pcapraven-detection/src/engine.rs` | Detection engine execution pipeline, borrowed domain input, preflight validation, and canonical assignment. |
 | `crates/pcapraven-detection/src/error.rs` | Structured error models for detector config, registry, evaluation, and engine output. |
 | `crates/pcapraven-detection/src/periodic_beaconing.rs` | Explainable periodic beaconing detector over exact directional flow temporal metrics. |
+| `crates/pcapraven-detection/src/dns_anomaly.rs` | Explainable DNS anomaly and possible tunneling detectors over normalized DNS observations. |
 | `crates/pcapraven-detection/src/registry.rs` | Deterministic bounded registry for active compiled detectors. |
 | `crates/pcapraven-detection/tests/engine.rs` | Integration tests for detection engine, registry ordering, preflight config, and deterministic finding generation. |
 | `crates/pcapraven-detection/tests/periodic_beaconing.rs` | Integration tests for explainable periodic beaconing detector, exact rational thresholds, and directional analysis. |
+| `crates/pcapraven-detection/tests/dns_anomaly.rs` | Integration tests for DNS anomaly and possible tunneling detectors. |
 | `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
 | `crates/pcapraven-reporting/src/lib.rs` | Reporting Phase 1 documentation skeleton. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
@@ -128,7 +133,7 @@ Phase 13 (DNS anomaly and possible tunneling heuristics) and later analysis capa
 The former duplicate skill copies are intentionally absent. Future capture
 fixtures, threat detection heuristics, correlation, reporters, and advanced CLI commands
 are not current inventory and may be added only by their owning roadmap phases.
-The excluded `fuzz/` project is current Phase 11 inventory but is not one of the
+The excluded `fuzz/` project is tracked repository inventory but is not one of the
 seven main workspace packages.
 
 ## Inventory Rules
