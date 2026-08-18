@@ -65,6 +65,7 @@ You are the senior Rust developer for PcapRaven.
 - `flow-statistics` skill for directional traffic statistics and exact temporal metrics.
 - `observation-evidence-model` skill for unified protocol observations and structured evidence records.
 - `detection-engine` skill for detection engine architecture, detector registration, configuration, and finding generation.
+- `periodic-beaconing` skill for explainable periodic beaconing detection over exact directional flow temporal metrics.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `phase-validation` skill for phase verification checklists.
 

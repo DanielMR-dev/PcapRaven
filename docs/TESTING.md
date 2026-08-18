@@ -386,7 +386,7 @@ or network behavior.
 
 `pcapraven-flows` introduces zero third-party production dependencies.
 
-### `pcapraven-detection` (Phase 11)
+### `pcapraven-detection` (Phase 11 and Phase 12)
 
 `pcapraven-detection` introduces zero third-party production dependencies (pure safe Rust and `std`).
 
@@ -422,9 +422,9 @@ runtime.
   purity.
 - Tests may not hide panics or accept broad output merely to tolerate defects.
 
-## Phase 11 Quality Gates
+## Phase 12 Quality Gates
 
-The full workspace verification commands for Phase 11 are:
+The full workspace verification commands for Phase 12 are:
 
 ```text
 # 1. Format check
@@ -439,15 +439,18 @@ cargo test --workspace --all-features --locked
 # 4. CLI end-to-end integration tests
 cargo test -p pcapraven-cli --locked
 
-# 5. Documentation build
+# 5. Detection engine and periodic beaconing integration tests
+cargo test -p pcapraven-detection --locked
+
+# 6. Documentation build
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 
-# 6. Architecture & dependency validation
+# 7. Architecture & dependency validation
 python3 scripts/check_workspace_architecture.py
 
-# 7. MSRV check
+# 8. MSRV check
 cargo +1.85.0 check --workspace --all-targets --locked
 
-# 8. Excluded fuzz targets build
+# 9. Excluded fuzz targets build
 cargo +nightly fuzz build
 ```

@@ -343,6 +343,19 @@ validation, and canonical finding/evidence generation over borrowed domain facts
 - **Zero Float Discipline:** All detection parameter models, ratio calculations, and thresholds operate exclusively
   over integers, `FlowDuration`, and `EvidenceRatio`.
 
+## Phase 12 Explainable Periodic Beaconing Detection Boundary
+
+`pcapraven-detection` implements explainable periodic beaconing detection (`PeriodicBeaconingDetector`, `behavior.periodic_beaconing`)
+over exact directional flow temporal metrics:
+
+- **Directional Analysis:** Evaluates Direction A -> B (`a_to_b_inter_arrival`) and Direction B -> A (`b_to_a_inter_arrival`)
+  independently.
+- **Exact Rational Formulas:** Uses `FlowDuration` and `EvidenceRatio` without floating-point numbers (`f32`/`f64`) to evaluate
+  sample counts ($N \ge 6$), mean duration ($\mu \ge 1\text{s}$), jitter ratio ($\delta_{MAD} / \mu \le 10\%$), and spread ratio
+  ($(\text{max} - \text{min}) / \mu \le 25\%$).
+- **Structured Evidence:** Emits factual `FlowMeasurement` evidence drafts with strict metric keys and threshold comparisons.
+- **Cautious Interpretation:** Formulates explainable findings without asserting confirmed malware or C2.
+
 ## Crate Responsibilities
 
 The crates have the following responsibilities:
@@ -393,9 +406,9 @@ interact with users.
 ### `pcapraven-detection`
 
 Owns the detection engine execution pipeline, detector registry, parameter configuration
-validation, and detector traits. It consumes normalized domain observations and flow
-information. It does not parse external bytes, mutate parser results, own report formatting,
-or handle CLI interaction.
+validation, detector traits, and built-in detector implementations (including `PeriodicBeaconingDetector`).
+It consumes normalized domain observations and flow information. It does not parse external bytes,
+mutate parser results, own report formatting, or handle CLI interaction.
 
 ### `pcapraven-reporting`
 

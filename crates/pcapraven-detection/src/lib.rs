@@ -8,6 +8,7 @@ pub mod config;
 pub mod detector;
 pub mod engine;
 pub mod error;
+pub mod periodic_beaconing;
 pub mod registry;
 
 pub use config::{
@@ -18,10 +19,12 @@ pub use config::{
 pub use detector::{Detector, DetectorMetadata, IncompleteDataPolicy};
 pub use engine::{
     DetectionInput, DetectionInputCompleteness, DetectionInputLimitation, DetectionLimits,
-    DetectionRunOutcome, DetectorExecutionRecord, DetectorExecutionStatus, execute_detection,
+    DetectionLimitsBuilder, DetectionRunOutcome, DetectorExecutionRecord, DetectorExecutionStatus,
+    execute_detection,
 };
 pub use error::{
-    DetectionEngineError, DetectionOutputError, DetectorConfigError, DetectorExecutionError,
-    DetectorRegistryError,
+    DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
+    DetectionOutputError, DetectorConfigError, DetectorExecutionError, DetectorRegistryError,
 };
+pub use periodic_beaconing::PeriodicBeaconingDetector;
 pub use registry::DetectorRegistry;

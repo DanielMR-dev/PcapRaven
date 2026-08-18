@@ -174,9 +174,18 @@ Specific behavioral detector families remain future work.
 
 ## Phase 12 - Periodic beaconing detection
 
-Implement and validate explainable possible-periodic-beaconing heuristics using
-flow temporal metrics. Include sample/threshold rationale, benign alternatives,
-false-positive analysis, and evidence-rich findings.
+Implemented explainable periodic beaconing detection (`PeriodicBeaconingDetector`, `behavior.periodic_beaconing`)
+over exact directional flow temporal metrics in `pcapraven-detection`. Evaluated inter-arrival timing statistics
+independently for both flow directions (`A -> B` and `B -> A`), applying exact rational thresholds for sample count
+($N \ge \text{minimum\_interval\_samples}$, default 6, minimum 3), mean duration ($\mu \ge \text{minimum\_mean\_interval}$, default 1s),
+jitter ratio ($\delta_{MAD} / \mu \le \text{maximum\_jitter\_ratio}$, default 10%), and spread ratio
+($(\text{max} - \text{min}) / \mu \le \text{maximum\_spread\_ratio}$, default 25%). Enforced clean timestamp invariants
+(`discontinuity_count == 0`), exact rational cross-multiplication with checked unsigned arithmetic without floating-point
+numbers (`f32`/`f64`), single finding per matching flow with up to 2 directional `FlowMeasurement` evidence drafts,
+and cautious explanatory wording avoiding uncorroborated malware or C2 claims. Implemented comprehensive integration
+tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs`, detector documentation in `docs/detectors/PERIODIC_BEACONING.md`,
+and the `periodic-beaconing` skill in `.agents/skills/periodic-beaconing/SKILL.md`.
+DNS anomaly/tunneling heuristics and C2-like behavioral rules remain future work.
 
 ## Phase 13 - DNS anomaly/tunneling heuristics
 

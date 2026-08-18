@@ -538,7 +538,7 @@ fn test_schema_version_anchors() {
     assert_eq!(PROTOCOL_OBSERVATION_SCHEMA_VERSION.major(), 1);
     assert_eq!(PROTOCOL_OBSERVATION_SCHEMA_VERSION.minor(), 0);
     assert_eq!(EVIDENCE_SCHEMA_VERSION.major(), 1);
-    assert_eq!(EVIDENCE_SCHEMA_VERSION.minor(), 0);
+    assert_eq!(EVIDENCE_SCHEMA_VERSION.minor(), 1);
     assert_eq!(SchemaVersion::CURRENT, EVIDENCE_SCHEMA_VERSION);
 
     let v1_0 = SchemaVersion::new(1, 0);

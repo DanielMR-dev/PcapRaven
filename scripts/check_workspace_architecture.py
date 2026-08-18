@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the Phase 11 Cargo package roles and audited dependency topology."""
+"""Check the Phase 12 Cargo package roles and audited dependency topology."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ EXPECTED_TEST_TARGETS = {
     "pcapraven-pcap": {"reader"},
     "pcapraven-protocols": {"normalization", "dns", "http", "tls"},
     "pcapraven-flows": {"reconstruction", "statistics"},
-    "pcapraven-detection": {"engine"},
+    "pcapraven-detection": {"engine", "periodic_beaconing"},
     "pcapraven-cli": {"cli"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"

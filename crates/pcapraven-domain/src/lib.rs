@@ -21,10 +21,10 @@ pub use dns::{
     MAX_DNS_NAME_WIRE_LENGTH,
 };
 pub use evidence::{
-    EVIDENCE_SCHEMA_VERSION, EvidenceComparison, EvidenceDescription, EvidenceKind,
-    EvidenceLimitation, EvidenceMeasurement, EvidenceMetricKey, EvidenceRatio, EvidenceRecord,
-    EvidenceRecordBuilder, EvidenceReference, EvidenceUnit, EvidenceValidationError, EvidenceValue,
-    PROTOCOL_OBSERVATION_SCHEMA_VERSION, SchemaVersion,
+    EVIDENCE_SCHEMA_VERSION, EvidenceComparison, EvidenceDescription, EvidenceDraft,
+    EvidenceDraftBuilder, EvidenceKind, EvidenceLimitation, EvidenceMeasurement, EvidenceMetricKey,
+    EvidenceRatio, EvidenceRecord, EvidenceRecordBuilder, EvidenceReference, EvidenceUnit,
+    EvidenceValidationError, EvidenceValue, PROTOCOL_OBSERVATION_SCHEMA_VERSION, SchemaVersion,
 };
 pub use finding::{
     Confidence, DetectorId, DetectorVersion, FindingDraft, FindingRationale, FindingRecord,

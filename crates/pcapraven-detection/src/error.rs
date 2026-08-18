@@ -1,8 +1,10 @@
 //! Error types for detector registration, configuration, evaluation, and engine execution.
 
+use crate::engine::DetectionInputLimitation;
 use core::fmt;
 use pcapraven_domain::{
-    DetectorId, EvidenceReference, EvidenceValidationError, FindingValidationError,
+    DetectorId, EvidenceReference, EvidenceValidationError, FindingValidationError, FlowReference,
+    ObservationReference,
 };
 
 /// Errors occurring during detector configuration validation.
@@ -33,6 +35,13 @@ pub enum DetectorConfigError {
     },
     /// Number of parameters exceeds configured maximum.
     ParametersExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Total detector configurations count exceeds maximum.
+    ConfigurationsExceeded {
         /// Current count.
         count: usize,
         /// Maximum allowed count.
@@ -86,6 +95,10 @@ impl fmt::Display for DetectorConfigError {
                 f,
                 "detector parameters count ({count}) exceeds maximum ({max})"
             ),
+            Self::ConfigurationsExceeded { count, max } => write!(
+                f,
+                "detector configurations count ({count}) exceeds maximum ({max})"
+            ),
             Self::UnknownParameter(key) => {
                 write!(f, "unknown detector parameter: {key}")
             }
@@ -110,6 +123,15 @@ impl std::error::Error for DetectorConfigError {}
 /// Errors occurring during detector registration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DetectorRegistryError {
+    /// Registry capacity must be greater than zero.
+    ZeroRegistryCapacity,
+    /// Registry capacity exceeds hard maximum.
+    RegistryCapacityAboveHardMaximum {
+        /// Attempted capacity.
+        attempted: usize,
+        /// Maximum allowed capacity.
+        max: usize,
+    },
     /// A detector with the same DetectorId was already registered.
     DuplicateDetectorId(DetectorId),
     /// Registered detector count exceeds registry capacity.
@@ -126,6 +148,13 @@ pub enum DetectorRegistryError {
 impl fmt::Display for DetectorRegistryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ZeroRegistryCapacity => {
+                f.write_str("detector registry capacity must be greater than zero")
+            }
+            Self::RegistryCapacityAboveHardMaximum { attempted, max } => write!(
+                f,
+                "detector registry capacity ({attempted}) exceeds hard maximum ({max})"
+            ),
             Self::DuplicateDetectorId(id) => {
                 write!(f, "duplicate detector registration with ID '{id}'")
             }
@@ -141,6 +170,129 @@ impl fmt::Display for DetectorRegistryError {
 
 impl std::error::Error for DetectorRegistryError {}
 
+/// Errors occurring during detection limits validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DetectionLimitsValidationError {
+    /// A configured detection limit must be greater than zero.
+    ZeroLimit(&'static str),
+    /// A configured detection limit exceeds its hard maximum.
+    LimitAboveHardMaximum {
+        /// Limit name.
+        limit_name: &'static str,
+        /// Attempted value.
+        attempted: usize,
+        /// Maximum allowed value.
+        max: usize,
+    },
+}
+
+impl fmt::Display for DetectionLimitsValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroLimit(name) => {
+                write!(f, "detection limit '{name}' must be greater than zero")
+            }
+            Self::LimitAboveHardMaximum {
+                limit_name,
+                attempted,
+                max,
+            } => write!(
+                f,
+                "detection limit '{limit_name}' value ({attempted}) exceeds hard maximum ({max})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DetectionLimitsValidationError {}
+
+/// Errors occurring during validation of borrowed detection input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DetectionInputError {
+    /// Duplicate flow record reference in detection input.
+    DuplicateFlow(FlowReference),
+    /// Flow record references must be strictly increasing.
+    OutOfOrderFlow {
+        /// Previous flow ordinal.
+        previous: u64,
+        /// Attempted flow ordinal.
+        attempted: u64,
+    },
+    /// Duplicate protocol observation reference in detection input.
+    DuplicateObservation(ObservationReference),
+    /// Protocol observation references must be strictly increasing.
+    OutOfOrderObservation {
+        /// Previous observation reference.
+        previous: ObservationReference,
+        /// Attempted observation reference.
+        attempted: ObservationReference,
+    },
+    /// Duplicate input limitation in detection input.
+    DuplicateLimitation(DetectionInputLimitation),
+    /// Input limitations must be strictly sorted.
+    OutOfOrderLimitation {
+        /// Previous limitation.
+        previous: DetectionInputLimitation,
+        /// Attempted limitation.
+        attempted: DetectionInputLimitation,
+    },
+    /// Complete detection input cannot have analysis limitations.
+    CompleteInputWithLimitations,
+    /// Partial detection input must specify at least one analysis limitation.
+    PartialInputWithoutLimitations,
+}
+
+impl fmt::Display for DetectionInputError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateFlow(flow) => {
+                write!(f, "duplicate flow reference in detection input: {flow}")
+            }
+            Self::OutOfOrderFlow {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order flow reference in detection input: attempted flow:{attempted} after flow:{previous}"
+            ),
+            Self::DuplicateObservation(obs) => {
+                write!(
+                    f,
+                    "duplicate observation reference in detection input: {obs}"
+                )
+            }
+            Self::OutOfOrderObservation {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order observation reference in detection input: attempted {attempted} after {previous}"
+            ),
+            Self::DuplicateLimitation(lim) => {
+                write!(f, "duplicate limitation in detection input: {lim}")
+            }
+            Self::OutOfOrderLimitation {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order limitation in detection input: attempted {attempted} after {previous}"
+            ),
+            Self::CompleteInputWithLimitations => {
+                f.write_str("complete detection input must not specify analysis limitations")
+            }
+            Self::PartialInputWithoutLimitations => {
+                f.write_str("partial detection input must specify at least one analysis limitation")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DetectionInputError {}
+
+/// Maximum byte length for dynamic detector error strings (512 bytes).
+pub const MAX_DETECTOR_ERROR_MESSAGE_LENGTH: usize = 512;
+
 /// Errors occurring during internal detector evaluation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DetectorExecutionError {
@@ -148,6 +300,39 @@ pub enum DetectorExecutionError {
     InternalError(String),
     /// Detector exceeded its internal resource budget.
     ResourceLimitExceeded(String),
+}
+
+impl DetectorExecutionError {
+    /// Creates a validated internal error with bounded length and no prohibited control characters.
+    #[must_use]
+    pub fn internal_error(message: impl AsRef<str>) -> Self {
+        Self::InternalError(Self::sanitize_message(message.as_ref()))
+    }
+
+    /// Creates a validated resource limit error with bounded length and no prohibited control characters.
+    #[must_use]
+    pub fn resource_limit(message: impl AsRef<str>) -> Self {
+        Self::ResourceLimitExceeded(Self::sanitize_message(message.as_ref()))
+    }
+
+    fn sanitize_message(raw: &str) -> String {
+        let mut clean = String::with_capacity(raw.len().min(MAX_DETECTOR_ERROR_MESSAGE_LENGTH));
+        for c in raw.chars() {
+            if clean.len() >= MAX_DETECTOR_ERROR_MESSAGE_LENGTH {
+                break;
+            }
+            if c.is_ascii_control() {
+                clean.push(' ');
+            } else {
+                clean.push(c);
+            }
+        }
+        if clean.is_empty() {
+            "unspecified error".to_string()
+        } else {
+            clean
+        }
+    }
 }
 
 impl fmt::Display for DetectorExecutionError {
@@ -232,6 +417,18 @@ impl fmt::Display for DetectionOutputError {
 
 impl std::error::Error for DetectionOutputError {}
 
+impl From<FindingValidationError> for DetectionOutputError {
+    fn from(err: FindingValidationError) -> Self {
+        Self::FindingValidationError(err)
+    }
+}
+
+impl From<EvidenceValidationError> for DetectionOutputError {
+    fn from(err: EvidenceValidationError) -> Self {
+        Self::EvidenceValidationError(err)
+    }
+}
+
 /// Unified error returned by the detection engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DetectionEngineError {
@@ -239,6 +436,10 @@ pub enum DetectionEngineError {
     Config(DetectorConfigError),
     /// Registry error.
     Registry(DetectorRegistryError),
+    /// Limits validation error.
+    InvalidLimits(DetectionLimitsValidationError),
+    /// Input validation error.
+    Input(DetectionInputError),
     /// Detector output validation error.
     Output(DetectionOutputError),
     /// System resource limit reached.
@@ -255,6 +456,8 @@ impl fmt::Display for DetectionEngineError {
         match self {
             Self::Config(err) => write!(f, "configuration error: {err}"),
             Self::Registry(err) => write!(f, "registry error: {err}"),
+            Self::InvalidLimits(err) => write!(f, "limits error: {err}"),
+            Self::Input(err) => write!(f, "input error: {err}"),
             Self::Output(err) => write!(f, "output error: {err}"),
             Self::ResourceLimit { resource, capacity } => write!(
                 f,
@@ -275,6 +478,18 @@ impl From<DetectorConfigError> for DetectionEngineError {
 impl From<DetectorRegistryError> for DetectionEngineError {
     fn from(err: DetectorRegistryError) -> Self {
         Self::Registry(err)
+    }
+}
+
+impl From<DetectionLimitsValidationError> for DetectionEngineError {
+    fn from(err: DetectionLimitsValidationError) -> Self {
+        Self::InvalidLimits(err)
+    }
+}
+
+impl From<DetectionInputError> for DetectionEngineError {
+    fn from(err: DetectionInputError) -> Self {
+        Self::Input(err)
     }
 }
 

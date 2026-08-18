@@ -2,6 +2,7 @@
 
 use crate::detector::Detector;
 use crate::error::DetectorRegistryError;
+use core::fmt;
 use pcapraven_domain::DetectorId;
 
 /// Deterministic, bounded registry holding active compiled detector implementations.
@@ -13,6 +14,15 @@ pub struct DetectorRegistry {
     max_capacity: usize,
 }
 
+impl fmt::Debug for DetectorRegistry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DetectorRegistry")
+            .field("detectors_len", &self.detectors.len())
+            .field("max_capacity", &self.max_capacity)
+            .finish()
+    }
+}
+
 impl DetectorRegistry {
     /// Default maximum number of registered detectors (64).
     pub const DEFAULT_MAX_REGISTERED_DETECTORS: usize = 64;
@@ -21,10 +31,18 @@ impl DetectorRegistry {
 
     /// Creates a new detector registry with the specified capacity limit.
     pub fn new(max_capacity: usize) -> Result<Self, DetectorRegistryError> {
-        let capacity = max_capacity.min(Self::HARD_MAX_REGISTERED_DETECTORS);
+        if max_capacity == 0 {
+            return Err(DetectorRegistryError::ZeroRegistryCapacity);
+        }
+        if max_capacity > Self::HARD_MAX_REGISTERED_DETECTORS {
+            return Err(DetectorRegistryError::RegistryCapacityAboveHardMaximum {
+                attempted: max_capacity,
+                max: Self::HARD_MAX_REGISTERED_DETECTORS,
+            });
+        }
         Ok(Self {
-            detectors: Vec::with_capacity(capacity.min(32)),
-            max_capacity: capacity,
+            detectors: Vec::with_capacity(max_capacity.min(32)),
+            max_capacity,
         })
     }
 
@@ -87,7 +105,9 @@ impl DetectorRegistry {
 
 impl Default for DetectorRegistry {
     fn default() -> Self {
-        Self::new(Self::DEFAULT_MAX_REGISTERED_DETECTORS)
-            .expect("default registry capacity is within bounds")
+        Self {
+            detectors: Vec::new(),
+            max_capacity: Self::DEFAULT_MAX_REGISTERED_DETECTORS,
+        }
     }
 }
