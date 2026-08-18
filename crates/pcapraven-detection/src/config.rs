@@ -337,20 +337,52 @@ pub struct DetectorConfigurations {
 }
 
 impl DetectorConfigurations {
+    /// Hard maximum cap on configurations (256).
+    pub const HARD_MAX_CONFIGURATIONS: usize = 256;
+
     /// Creates an empty configurations set.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Inserts or replaces configuration for a detector.
-    pub fn insert(&mut self, detector_id: DetectorId, config: DetectorConfig) {
+    /// Inserts or replaces configuration for a detector, enforcing the hard maximum capacity.
+    pub fn insert(
+        &mut self,
+        detector_id: DetectorId,
+        config: DetectorConfig,
+    ) -> Result<(), DetectorConfigError> {
         if let Some(existing) = self.configs.iter_mut().find(|(id, _)| *id == detector_id) {
             existing.1 = config;
+            Ok(())
         } else {
+            if self.configs.len() >= Self::HARD_MAX_CONFIGURATIONS {
+                return Err(DetectorConfigError::ConfigurationsExceeded {
+                    count: self.configs.len() + 1,
+                    max: Self::HARD_MAX_CONFIGURATIONS,
+                });
+            }
             self.configs.push((detector_id, config));
             self.configs.sort_by(|a, b| a.0.cmp(&b.0));
+            Ok(())
         }
+    }
+
+    /// Returns the number of configurations in the collection.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.configs.len()
+    }
+
+    /// Returns `true` if the configurations collection is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.configs.is_empty()
+    }
+
+    /// Returns an iterator over the configurations in canonical `DetectorId` order.
+    pub fn iter(&self) -> core::slice::Iter<'_, (DetectorId, DetectorConfig)> {
+        self.configs.iter()
     }
 
     /// Gets configuration for a detector, or returns None.

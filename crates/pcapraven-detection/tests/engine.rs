@@ -88,8 +88,7 @@ impl Detector for OneFindingStubDetector {
         )
         .unwrap();
 
-        let mut evi_builder = EvidenceRecord::builder(
-            EvidenceReference::new(0),
+        let mut evi_builder = EvidenceDraft::builder(
             EvidenceKind::FlowMeasurement,
             EvidenceDescription::try_new("Supporting flow traffic evidence").unwrap(),
         );
@@ -109,17 +108,100 @@ impl Detector for OneFindingStubDetector {
 
         let evi = evi_builder.build().unwrap();
 
-        Ok(vec![FindingDraft {
-            detector_id: self.metadata.id().clone(),
-            detector_version: self.metadata.version(),
+        let draft = FindingDraft::try_new(
             subject,
-            title: FindingTitle::try_new("Detected Stub Finding").unwrap(),
-            summary: FindingSummary::try_new("Synthetic stub finding description").unwrap(),
-            rationale: FindingRationale::try_new("Triggered by test stub logic").unwrap(),
-            severity: Severity::Low,
-            confidence: Confidence::High,
-            evidence: vec![evi],
-        }])
+            FindingTitle::try_new("Detected Stub Finding").unwrap(),
+            FindingSummary::try_new("Synthetic stub finding description").unwrap(),
+            FindingRationale::try_new("Triggered by test stub logic").unwrap(),
+            Severity::Low,
+            Confidence::High,
+            vec![evi],
+        )
+        .unwrap();
+
+        Ok(vec![draft])
+    }
+}
+
+/// Test-only stub detector that emits multi-finding output with multi-evidence.
+struct MultiFindingStubDetector {
+    metadata: DetectorMetadata,
+    count: usize,
+    evidence_per_finding: usize,
+}
+
+impl MultiFindingStubDetector {
+    fn new(id_str: &str, count: usize, evidence_per_finding: usize) -> Self {
+        Self {
+            metadata: DetectorMetadata::new(
+                DetectorId::try_new(id_str).unwrap(),
+                DetectorVersion::new(1, 0, 0),
+                FindingTitle::try_new("Multi Finding Stub").unwrap(),
+                FindingSummary::try_new("Emits multiple findings").unwrap(),
+                IncompleteDataPolicy::Skip,
+            ),
+            count,
+            evidence_per_finding,
+        }
+    }
+}
+
+impl Detector for MultiFindingStubDetector {
+    fn metadata(&self) -> &DetectorMetadata {
+        &self.metadata
+    }
+
+    fn validate_parameters(
+        &self,
+        _parameters: &DetectorParameters,
+    ) -> Result<(), DetectorConfigError> {
+        Ok(())
+    }
+
+    fn evaluate(
+        &self,
+        _input: &DetectionInput<'_>,
+        _parameters: &DetectorParameters,
+    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
+        let mut drafts = Vec::with_capacity(self.count);
+        for i in 0..self.count {
+            let flow_ref = FlowReference::new(i as u64);
+            let subject = FindingSubject::try_new(Vec::new(), vec![flow_ref], Vec::new()).unwrap();
+
+            let mut evidence = Vec::with_capacity(self.evidence_per_finding);
+            for e in 0..self.evidence_per_finding {
+                let mut evi_builder = EvidenceDraft::builder(
+                    EvidenceKind::FlowMeasurement,
+                    EvidenceDescription::try_new(format!("Evidence {e} for finding {i}")).unwrap(),
+                );
+                evi_builder.add_flow_reference(flow_ref).unwrap();
+                evi_builder
+                    .add_measurement(
+                        EvidenceMeasurement::try_new(
+                            EvidenceMetricKey::try_new(format!("metric_{e}")).unwrap(),
+                            EvidenceValue::Unsigned(e as u128),
+                            EvidenceUnit::Count,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                evidence.push(evi_builder.build().unwrap());
+            }
+
+            drafts.push(
+                FindingDraft::try_new(
+                    subject,
+                    FindingTitle::try_new(format!("Finding {i}")).unwrap(),
+                    FindingSummary::try_new(format!("Summary {i}")).unwrap(),
+                    FindingRationale::try_new(format!("Rationale {i}")).unwrap(),
+                    Severity::Low,
+                    Confidence::Medium,
+                    evidence,
+                )
+                .unwrap(),
+            );
+        }
+        Ok(drafts)
     }
 }
 
@@ -208,8 +290,8 @@ impl Detector for FailingStubDetector {
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
     ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
-        Err(DetectorExecutionError::InternalError(
-            "simulated detector execution error".to_string(),
+        Err(DetectorExecutionError::internal_error(
+            "simulated detector execution error",
         ))
     }
 }
@@ -255,8 +337,7 @@ impl Detector for IncompleteInputStubDetector {
         let subject =
             FindingSubject::try_new(Vec::new(), vec![FlowReference::new(0)], Vec::new()).unwrap();
 
-        let mut evi_builder = EvidenceRecord::builder(
-            EvidenceReference::new(0),
+        let mut evi_builder = EvidenceDraft::builder(
             EvidenceKind::ProtocolFact,
             EvidenceDescription::try_new("Partial analysis evidence").unwrap(),
         );
@@ -265,23 +346,24 @@ impl Detector for IncompleteInputStubDetector {
             .unwrap();
         if self.include_limitations {
             evi_builder
-                .add_limitation(EvidenceLimitation::TruncatedPayload)
+                .add_limitation(EvidenceLimitation::CaptureTruncated)
                 .unwrap();
         }
 
         let evi = evi_builder.build().unwrap();
 
-        Ok(vec![FindingDraft {
-            detector_id: self.metadata.id().clone(),
-            detector_version: self.metadata.version(),
+        let draft = FindingDraft::try_new(
             subject,
-            title: FindingTitle::try_new("Partial Data Finding").unwrap(),
-            summary: FindingSummary::try_new("Found with limitations").unwrap(),
-            rationale: FindingRationale::try_new("Rationale under partial data").unwrap(),
-            severity: Severity::Medium,
-            confidence: Confidence::Low,
-            evidence: vec![evi],
-        }])
+            FindingTitle::try_new("Partial Data Finding").unwrap(),
+            FindingSummary::try_new("Found with limitations").unwrap(),
+            FindingRationale::try_new("Rationale under partial data").unwrap(),
+            Severity::Medium,
+            Confidence::Low,
+            vec![evi],
+        )
+        .unwrap();
+
+        Ok(vec![draft])
     }
 }
 
@@ -291,7 +373,7 @@ fn create_synthetic_flow(ordinal: u64) -> FlowRecord {
         FlowEndpoint::new(IpAddress::Ipv4([10, 0, 0, 1]), 10000),
         FlowEndpoint::new(IpAddress::Ipv4([10, 0, 0, 2]), 80),
     );
-    let pkt = PacketReference::new(0, None, None, 100, 100, false);
+    let pkt = PacketReference::new(ordinal, None, None, 100, 100, false);
     let unavail =
         FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
     let inter_arrival = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
@@ -370,7 +452,83 @@ fn test_detector_version() {
 }
 
 #[test]
-fn test_registry_ordering_and_duplicate_rejection() {
+fn test_detection_limits_validation() {
+    // Default is valid
+    let def = DetectionLimits::default();
+    assert_eq!(def.max_registered_detectors(), 64);
+    assert_eq!(def.max_parameters_per_detector(), 32);
+    assert_eq!(def.max_total_findings(), 10_000);
+    assert_eq!(def.max_total_evidence_records(), 50_000);
+    assert_eq!(def.max_execution_diagnostics(), 256);
+
+    // Exact hard maximums accepted
+    let hard = DetectionLimits::try_new(256, 256, 100_000, 500_000, 4_096).unwrap();
+    assert_eq!(hard.max_registered_detectors(), 256);
+    assert_eq!(hard.max_parameters_per_detector(), 256);
+    assert_eq!(hard.max_total_findings(), 100_000);
+    assert_eq!(hard.max_total_evidence_records(), 500_000);
+    assert_eq!(hard.max_execution_diagnostics(), 4_096);
+
+    // Hard maximum + 1 rejected
+    assert!(DetectionLimits::try_new(257, 32, 10_000, 50_000, 256).is_err());
+    assert!(DetectionLimits::try_new(64, 257, 10_000, 50_000, 256).is_err());
+    assert!(DetectionLimits::try_new(64, 32, 100_001, 50_000, 256).is_err());
+    assert!(DetectionLimits::try_new(64, 32, 10_000, 500_001, 256).is_err());
+    assert!(DetectionLimits::try_new(64, 32, 10_000, 50_000, 4_097).is_err());
+
+    // Zero limit rejected
+    assert_eq!(
+        DetectionLimits::try_new(0, 32, 10_000, 50_000, 256).unwrap_err(),
+        DetectionLimitsValidationError::ZeroLimit("max_registered_detectors")
+    );
+    assert_eq!(
+        DetectionLimits::try_new(64, 0, 10_000, 50_000, 256).unwrap_err(),
+        DetectionLimitsValidationError::ZeroLimit("max_parameters_per_detector")
+    );
+    assert_eq!(
+        DetectionLimits::try_new(64, 32, 0, 50_000, 256).unwrap_err(),
+        DetectionLimitsValidationError::ZeroLimit("max_total_findings")
+    );
+    assert_eq!(
+        DetectionLimits::try_new(64, 32, 10_000, 0, 256).unwrap_err(),
+        DetectionLimitsValidationError::ZeroLimit("max_total_evidence_records")
+    );
+    assert_eq!(
+        DetectionLimits::try_new(64, 32, 10_000, 50_000, 0).unwrap_err(),
+        DetectionLimitsValidationError::ZeroLimit("max_execution_diagnostics")
+    );
+
+    // Builder methods
+    let b = DetectionLimits::builder()
+        .max_registered_detectors(10)
+        .max_parameters_per_detector(5)
+        .max_total_findings(100)
+        .max_total_evidence_records(500)
+        .max_execution_diagnostics(20)
+        .build()
+        .unwrap();
+    assert_eq!(b.max_registered_detectors(), 10);
+    assert_eq!(b.max_parameters_per_detector(), 5);
+}
+
+#[test]
+fn test_detector_registry_validation_and_ordering() {
+    // Zero capacity rejected
+    assert_eq!(
+        DetectorRegistry::new(0).unwrap_err(),
+        DetectorRegistryError::ZeroRegistryCapacity
+    );
+
+    // Hard maximum 256 accepted, 257 rejected
+    assert!(DetectorRegistry::new(256).is_ok());
+    assert_eq!(
+        DetectorRegistry::new(257).unwrap_err(),
+        DetectorRegistryError::RegistryCapacityAboveHardMaximum {
+            attempted: 257,
+            max: 256
+        }
+    );
+
     let mut registry = DetectorRegistry::default();
     assert!(registry.is_empty());
     assert_eq!(registry.len(), 0);
@@ -401,6 +559,108 @@ fn test_registry_ordering_and_duplicate_rejection() {
     assert_eq!(
         registry.register(Box::new(dup)).unwrap_err(),
         DetectorRegistryError::DuplicateDetectorId(DetectorId::try_new("test.a_detector").unwrap())
+    );
+}
+
+#[test]
+fn test_detector_configurations_bounds_and_unknown_rejection() {
+    let mut configs = DetectorConfigurations::new();
+    assert!(configs.is_empty());
+    assert_eq!(configs.len(), 0);
+
+    // Insert 256 configurations successfully
+    for i in 0..256 {
+        let id = DetectorId::try_new(format!("test.detector_{i:03}")).unwrap();
+        configs.insert(id, DetectorConfig::enabled()).unwrap();
+    }
+    assert_eq!(configs.len(), 256);
+
+    // 257th insertion rejected
+    let extra_id = DetectorId::try_new("test.detector_extra").unwrap();
+    assert_eq!(
+        configs
+            .insert(extra_id, DetectorConfig::enabled())
+            .unwrap_err(),
+        DetectorConfigError::ConfigurationsExceeded {
+            count: 257,
+            max: 256
+        }
+    );
+
+    // Replacing existing entry does not increase count and succeeds
+    let existing_id = DetectorId::try_new("test.detector_000").unwrap();
+    assert!(
+        configs
+            .insert(existing_id, DetectorConfig::disabled())
+            .is_ok()
+    );
+    assert_eq!(configs.len(), 256);
+
+    // Preflight rejects unregistered detector configurations before evaluating anything
+    let mut small_configs = DetectorConfigurations::new();
+    let unreg_id = DetectorId::try_new("test.unregistered_detector").unwrap();
+    small_configs
+        .insert(unreg_id.clone(), DetectorConfig::enabled())
+        .unwrap();
+
+    let registry = DetectorRegistry::default();
+    let flows = vec![create_synthetic_flow(0)];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+    let limits = DetectionLimits::default();
+
+    let err = execute_detection(&registry, &input, &small_configs, &limits).unwrap_err();
+    assert_eq!(
+        err,
+        DetectionEngineError::Config(DetectorConfigError::UnregisteredDetector(unreg_id))
+    );
+}
+
+#[test]
+fn test_detection_input_validation() {
+    let flows = vec![create_synthetic_flow(0), create_synthetic_flow(1)];
+    let limits = [DetectionInputLimitation::CaptureTruncated];
+
+    // Complete input with no limitations is valid
+    assert!(
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).is_ok()
+    );
+
+    // Partial input with limitations is valid
+    assert!(
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Partial, &limits).is_ok()
+    );
+
+    // Complete input with limitations is rejected
+    assert_eq!(
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &limits)
+            .unwrap_err(),
+        DetectionInputError::CompleteInputWithLimitations
+    );
+
+    // Partial input without limitations is rejected
+    assert_eq!(
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Partial, &[]).unwrap_err(),
+        DetectionInputError::PartialInputWithoutLimitations
+    );
+
+    // Duplicate flow ordinal is rejected
+    let dup_flows = vec![create_synthetic_flow(0), create_synthetic_flow(0)];
+    assert_eq!(
+        DetectionInput::try_new(&dup_flows, &[], DetectionInputCompleteness::Complete, &[])
+            .unwrap_err(),
+        DetectionInputError::DuplicateFlow(FlowReference::new(0))
+    );
+
+    // Out-of-order flow ordinal is rejected
+    let ooo_flows = vec![create_synthetic_flow(2), create_synthetic_flow(1)];
+    assert_eq!(
+        DetectionInput::try_new(&ooo_flows, &[], DetectionInputCompleteness::Complete, &[])
+            .unwrap_err(),
+        DetectionInputError::OutOfOrderFlow {
+            previous: 2,
+            attempted: 1
+        }
     );
 }
 
@@ -475,7 +735,8 @@ fn test_whole_configuration_preflight_transactionality() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
     let limits = DetectionLimits::default();
 
     // Configuration with invalid parameter for detector B (min_samples == 0)
@@ -487,10 +748,12 @@ fn test_whole_configuration_preflight_transactionality() {
             DetectorParameterValue::Unsigned(0),
         )
         .unwrap();
-    configs.insert(
-        DetectorId::try_new("test.b_detector").unwrap(),
-        DetectorConfig::new(true, bad_params.build().unwrap()),
-    );
+    configs
+        .insert(
+            DetectorId::try_new("test.b_detector").unwrap(),
+            DetectorConfig::new(true, bad_params.build().unwrap()),
+        )
+        .unwrap();
 
     // Execution must fail preflight BEFORE evaluating detector A!
     let err = execute_detection(&registry, &input, &configs, &limits).unwrap_err();
@@ -511,14 +774,17 @@ fn test_disabled_detector_behavior() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
     let limits = DetectionLimits::default();
 
     let mut configs = DetectorConfigurations::new();
-    configs.insert(
-        DetectorId::try_new("test.a_detector").unwrap(),
-        DetectorConfig::disabled(),
-    );
+    configs
+        .insert(
+            DetectorId::try_new("test.a_detector").unwrap(),
+            DetectorConfig::disabled(),
+        )
+        .unwrap();
 
     let outcome = execute_detection(&registry, &input, &configs, &limits).unwrap();
     assert_eq!(outcome.findings.len(), 0);
@@ -549,12 +815,13 @@ fn test_incomplete_data_skip_and_allow_policies() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0)];
-    let partial_input = DetectionInput::new(
+    let partial_input = DetectionInput::try_new(
         &flows,
         &[],
         DetectionInputCompleteness::Partial,
         &[DetectionInputLimitation::CaptureTruncated],
-    );
+    )
+    .unwrap();
     let configs = DetectorConfigurations::new();
     let limits = DetectionLimits::default();
 
@@ -590,12 +857,13 @@ fn test_incomplete_data_policy_violation_rejected() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0)];
-    let partial_input = DetectionInput::new(
+    let partial_input = DetectionInput::try_new(
         &flows,
         &[],
         DetectionInputCompleteness::Partial,
         &[DetectionInputLimitation::CaptureTruncated],
-    );
+    )
+    .unwrap();
     let configs = DetectorConfigurations::new();
     let limits = DetectionLimits::default();
 
@@ -604,7 +872,7 @@ fn test_incomplete_data_policy_violation_rejected() {
         err,
         DetectionEngineError::Output(DetectionOutputError::IncompleteDataPolicyViolation {
             detector_id: DetectorId::try_new("test.bad_allow_detector").unwrap(),
-            reason: "finding emitted on partial input without supporting limitation evidence",
+            reason: "finding emitted on partial input without required input limitation evidence",
         })
     );
 }
@@ -623,7 +891,8 @@ fn test_detector_execution_error_isolation() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0), create_synthetic_flow(1)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
     let configs = DetectorConfigurations::new();
     let limits = DetectionLimits::default();
 
@@ -673,7 +942,8 @@ fn test_finding_and_evidence_deterministic_identity_and_ordering() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0), create_synthetic_flow(1)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
     let configs = DetectorConfigurations::new();
     let limits = DetectionLimits::default();
 
@@ -711,7 +981,8 @@ fn test_referential_integrity_unknown_flow_rejected() {
         .unwrap();
 
     let flows = vec![create_synthetic_flow(0)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
     let configs = DetectorConfigurations::new();
     let limits = DetectionLimits::default();
 
@@ -722,142 +993,156 @@ fn test_referential_integrity_unknown_flow_rejected() {
     ));
 }
 
-/// Test stub that emits two duplicate finding drafts with identical subject.
-struct DuplicateDraftsStubDetector {
-    metadata: DetectorMetadata,
-}
-
-impl DuplicateDraftsStubDetector {
-    fn new(id_str: &str) -> Self {
-        Self {
-            metadata: DetectorMetadata::new(
-                DetectorId::try_new(id_str).unwrap(),
-                DetectorVersion::new(1, 0, 0),
-                FindingTitle::try_new("Duplicate Drafts Stub").unwrap(),
-                FindingSummary::try_new("Emits duplicate drafts").unwrap(),
-                IncompleteDataPolicy::Skip,
-            ),
-        }
-    }
-}
-
-impl Detector for DuplicateDraftsStubDetector {
-    fn metadata(&self) -> &DetectorMetadata {
-        &self.metadata
-    }
-
-    fn validate_parameters(
-        &self,
-        _parameters: &DetectorParameters,
-    ) -> Result<(), DetectorConfigError> {
-        Ok(())
-    }
-
-    fn evaluate(
-        &self,
-        _input: &DetectionInput<'_>,
-        _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
-        let subject =
-            FindingSubject::try_new(Vec::new(), vec![FlowReference::new(0)], Vec::new()).unwrap();
-
-        let mut evi_builder = EvidenceRecord::builder(
-            EvidenceReference::new(0),
-            EvidenceKind::FlowMeasurement,
-            EvidenceDescription::try_new("Supporting evidence").unwrap(),
-        );
-        evi_builder
-            .add_flow_reference(FlowReference::new(0))
-            .unwrap();
-        evi_builder
-            .add_measurement(
-                EvidenceMeasurement::try_new(
-                    EvidenceMetricKey::try_new("metric_a").unwrap(),
-                    EvidenceValue::Unsigned(1),
-                    EvidenceUnit::Count,
-                )
-                .unwrap(),
-            )
-            .unwrap();
-        let evi = evi_builder.build().unwrap();
-
-        let draft1 = FindingDraft {
-            detector_id: self.metadata.id().clone(),
-            detector_version: self.metadata.version(),
-            subject: subject.clone(),
-            title: FindingTitle::try_new("Finding 1").unwrap(),
-            summary: FindingSummary::try_new("Summary 1").unwrap(),
-            rationale: FindingRationale::try_new("Rationale 1").unwrap(),
-            severity: Severity::Low,
-            confidence: Confidence::Low,
-            evidence: vec![evi.clone()],
-        };
-
-        let draft2 = FindingDraft {
-            detector_id: self.metadata.id().clone(),
-            detector_version: self.metadata.version(),
-            subject,
-            title: FindingTitle::try_new("Finding 2").unwrap(),
-            summary: FindingSummary::try_new("Summary 2").unwrap(),
-            rationale: FindingRationale::try_new("Rationale 2").unwrap(),
-            severity: Severity::Low,
-            confidence: Confidence::Low,
-            evidence: vec![evi],
-        };
-
-        Ok(vec![draft1, draft2])
-    }
-}
-
 #[test]
-fn test_duplicate_finding_identity_rejected() {
-    let mut registry = DetectorRegistry::default();
-    registry
-        .register(Box::new(DuplicateDraftsStubDetector::new(
-            "test.dup_detector",
-        )))
-        .unwrap();
+fn test_finding_record_strict_evidence_reference_order() {
+    let finding_ref = FindingReference::new(0);
+    let detector_id = DetectorId::try_new("test.detector").unwrap();
+    let version = DetectorVersion::new(1, 0, 0);
+    let subject =
+        FindingSubject::try_new(Vec::new(), vec![FlowReference::new(0)], Vec::new()).unwrap();
+    let title = FindingTitle::try_new("Title").unwrap();
+    let summary = FindingSummary::try_new("Summary").unwrap();
+    let rationale = FindingRationale::try_new("Rationale").unwrap();
 
-    let flows = vec![create_synthetic_flow(0)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
-    let configs = DetectorConfigurations::new();
-    let limits = DetectionLimits::default();
+    // Strictly increasing accepted
+    let valid_refs = vec![EvidenceReference::new(0), EvidenceReference::new(1)];
+    assert!(
+        FindingRecord::try_new(
+            finding_ref,
+            detector_id.clone(),
+            version,
+            subject.clone(),
+            title.clone(),
+            summary.clone(),
+            rationale.clone(),
+            Severity::Low,
+            Confidence::Medium,
+            valid_refs
+        )
+        .is_ok()
+    );
 
-    let err = execute_detection(&registry, &input, &configs, &limits).unwrap_err();
+    // Duplicate evidence ref rejected
+    let dup_refs = vec![EvidenceReference::new(1), EvidenceReference::new(1)];
     assert_eq!(
-        err,
-        DetectionEngineError::Output(DetectionOutputError::DuplicateFindingIdentity {
-            detector_id: DetectorId::try_new("test.dup_detector").unwrap(),
-        })
+        FindingRecord::try_new(
+            finding_ref,
+            detector_id.clone(),
+            version,
+            subject.clone(),
+            title.clone(),
+            summary.clone(),
+            rationale.clone(),
+            Severity::Low,
+            Confidence::Medium,
+            dup_refs
+        )
+        .unwrap_err(),
+        FindingValidationError::DuplicateEvidenceReference(EvidenceReference::new(1))
+    );
+
+    // Descending evidence ref rejected
+    let desc_refs = vec![EvidenceReference::new(2), EvidenceReference::new(1)];
+    assert_eq!(
+        FindingRecord::try_new(
+            finding_ref,
+            detector_id,
+            version,
+            subject,
+            title,
+            summary,
+            rationale,
+            Severity::Low,
+            Confidence::Medium,
+            desc_refs
+        )
+        .unwrap_err(),
+        FindingValidationError::OutOfOrderEvidenceReference {
+            previous: 2,
+            attempted: 1
+        }
     );
 }
 
 #[test]
-fn test_different_detectors_same_subject_accepted() {
+fn test_transactional_output_acceptance_and_resource_bounds() {
     let mut registry = DetectorRegistry::default();
+    // Detector 1 emits 2 findings (2 evidence)
     registry
-        .register(Box::new(OneFindingStubDetector::new("test.detector_a", 0)))
+        .register(Box::new(MultiFindingStubDetector::new(
+            "test.detector_a",
+            2,
+            1,
+        )))
         .unwrap();
+    // Detector 2 emits 3 findings (3 evidence) - will exceed finding limit of 4
     registry
-        .register(Box::new(OneFindingStubDetector::new("test.detector_b", 0)))
+        .register(Box::new(MultiFindingStubDetector::new(
+            "test.detector_b",
+            3,
+            1,
+        )))
+        .unwrap();
+    // Detector 3 emits 1 finding (1 evidence) - will fit remaining budget (2 + 1 = 3 <= 4)
+    registry
+        .register(Box::new(OneFindingStubDetector::new("test.detector_c", 0)))
         .unwrap();
 
-    let flows = vec![create_synthetic_flow(0)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
+    let flows = vec![
+        create_synthetic_flow(0),
+        create_synthetic_flow(1),
+        create_synthetic_flow(2),
+    ];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
     let configs = DetectorConfigurations::new();
-    let limits = DetectionLimits::default();
+    let limits = DetectionLimits::builder()
+        .max_total_findings(4)
+        .max_total_evidence_records(10)
+        .build()
+        .unwrap();
 
     let outcome = execute_detection(&registry, &input, &configs, &limits).unwrap();
-    assert_eq!(outcome.findings.len(), 2);
+    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
+    assert_eq!(outcome.detector_executions.len(), 3);
+    assert_eq!(
+        outcome.detector_executions[0].status,
+        DetectorExecutionStatus::Executed
+    );
+    // Detector B rejected transactionally (none of its findings or evidence were partially accepted)
+    assert_eq!(
+        outcome.detector_executions[1].status,
+        DetectorExecutionStatus::ResourceLimited
+    );
+    // Detector C accepted
+    assert_eq!(
+        outcome.detector_executions[2].status,
+        DetectorExecutionStatus::Executed
+    );
+
+    // Findings are contiguous: find:0, find:1 from A, and find:2 from C!
+    assert_eq!(outcome.findings.len(), 3);
+    assert_eq!(outcome.findings[0].reference(), FindingReference::new(0));
     assert_eq!(
         outcome.findings[0].detector_id().as_str(),
         "test.detector_a"
     );
+    assert_eq!(outcome.findings[1].reference(), FindingReference::new(1));
     assert_eq!(
         outcome.findings[1].detector_id().as_str(),
-        "test.detector_b"
+        "test.detector_a"
     );
-    assert_eq!(outcome.findings[0].subject(), outcome.findings[1].subject());
+    assert_eq!(outcome.findings[2].reference(), FindingReference::new(2));
+    assert_eq!(
+        outcome.findings[2].detector_id().as_str(),
+        "test.detector_c"
+    );
+
+    // Evidence records are contiguous: evi:0, evi:1 from A, and evi:2 from C!
+    assert_eq!(outcome.evidence.len(), 3);
+    assert_eq!(outcome.evidence[0].reference(), EvidenceReference::new(0));
+    assert_eq!(outcome.evidence[1].reference(), EvidenceReference::new(1));
+    assert_eq!(outcome.evidence[2].reference(), EvidenceReference::new(2));
 }
 
 #[test]
@@ -918,35 +1203,4 @@ fn test_finding_subject_validations() {
     // Valid subject accepted
     let subj = FindingSubject::try_new(vec![pkt1, pkt2], Vec::new(), Vec::new()).unwrap();
     assert_eq!(subj.packet_references().len(), 2);
-}
-
-#[test]
-fn test_findings_resource_limit_truncation() {
-    let mut registry = DetectorRegistry::default();
-    registry
-        .register(Box::new(OneFindingStubDetector::new("test.detector_1", 0)))
-        .unwrap();
-    registry
-        .register(Box::new(OneFindingStubDetector::new("test.detector_2", 1)))
-        .unwrap();
-
-    let flows = vec![create_synthetic_flow(0), create_synthetic_flow(1)];
-    let input = DetectionInput::new(&flows, &[], DetectionInputCompleteness::Complete, &[]);
-    let configs = DetectorConfigurations::new();
-    let limits = DetectionLimits {
-        max_total_findings: 1,
-        ..DetectionLimits::default()
-    };
-
-    let outcome = execute_detection(&registry, &input, &configs, &limits).unwrap();
-    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
-    assert_eq!(outcome.findings.len(), 1);
-    assert_eq!(
-        outcome.detector_executions[0].status,
-        DetectorExecutionStatus::Executed
-    );
-    assert_eq!(
-        outcome.detector_executions[1].status,
-        DetectorExecutionStatus::ResourceLimited
-    );
 }

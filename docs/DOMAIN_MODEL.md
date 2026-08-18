@@ -208,19 +208,20 @@ Phase 10 unifies protocol observations across DNS, HTTP, and TLS under `pcaprave
 
 ## Evidence Model
 
-Phase 10 establishes the structured, immutable evidence foundation in `pcapraven-domain`:
+Phase 10 establishes the structured, immutable evidence foundation in `pcapraven-domain` (updated to `v1.1` in Phase 12):
 
-- `SchemaVersion`: Explicit schema version anchors (`PROTOCOL_OBSERVATION_SCHEMA_VERSION = v1.0`, `EVIDENCE_SCHEMA_VERSION = v1.0`) ensuring forward/backward compatibility.
+- `SchemaVersion`: Explicit schema version anchors (`PROTOCOL_OBSERVATION_SCHEMA_VERSION = v1.0`, `EVIDENCE_SCHEMA_VERSION = v1.1`) ensuring forward/backward compatibility.
 - `EvidenceReference`: Stable capture-local reference formatted as `evi:{id}`.
 - `EvidenceKind`: Factual categorization into `PacketMeasurement`, `FlowMeasurement`, `ProtocolObservation`, `TemporalMetric`, `RatioComparison`, or `ProtocolFact`.
 - `EvidenceDescription`: Bounded (up to 512 UTF-8 bytes), terminal-safe validated factual description (rejects control characters and empty text).
 - `EvidenceMetricKey`: Bounded (up to 64 bytes), validated metric identifier matching ASCII grammar `[a-z0-9][a-z0-9._-]*`.
 - `EvidenceRatio`: Exact rational representation ($n / d$) stored as `u128` numerator and `u128` denominator reduced via GCD. Enforces zero float arithmetic (`f32`/`f64`) and exact total ordering via Euclidean continued-fraction decomposition without overflow across all $u128$ ranges.
 - `EvidenceUnit`: Finite explicit units (`Bytes`, `Packets`, `Nanoseconds`, `Microseconds`, `Milliseconds`, `Seconds`, `Ratio`, `Count`, `PercentageInteger`).
-- `EvidenceValue`: Exact typed value (`Integer(i128)`, `Unsigned(u128)`, `Ratio(EvidenceRatio)`, `Boolean(bool)` — zero floats, zero unbounded strings).
+- `EvidenceValue`: Exact typed value (`Integer(i128)`, `Unsigned(u128)`, `Ratio(EvidenceRatio)`, `Boolean(bool)`, `Duration(FlowDuration)` — zero floats, zero unbounded strings).
 - `EvidenceComparison`: Exact comparison operator (`Equal`, `NotEqual`, `LessThan`, `LessThanOrEqual`, `GreaterThan`, `GreaterThanOrEqual`).
 - `EvidenceMeasurement`: Structured measurement combining observed value, optional reference threshold, optional comparison operator, and explicit unit with validated type/unit compatibility.
-- `EvidenceLimitation`: Explicit analysis limitations affecting evidence interpretation (`TruncatedPayload`, `MissingNetworkLayer`, `IncompleteHandshake`, `PacketCountBudgetReached`, `ObservationBudgetReached`, `FlowBudgetReached`, `HeaderBudgetExceeded`).
+- `EvidenceLimitation`: Explicit analysis limitations affecting evidence interpretation (`TruncatedPayload`, `MissingNetworkLayer`, `IncompleteHandshake`, `PacketCountBudgetReached`, `ObservationBudgetReached`, `FlowBudgetReached`, `HeaderBudgetExceeded`, `CaptureTruncated`).
+- `EvidenceDraft`: Unassigned evidence draft emitted by detectors during evaluation without engine-owned reference IDs.
 - `EvidenceRecord`: Validated evidence record with private fields, finite per-record bounds (packets <= 1,024, flows <= 256, observations <= 4,096, measurements <= 256, limitations <= 64), strictly increasing and duplicate-free references, unique metric keys, sorted limitations, and mandatory non-empty supporting content.
 
 Evidence references canonical records rather than copying arbitrary packet payloads.

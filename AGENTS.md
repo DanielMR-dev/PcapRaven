@@ -26,16 +26,17 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 11. Phase 0 product and
+The accepted repository phase for this branch is Phase 12. Phase 0 product and
 governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
 Phase 3 packet normalization work, Phase 4 flow reconstruction, Phase 5
 checked flow statistics and exact temporal metrics, Phase 6 initial
 functional CLI with streaming capture and flow inspection, Phase 7
 DNS protocol analysis, Phase 8 bounded HTTP/1.x protocol analysis,
-Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis, and
-Phase 10 unified protocol observations and structured evidence foundation are complete.
-Phase 11 covers detection engine architecture, detector traits and metadata, parameter configuration, detector registry, execution pipeline, and finding domain models.
-Phase 12 (periodic beaconing detection) and all later capabilities remain out of scope until their roadmap gates are accepted.
+Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis,
+Phase 10 unified protocol observations and structured evidence foundation, and
+Phase 11 detection engine architecture are complete.
+Phase 12 covers explainable periodic beaconing detection (`PeriodicBeaconingDetector`, `behavior.periodic_beaconing`) over exact directional flow temporal metrics.
+Phase 13 (DNS anomaly and possible tunneling heuristics) and all later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 

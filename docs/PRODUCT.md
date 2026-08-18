@@ -11,9 +11,10 @@ bidirectional flow reconstruction, Phase 5 flow statistics and exact
 temporal metrics, Phase 6 initial functional CLI with streaming
 capture and flow inspection, Phase 7 bounded DNS protocol analysis,
 Phase 8 bounded HTTP/1.x protocol analysis, Phase 9 bounded visible
-TLS 1.2 / TLS 1.3 handshake metadata analysis, and Phase 10 unified protocol
-observations and structured evidence foundation are complete. Detection engine architecture,
-threat detection heuristics, and advanced reporting remain targets for later roadmap phases.
+TLS 1.2 / TLS 1.3 handshake metadata analysis, Phase 10 unified protocol
+observations and structured evidence foundation, Phase 11 detection engine architecture,
+and Phase 12 explainable periodic beaconing detection are complete. Further
+threat detection heuristics, correlation, and advanced reporting remain targets for later roadmap phases.
 
 ## Problem Statement
 

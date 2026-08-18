@@ -2,11 +2,10 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, and Phase 11
-are complete. Phase 11 contributions implemented detection engine architecture, detector traits and metadata,
-parameter configuration, detector registry, execution pipeline, and finding domain models in `pcapraven-detection` and `pcapraven-domain`.
-Do not add periodic beaconing detection, DNS analysis heuristics, TLS heuristics, or formal reporting
-until their respective roadmap phases begin. Phase 12 (Periodic beaconing detection) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, and Phase 12
+are complete. Phase 12 contributions implemented explainable periodic beaconing detection over exact directional flow temporal metrics.
+Do not add DNS analysis heuristics, TLS heuristics, or formal reporting
+until their respective roadmap phases begin. Phase 13 (DNS anomaly and possible tunneling heuristics) is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.

@@ -3,7 +3,7 @@
 //! Findings represent interpreted analytical results supported by factual evidence records,
 //! referencing normalized flows, packets, and observations.
 
-use crate::evidence::{EvidenceRecord, EvidenceReference};
+use crate::evidence::{EvidenceDraft, EvidenceReference};
 use crate::flow::FlowReference;
 use crate::observation::ObservationReference;
 use crate::packet::PacketReference;
@@ -134,8 +134,22 @@ pub enum FindingValidationError {
     },
     /// Finding must contain at least one supporting evidence item.
     FindingWithoutEvidence,
+    /// Number of evidence drafts in finding draft exceeds limit.
+    FindingEvidenceExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
     /// Finding contains a duplicate evidence reference.
     DuplicateEvidenceReference(EvidenceReference),
+    /// Evidence references in finding must be strictly increasing.
+    OutOfOrderEvidenceReference {
+        /// Previous evidence ordinal.
+        previous: u64,
+        /// Attempted evidence ordinal.
+        attempted: u64,
+    },
 }
 
 impl fmt::Display for FindingValidationError {
@@ -180,48 +194,73 @@ impl fmt::Display for FindingValidationError {
                 f,
                 "finding rationale contains prohibited control character 0x{byte:02x}"
             ),
-            Self::EmptyFindingSubject => f.write_str(
-                "finding subject must contain at least one supporting packet, flow, or observation reference"
-            ),
+            Self::EmptyFindingSubject => {
+                f.write_str("finding subject must reference at least one entity")
+            }
             Self::SubjectPacketReferencesExceeded { count, max } => write!(
                 f,
-                "finding subject packet references count ({count}) exceeds maximum ({max})"
+                "finding subject packet reference count ({count}) exceeds maximum ({max})"
             ),
             Self::SubjectFlowReferencesExceeded { count, max } => write!(
                 f,
-                "finding subject flow references count ({count}) exceeds maximum ({max})"
+                "finding subject flow reference count ({count}) exceeds maximum ({max})"
             ),
             Self::SubjectObservationReferencesExceeded { count, max } => write!(
                 f,
-                "finding subject observation references count ({count}) exceeds maximum ({max})"
+                "finding subject observation reference count ({count}) exceeds maximum ({max})"
             ),
-            Self::DuplicateSubjectPacketReference(pkt) => {
-                write!(f, "duplicate packet reference in finding subject: {pkt:?}")
-            }
-            Self::OutOfOrderSubjectPacketReference { previous, attempted } => write!(
+            Self::DuplicateSubjectPacketReference(p) => write!(
                 f,
-                "out-of-order packet reference in finding subject: attempted {attempted} after {previous}"
+                "duplicate packet reference pkt:{} in finding subject",
+                p.capture_record_ordinal()
             ),
-            Self::DuplicateSubjectFlowReference(flow) => {
-                write!(f, "duplicate flow reference in finding subject: {flow}")
-            }
-            Self::OutOfOrderSubjectFlowReference { previous, attempted } => write!(
+            Self::OutOfOrderSubjectPacketReference {
+                previous,
+                attempted,
+            } => write!(
                 f,
-                "out-of-order flow reference in finding subject: attempted {attempted} after {previous}"
+                "out-of-order packet reference in finding subject: attempted pkt:{attempted} after pkt:{previous}"
             ),
-            Self::DuplicateSubjectObservationReference(obs) => {
-                write!(f, "duplicate observation reference in finding subject: {obs}")
-            }
-            Self::OutOfOrderSubjectObservationReference { previous, attempted } => write!(
+            Self::DuplicateSubjectFlowReference(flow) => write!(
+                f,
+                "duplicate flow reference flow:{} in finding subject",
+                flow.ordinal()
+            ),
+            Self::OutOfOrderSubjectFlowReference {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order flow reference in finding subject: attempted flow:{attempted} after flow:{previous}"
+            ),
+            Self::DuplicateSubjectObservationReference(obs) => write!(
+                f,
+                "duplicate observation reference {obs} in finding subject"
+            ),
+            Self::OutOfOrderSubjectObservationReference {
+                previous,
+                attempted,
+            } => write!(
                 f,
                 "out-of-order observation reference in finding subject: attempted {attempted} after {previous}"
             ),
             Self::FindingWithoutEvidence => {
-                f.write_str("finding must contain at least one supporting evidence reference")
+                f.write_str("finding must contain at least one supporting evidence record")
             }
-            Self::DuplicateEvidenceReference(evi) => {
-                write!(f, "duplicate evidence reference in finding: {evi}")
+            Self::FindingEvidenceExceeded { count, max } => write!(
+                f,
+                "finding evidence draft count ({count}) exceeds maximum ({max})"
+            ),
+            Self::DuplicateEvidenceReference(e) => {
+                write!(f, "duplicate evidence reference {e} in finding")
             }
+            Self::OutOfOrderEvidenceReference {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order evidence reference in finding: attempted evi:{attempted} after evi:{previous}"
+            ),
         }
     }
 }
@@ -672,24 +711,98 @@ impl FindingSubject {
 /// Draft finding emitted by a detector before canonical identity assignment and validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FindingDraft {
-    /// Originating detector identifier.
-    pub detector_id: DetectorId,
-    /// Detector logic version.
-    pub detector_version: DetectorVersion,
-    /// Finding subject entity references.
-    pub subject: FindingSubject,
-    /// Short title.
-    pub title: FindingTitle,
-    /// Summary description.
-    pub summary: FindingSummary,
-    /// Explanatory rationale.
-    pub rationale: FindingRationale,
-    /// Severity classification.
-    pub severity: Severity,
-    /// Analytical confidence.
-    pub confidence: Confidence,
-    /// Supporting evidence records constructed by the detector.
-    pub evidence: Vec<EvidenceRecord>,
+    subject: FindingSubject,
+    title: FindingTitle,
+    summary: FindingSummary,
+    rationale: FindingRationale,
+    severity: Severity,
+    confidence: Confidence,
+    evidence: Vec<EvidenceDraft>,
+}
+
+impl FindingDraft {
+    /// Default maximum evidence drafts per finding (64).
+    pub const DEFAULT_MAX_EVIDENCE_DRAFTS: usize = 64;
+    /// Hard maximum evidence drafts per finding (256).
+    pub const HARD_MAX_EVIDENCE_DRAFTS: usize = 256;
+
+    /// Creates a validated finding draft.
+    pub fn try_new(
+        subject: FindingSubject,
+        title: FindingTitle,
+        summary: FindingSummary,
+        rationale: FindingRationale,
+        severity: Severity,
+        confidence: Confidence,
+        evidence: Vec<EvidenceDraft>,
+    ) -> Result<Self, FindingValidationError> {
+        if evidence.is_empty() {
+            return Err(FindingValidationError::FindingWithoutEvidence);
+        }
+        if evidence.len() > Self::HARD_MAX_EVIDENCE_DRAFTS {
+            return Err(FindingValidationError::FindingEvidenceExceeded {
+                count: evidence.len(),
+                max: Self::HARD_MAX_EVIDENCE_DRAFTS,
+            });
+        }
+        Ok(Self {
+            subject,
+            title,
+            summary,
+            rationale,
+            severity,
+            confidence,
+            evidence,
+        })
+    }
+
+    /// Returns the finding subject.
+    #[must_use]
+    pub const fn subject(&self) -> &FindingSubject {
+        &self.subject
+    }
+
+    /// Returns the finding title.
+    #[must_use]
+    pub const fn title(&self) -> &FindingTitle {
+        &self.title
+    }
+
+    /// Returns the finding summary.
+    #[must_use]
+    pub const fn summary(&self) -> &FindingSummary {
+        &self.summary
+    }
+
+    /// Returns the finding rationale.
+    #[must_use]
+    pub const fn rationale(&self) -> &FindingRationale {
+        &self.rationale
+    }
+
+    /// Returns the severity level.
+    #[must_use]
+    pub const fn severity(&self) -> Severity {
+        self.severity
+    }
+
+    /// Returns the confidence level.
+    #[must_use]
+    pub const fn confidence(&self) -> Confidence {
+        self.confidence
+    }
+
+    /// Returns the supporting evidence drafts.
+    #[must_use]
+    pub fn evidence(&self) -> &[EvidenceDraft] {
+        &self.evidence
+    }
+
+    /// Consumes the draft, returning its evidence drafts.
+    #[must_use]
+    pub fn into_evidence(self) -> Vec<EvidenceDraft> {
+        self.evidence
+    }
 }
 
 /// Canonical, immutable finding record with engine-assigned identities and validated evidence.
@@ -735,6 +848,12 @@ impl FindingRecord {
                 return Err(FindingValidationError::DuplicateEvidenceReference(
                     window[1],
                 ));
+            }
+            if curr < prev {
+                return Err(FindingValidationError::OutOfOrderEvidenceReference {
+                    previous: prev,
+                    attempted: curr,
+                });
             }
         }
 

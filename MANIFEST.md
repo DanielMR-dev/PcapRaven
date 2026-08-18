@@ -12,9 +12,10 @@ analysis with normalized DNS observations and DNS CLI inspection,
 Phase 8 bounded HTTP/1.x metadata analysis with normalized HTTP observations
 and HTTP CLI inspection, Phase 9 bounded visible TLS 1.2 / TLS 1.3
 handshake metadata analysis with normalized TLS observations and TLS CLI inspection,
-Phase 10 unified protocol observations and structured evidence foundation, and
-Phase 11 detection engine architecture are complete.
-Phase 12 (periodic beaconing detection) and later analysis capabilities remain future work.
+Phase 10 unified protocol observations and structured evidence foundation,
+Phase 11 detection engine architecture, and
+Phase 12 explainable periodic beaconing detection are complete.
+Phase 13 (DNS anomaly and possible tunneling heuristics) and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -37,8 +38,9 @@ Phase 12 (periodic beaconing detection) and later analysis capabilities remain f
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
+| `docs/detectors/PERIODIC_BEACONING.md` | Specification and statistical contract for the periodic beaconing detector. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
 | `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
@@ -49,6 +51,7 @@ Phase 12 (periodic beaconing detection) and later analysis capabilities remain f
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
 | `.agents/skills/http-protocol-analysis/SKILL.md` | Reusable HTTP/1.x header parser, candidate classification, sensitive header masking, and observation extraction procedure. |
 | `.agents/skills/observation-evidence-model/SKILL.md` | Reusable unified protocol observation and structured evidence procedure. |
+| `.agents/skills/periodic-beaconing/SKILL.md` | Reusable explainable periodic beaconing detection procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
 | `.agents/skills/secure-parser-review/SKILL.md` | Reusable hostile-input parser review procedure. |
@@ -100,8 +103,10 @@ Phase 12 (periodic beaconing detection) and later analysis capabilities remain f
 | `crates/pcapraven-detection/src/detector.rs` | Pure Detector trait, detector metadata, and incomplete data policies. |
 | `crates/pcapraven-detection/src/engine.rs` | Detection engine execution pipeline, borrowed domain input, preflight validation, and canonical assignment. |
 | `crates/pcapraven-detection/src/error.rs` | Structured error models for detector config, registry, evaluation, and engine output. |
+| `crates/pcapraven-detection/src/periodic_beaconing.rs` | Explainable periodic beaconing detector over exact directional flow temporal metrics. |
 | `crates/pcapraven-detection/src/registry.rs` | Deterministic bounded registry for active compiled detectors. |
 | `crates/pcapraven-detection/tests/engine.rs` | Integration tests for detection engine, registry ordering, preflight config, and deterministic finding generation. |
+| `crates/pcapraven-detection/tests/periodic_beaconing.rs` | Integration tests for explainable periodic beaconing detector, exact rational thresholds, and directional analysis. |
 | `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
 | `crates/pcapraven-reporting/src/lib.rs` | Reporting Phase 1 documentation skeleton. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |

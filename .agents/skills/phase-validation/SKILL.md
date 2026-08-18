@@ -266,6 +266,23 @@ Phase 11 implements the detection engine architecture in `pcapraven-detection` a
 - Whole-configuration preflight validation: invalid parameters on any detector transactionally abort the entire execution before evaluating any detector.
 - Detection engine execution pipeline: `execute_detection` consumes borrowed domain facts (`DetectionInput`), enforces incomplete data policies, verifies referential integrity against flows and observations, detects duplicate finding key collisions `(DetectorId, FindingSubject)`, enforces total output bounds, and assigns canonical `FindingReference` and `EvidenceReference` ordinals.
 - Zero third-party production dependencies added to `pcapraven-detection` or `pcapraven-domain` (pure safe Rust and `std`).
-- Comprehensive integration tests in `crates/pcapraven-detection/tests/engine.rs` pass.
 - Periodic beaconing detection (Phase 12), DNS anomaly heuristics (Phase 13), C2 heuristics (Phase 14), and formal reporting (Phase 16) remain strictly future roadmap phases.
+  That historical gate is superseded by the current Phase 12 gate below.
+
+## Phase 12 Gate
+
+Phase 12 implements explainable periodic beaconing detection over exact directional flow temporal metrics in `pcapraven-detection`.
+- `pcapraven-detection` implements `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`, version `1.0.0`, policy `Skip`).
+- Evaluates directional temporal metrics independently for Direction A -> B (`a_to_b_inter_arrival`) and Direction B -> A (`b_to_a_inter_arrival`).
+- Enforces strict statistical invariants:
+  - Clean timestamps: zero discontinuities (`discontinuity_count == 0`).
+  - Sample count: $N \ge \text{minimum\_interval\_samples}$ (default 6, hard minimum 3).
+  - Mean interval: $\mu \ge \text{minimum\_mean\_interval}$ (default 1s).
+  - Jitter ratio: $\delta_{MAD} / \mu \le \text{maximum\_jitter\_ratio}$ (default 10%).
+  - Spread ratio: $(\text{max} - \text{min}) / \mu \le \text{maximum\_spread\_ratio}$ (default 25%).
+- Exact rational arithmetic: evaluates all conditions via cross-multiplication with checked unsigned arithmetic without floating-point numbers (`f32`/`f64`).
+- Structured evidence: constructs directional `FlowMeasurement` evidence drafts with strict metric keys (`interval_samples`, `jitter_ratio`, `maximum_interval`, `mean_interval`, `minimum_interval`, `spread_ratio`) and threshold comparisons.
+- Emits at most 1 finding per matching flow, with `Severity::Low`, `Confidence::Medium`, and cautious explanatory wording.
+- Full verification: integration tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs`, documentation in `docs/detectors/PERIODIC_BEACONING.md`, and skill in `.agents/skills/periodic-beaconing/SKILL.md`.
+- DNS anomaly heuristics (Phase 13), C2 heuristics (Phase 14), and formal reporting (Phase 16) remain strictly future roadmap phases.
 

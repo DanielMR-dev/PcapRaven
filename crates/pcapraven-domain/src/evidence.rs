@@ -5,6 +5,7 @@
 //! arbitrary unparsed payloads.
 
 use crate::flow::FlowReference;
+use crate::flow_metrics::FlowDuration;
 use crate::observation::ObservationReference;
 use crate::packet::PacketReference;
 use core::fmt;
@@ -23,7 +24,7 @@ const fn gcd(mut a: u128, mut b: u128) -> u128 {
 pub const PROTOCOL_OBSERVATION_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
 
 /// Canonical schema version anchor for structured evidence records.
-pub const EVIDENCE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 0);
+pub const EVIDENCE_SCHEMA_VERSION: SchemaVersion = SchemaVersion::new(1, 1);
 
 /// Version of the structured evidence record schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -638,13 +639,18 @@ pub enum EvidenceValue {
     Ratio(EvidenceRatio),
     /// Boolean flag.
     Boolean(bool),
+    /// Exact rational temporal duration.
+    Duration(FlowDuration),
 }
 
 impl EvidenceValue {
-    /// Returns `true` if this value is an integer, unsigned number, or rational ratio.
+    /// Returns `true` if this value is an integer, unsigned number, rational ratio, or duration.
     #[must_use]
     pub const fn is_numeric(&self) -> bool {
-        matches!(self, Self::Integer(_) | Self::Unsigned(_) | Self::Ratio(_))
+        matches!(
+            self,
+            Self::Integer(_) | Self::Unsigned(_) | Self::Ratio(_) | Self::Duration(_)
+        )
     }
 }
 
@@ -655,6 +661,7 @@ impl fmt::Display for EvidenceValue {
             Self::Unsigned(v) => write!(f, "{v}"),
             Self::Ratio(r) => write!(f, "{r}"),
             Self::Boolean(b) => write!(f, "{b}"),
+            Self::Duration(d) => write!(f, "{d}"),
         }
     }
 }
@@ -732,7 +739,17 @@ impl EvidenceMeasurement {
                         });
                     }
                 }
-                EvidenceValue::Ratio(_) | EvidenceValue::Boolean(_) => {
+                EvidenceValue::Ratio(_)
+                | EvidenceValue::Boolean(_)
+                | EvidenceValue::Duration(_) => {
+                    return Err(EvidenceValidationError::IncompatibleUnitAndValue);
+                }
+            },
+            EvidenceUnit::Seconds => match value {
+                EvidenceValue::Integer(_)
+                | EvidenceValue::Unsigned(_)
+                | EvidenceValue::Duration(_) => {}
+                EvidenceValue::Boolean(_) | EvidenceValue::Ratio(_) => {
                     return Err(EvidenceValidationError::IncompatibleUnitAndValue);
                 }
             },
@@ -741,7 +758,6 @@ impl EvidenceMeasurement {
             | EvidenceUnit::Nanoseconds
             | EvidenceUnit::Microseconds
             | EvidenceUnit::Milliseconds
-            | EvidenceUnit::Seconds
             | EvidenceUnit::Count => match value {
                 EvidenceValue::Integer(_) | EvidenceValue::Unsigned(_) => {}
                 EvidenceValue::Boolean(_) => {
@@ -749,7 +765,7 @@ impl EvidenceMeasurement {
                         return Err(EvidenceValidationError::IncompatibleUnitAndValue);
                     }
                 }
-                EvidenceValue::Ratio(_) => {
+                EvidenceValue::Ratio(_) | EvidenceValue::Duration(_) => {
                     return Err(EvidenceValidationError::IncompatibleUnitAndValue);
                 }
             },
@@ -789,7 +805,8 @@ impl EvidenceMeasurement {
             (EvidenceValue::Integer(_), EvidenceValue::Integer(_))
             | (EvidenceValue::Unsigned(_), EvidenceValue::Unsigned(_))
             | (EvidenceValue::Ratio(_), EvidenceValue::Ratio(_))
-            | (EvidenceValue::Boolean(_), EvidenceValue::Boolean(_)) => {}
+            | (EvidenceValue::Boolean(_), EvidenceValue::Boolean(_))
+            | (EvidenceValue::Duration(_), EvidenceValue::Duration(_)) => {}
             _ => return Err(EvidenceValidationError::IncompatibleMeasurementTypes),
         }
 
@@ -836,6 +853,8 @@ impl EvidenceMeasurement {
 /// Analysis limitations or data incompleteness affecting the interpretation of an evidence item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EvidenceLimitation {
+    /// Capture container or record bytes were truncated.
+    CaptureTruncated,
     /// Application payload was truncated in capture.
     TruncatedPayload,
     /// Packet lacked a normalized network layer.
@@ -857,6 +876,7 @@ impl EvidenceLimitation {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::CaptureTruncated => "CaptureTruncated",
             Self::TruncatedPayload => "TruncatedPayload",
             Self::MissingNetworkLayer => "MissingNetworkLayer",
             Self::IncompleteHandshake => "IncompleteHandshake",
@@ -1092,6 +1112,263 @@ impl EvidenceRecordBuilder {
     }
 }
 
+/// Builder for constructing validated [`EvidenceDraft`] instances without final reference assignment.
+#[derive(Debug, Clone)]
+pub struct EvidenceDraftBuilder {
+    kind: EvidenceKind,
+    description: EvidenceDescription,
+    packet_references: Vec<PacketReference>,
+    flow_references: Vec<FlowReference>,
+    observation_references: Vec<ObservationReference>,
+    measurements: Vec<EvidenceMeasurement>,
+    limitations: Vec<EvidenceLimitation>,
+    schema_version: SchemaVersion,
+}
+
+impl EvidenceDraftBuilder {
+    /// Creates a new evidence draft builder with required kind and description.
+    #[must_use]
+    pub fn new(kind: EvidenceKind, description: EvidenceDescription) -> Self {
+        Self {
+            kind,
+            description,
+            packet_references: Vec::new(),
+            flow_references: Vec::new(),
+            observation_references: Vec::new(),
+            measurements: Vec::new(),
+            limitations: Vec::new(),
+            schema_version: EVIDENCE_SCHEMA_VERSION,
+        }
+    }
+
+    /// Sets an explicit schema version anchor.
+    #[must_use]
+    pub fn with_schema_version(mut self, schema_version: SchemaVersion) -> Self {
+        self.schema_version = schema_version;
+        self
+    }
+
+    /// Appends a packet reference, enforcing hard cardinality limits, strict ordering, and uniqueness.
+    pub fn add_packet_reference(
+        &mut self,
+        packet: PacketReference,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.packet_references.len() >= EvidenceRecordBuilder::HARD_MAX_PACKET_REFERENCES {
+            return Err(EvidenceValidationError::PacketReferencesExceeded {
+                count: self.packet_references.len() + 1,
+                max: EvidenceRecordBuilder::HARD_MAX_PACKET_REFERENCES,
+            });
+        }
+        if let Some(last) = self.packet_references.last() {
+            let last_ord = last.capture_record_ordinal();
+            let new_ord = packet.capture_record_ordinal();
+            if new_ord == last_ord {
+                return Err(EvidenceValidationError::DuplicatePacketReference(packet));
+            }
+            if new_ord < last_ord {
+                return Err(EvidenceValidationError::OutOfOrderPacketReference {
+                    previous: last_ord,
+                    attempted: new_ord,
+                });
+            }
+        }
+        self.packet_references.push(packet);
+        Ok(self)
+    }
+
+    /// Appends a flow reference, enforcing hard cardinality limits, strict ordering, and uniqueness.
+    pub fn add_flow_reference(
+        &mut self,
+        flow: FlowReference,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.flow_references.len() >= EvidenceRecordBuilder::HARD_MAX_FLOW_REFERENCES {
+            return Err(EvidenceValidationError::FlowReferencesExceeded {
+                count: self.flow_references.len() + 1,
+                max: EvidenceRecordBuilder::HARD_MAX_FLOW_REFERENCES,
+            });
+        }
+        if let Some(last) = self.flow_references.last() {
+            let last_ord = last.ordinal();
+            let new_ord = flow.ordinal();
+            if new_ord == last_ord {
+                return Err(EvidenceValidationError::DuplicateFlowReference(flow));
+            }
+            if new_ord < last_ord {
+                return Err(EvidenceValidationError::OutOfOrderFlowReference {
+                    previous: last_ord,
+                    attempted: new_ord,
+                });
+            }
+        }
+        self.flow_references.push(flow);
+        Ok(self)
+    }
+
+    /// Appends an observation reference, enforcing hard cardinality limits, strict ordering, and uniqueness.
+    pub fn add_observation_reference(
+        &mut self,
+        obs: ObservationReference,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.observation_references.len()
+            >= EvidenceRecordBuilder::HARD_MAX_OBSERVATION_REFERENCES
+        {
+            return Err(EvidenceValidationError::ObservationReferencesExceeded {
+                count: self.observation_references.len() + 1,
+                max: EvidenceRecordBuilder::HARD_MAX_OBSERVATION_REFERENCES,
+            });
+        }
+        if let Some(last) = self.observation_references.last() {
+            if obs == *last {
+                return Err(EvidenceValidationError::DuplicateObservationReference(obs));
+            }
+            if obs < *last {
+                return Err(EvidenceValidationError::OutOfOrderObservationReference {
+                    previous: *last,
+                    attempted: obs,
+                });
+            }
+        }
+        self.observation_references.push(obs);
+        Ok(self)
+    }
+
+    /// Appends a measurement, enforcing hard cardinality limits and unique metric keys.
+    pub fn add_measurement(
+        &mut self,
+        measurement: EvidenceMeasurement,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.measurements.len() >= EvidenceRecordBuilder::HARD_MAX_MEASUREMENTS {
+            return Err(EvidenceValidationError::MeasurementsExceeded {
+                count: self.measurements.len() + 1,
+                max: EvidenceRecordBuilder::HARD_MAX_MEASUREMENTS,
+            });
+        }
+        if self
+            .measurements
+            .iter()
+            .any(|m| m.key() == measurement.key())
+        {
+            return Err(EvidenceValidationError::DuplicateMetricKey(
+                measurement.key().clone(),
+            ));
+        }
+        self.measurements.push(measurement);
+        Ok(self)
+    }
+
+    /// Appends a limitation, enforcing hard cardinality limits, uniqueness, and sorted order.
+    pub fn add_limitation(
+        &mut self,
+        limitation: EvidenceLimitation,
+    ) -> Result<&mut Self, EvidenceValidationError> {
+        if self.limitations.len() >= EvidenceRecordBuilder::HARD_MAX_LIMITATIONS {
+            return Err(EvidenceValidationError::LimitationsExceeded {
+                count: self.limitations.len() + 1,
+                max: EvidenceRecordBuilder::HARD_MAX_LIMITATIONS,
+            });
+        }
+        if self.limitations.contains(&limitation) {
+            return Err(EvidenceValidationError::DuplicateLimitation(limitation));
+        }
+        self.limitations.push(limitation);
+        self.limitations.sort();
+        Ok(self)
+    }
+
+    /// Builds the validated [`EvidenceDraft`].
+    ///
+    /// Fails if all reference and measurement collections are empty.
+    pub fn build(self) -> Result<EvidenceDraft, EvidenceValidationError> {
+        if self.packet_references.is_empty()
+            && self.flow_references.is_empty()
+            && self.observation_references.is_empty()
+            && self.measurements.is_empty()
+        {
+            return Err(EvidenceValidationError::EmptyEvidenceRecord);
+        }
+
+        Ok(EvidenceDraft {
+            kind: self.kind,
+            description: self.description,
+            packet_references: self.packet_references,
+            flow_references: self.flow_references,
+            observation_references: self.observation_references,
+            measurements: self.measurements,
+            limitations: self.limitations,
+            schema_version: self.schema_version,
+        })
+    }
+}
+
+/// Structured, immutable evidence draft emitted by a detector before engine reference assignment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceDraft {
+    kind: EvidenceKind,
+    description: EvidenceDescription,
+    packet_references: Vec<PacketReference>,
+    flow_references: Vec<FlowReference>,
+    observation_references: Vec<ObservationReference>,
+    measurements: Vec<EvidenceMeasurement>,
+    limitations: Vec<EvidenceLimitation>,
+    schema_version: SchemaVersion,
+}
+
+impl EvidenceDraft {
+    /// Creates an evidence draft builder.
+    #[must_use]
+    pub fn builder(kind: EvidenceKind, description: EvidenceDescription) -> EvidenceDraftBuilder {
+        EvidenceDraftBuilder::new(kind, description)
+    }
+
+    /// Returns the analytical kind of this evidence.
+    #[must_use]
+    pub const fn kind(&self) -> EvidenceKind {
+        self.kind
+    }
+
+    /// Returns the factual description.
+    #[must_use]
+    pub const fn description(&self) -> &EvidenceDescription {
+        &self.description
+    }
+
+    /// Returns the ordered slice of supporting packet references.
+    #[must_use]
+    pub fn packet_references(&self) -> &[PacketReference] {
+        &self.packet_references
+    }
+
+    /// Returns the ordered slice of supporting flow references.
+    #[must_use]
+    pub fn flow_references(&self) -> &[FlowReference] {
+        &self.flow_references
+    }
+
+    /// Returns the ordered slice of supporting observation references.
+    #[must_use]
+    pub fn observation_references(&self) -> &[ObservationReference] {
+        &self.observation_references
+    }
+
+    /// Returns the slice of concrete measurements.
+    #[must_use]
+    pub fn measurements(&self) -> &[EvidenceMeasurement] {
+        &self.measurements
+    }
+
+    /// Returns the sorted slice of analytical limitations.
+    #[must_use]
+    pub fn limitations(&self) -> &[EvidenceLimitation] {
+        &self.limitations
+    }
+
+    /// Returns the schema version anchor.
+    #[must_use]
+    pub const fn schema_version(&self) -> SchemaVersion {
+        self.schema_version
+    }
+}
+
 /// Structured, immutable evidence record supporting a detector finding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvidenceRecord {
@@ -1115,6 +1392,22 @@ impl EvidenceRecord {
         description: EvidenceDescription,
     ) -> EvidenceRecordBuilder {
         EvidenceRecordBuilder::new(reference, kind, description)
+    }
+
+    /// Creates an evidence record from an engine-assigned reference and a validated evidence draft.
+    #[must_use]
+    pub fn from_draft(reference: EvidenceReference, draft: EvidenceDraft) -> Self {
+        Self {
+            reference,
+            kind: draft.kind,
+            description: draft.description,
+            packet_references: draft.packet_references,
+            flow_references: draft.flow_references,
+            observation_references: draft.observation_references,
+            measurements: draft.measurements,
+            limitations: draft.limitations,
+            schema_version: draft.schema_version,
+        }
     }
 
     /// Returns the unique evidence reference.

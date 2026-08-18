@@ -3,13 +3,13 @@
 ## Purpose and Status
 
 This document defines the contract for detectors, findings, severity, and confidence.
-Through Phase 11, PcapRaven contains capture ingestion, protocol normalization, flow
+Through Phase 12, PcapRaven contains capture ingestion, protocol normalization, flow
 reconstruction, checked flow statistics/exact temporal metrics, DNS protocol analysis,
 HTTP/1.x protocol analysis, TLS handshake analysis, unified protocol observations,
 structured evidence models, and finding models in `pcapraven-domain`, alongside functional CLI inspection
-(`validate`, `flows`, `dns`, `http`, `tls`) in `pcapraven-cli` and the detection engine architecture
-(detector trait, metadata, parameter configuration, deterministic registry, and evaluate pipeline)
-in `pcapraven-detection`. Specific threat detection rules (e.g. periodic beaconing in Phase 12) remain targets for later roadmap phases.
+(`validate`, `flows`, `dns`, `http`, `tls`) in `pcapraven-cli`, detection engine architecture
+in `pcapraven-detection`, and the explainable periodic beaconing detector (`behavior.periodic_beaconing`).
+Specific threat detection rules for DNS tunneling (Phase 13) and C2-like behaviors (Phase 14) remain targets for later roadmap phases.
 
 ## Separation from Parsing
 
@@ -146,17 +146,13 @@ schema is finalized so mappings can be audited over time.
 
 ## Target Detector Families
 
-Later roadmap phases plan only these initial families:
+The initial detector families are:
 
-- Periodic beaconing heuristics over flow temporal metrics.
-- DNS anomaly and possible tunneling heuristics over normalized DNS and flow
-  information.
-- Connection and C2-like behavioral heuristics over normalized communication
-  patterns.
+- **Periodic Beaconing Heuristics:** Implemented in Phase 12 (`behavior.periodic_beaconing`, `docs/detectors/PERIODIC_BEACONING.md`).
+- **DNS Anomaly and Possible Tunneling Heuristics:** Target for Phase 13 over normalized DNS observations and flows.
+- **Connection and C2-Like Behavioral Heuristics:** Target for Phase 14 over normalized communication patterns.
 
-These are roadmap intentions, not implemented capabilities or guaranteed
-findings. Each detector requires its own specification, tests, threshold
-rationale, and false-positive analysis before release.
+Each detector requires its own specification, tests, threshold rationale, and false-positive analysis before release.
 
 ## Filtering
 

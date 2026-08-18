@@ -2,12 +2,15 @@
 
 use crate::config::{DetectorConfig, DetectorConfigurations};
 use crate::detector::IncompleteDataPolicy;
-use crate::error::{DetectionEngineError, DetectionOutputError, DetectorExecutionError};
+use crate::error::{
+    DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
+    DetectionOutputError, DetectorConfigError, DetectorExecutionError,
+};
 use crate::registry::DetectorRegistry;
 use core::fmt;
 use pcapraven_domain::{
-    DetectorId, DetectorVersion, EvidenceRecord, EvidenceRecordBuilder, EvidenceReference,
-    FindingDraft, FindingRecord, FindingReference, FlowRecord, ProtocolObservation,
+    DetectorId, DetectorVersion, EvidenceLimitation, EvidenceRecord, EvidenceReference,
+    FindingRecord, FindingReference, FlowRecord, ProtocolObservation,
 };
 
 /// Completeness status of the domain facts provided to the detection engine.
@@ -55,6 +58,19 @@ pub enum DetectionInputLimitation {
     ObservationBudgetReached,
 }
 
+impl DetectionInputLimitation {
+    /// Maps this detection input limitation to the corresponding domain evidence limitation.
+    #[must_use]
+    pub const fn to_evidence_limitation(&self) -> EvidenceLimitation {
+        match self {
+            Self::CaptureTruncated => EvidenceLimitation::CaptureTruncated,
+            Self::PacketCountBudgetReached => EvidenceLimitation::PacketCountBudgetReached,
+            Self::FlowBudgetReached => EvidenceLimitation::FlowBudgetReached,
+            Self::ObservationBudgetReached => EvidenceLimitation::ObservationBudgetReached,
+        }
+    }
+}
+
 impl fmt::Display for DetectionInputLimitation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -78,20 +94,72 @@ pub struct DetectionInput<'a> {
 }
 
 impl<'a> DetectionInput<'a> {
-    /// Creates a new borrowed detection input structure.
-    #[must_use]
-    pub const fn new(
+    /// Creates and validates a new borrowed detection input structure.
+    pub fn try_new(
         flows: &'a [FlowRecord],
         observations: &'a [ProtocolObservation],
         completeness: DetectionInputCompleteness,
         limitations: &'a [DetectionInputLimitation],
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DetectionInputError> {
+        // Validate strictly increasing, duplicate-free flows
+        for window in flows.windows(2) {
+            let prev = window[0].reference.ordinal();
+            let curr = window[1].reference.ordinal();
+            if curr == prev {
+                return Err(DetectionInputError::DuplicateFlow(window[1].reference));
+            }
+            if curr < prev {
+                return Err(DetectionInputError::OutOfOrderFlow {
+                    previous: prev,
+                    attempted: curr,
+                });
+            }
+        }
+
+        // Validate strictly increasing, duplicate-free observations
+        for window in observations.windows(2) {
+            let prev = window[0].reference();
+            let curr = window[1].reference();
+            if curr == prev {
+                return Err(DetectionInputError::DuplicateObservation(curr));
+            }
+            if curr < prev {
+                return Err(DetectionInputError::OutOfOrderObservation {
+                    previous: prev,
+                    attempted: curr,
+                });
+            }
+        }
+
+        // Validate strictly sorted, duplicate-free limitations
+        for window in limitations.windows(2) {
+            let prev = window[0];
+            let curr = window[1];
+            if curr == prev {
+                return Err(DetectionInputError::DuplicateLimitation(curr));
+            }
+            if curr < prev {
+                return Err(DetectionInputError::OutOfOrderLimitation {
+                    previous: prev,
+                    attempted: curr,
+                });
+            }
+        }
+
+        // Validate consistency between completeness and limitations
+        if completeness == DetectionInputCompleteness::Complete && !limitations.is_empty() {
+            return Err(DetectionInputError::CompleteInputWithLimitations);
+        }
+        if completeness == DetectionInputCompleteness::Partial && limitations.is_empty() {
+            return Err(DetectionInputError::PartialInputWithoutLimitations);
+        }
+
+        Ok(Self {
             flows,
             observations,
             completeness,
             limitations,
-        }
+        })
     }
 
     /// Returns the slice of reconstructed flows.
@@ -122,19 +190,26 @@ impl<'a> DetectionInput<'a> {
 /// Finite resource bounds governing detection engine execution and output generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DetectionLimits {
-    /// Maximum allowed registered detectors.
-    pub max_registered_detectors: usize,
-    /// Maximum allowed parameters per detector.
-    pub max_parameters_per_detector: usize,
-    /// Maximum total findings produced in one detection run.
-    pub max_total_findings: usize,
-    /// Maximum total evidence records produced in one detection run.
-    pub max_total_evidence_records: usize,
-    /// Maximum diagnostic messages collected during execution.
-    pub max_execution_diagnostics: usize,
+    max_registered_detectors: usize,
+    max_parameters_per_detector: usize,
+    max_total_findings: usize,
+    max_total_evidence_records: usize,
+    max_execution_diagnostics: usize,
 }
 
 impl DetectionLimits {
+    /// Default maximum registered detectors (64).
+    pub const DEFAULT_MAX_REGISTERED_DETECTORS: usize =
+        DetectorRegistry::DEFAULT_MAX_REGISTERED_DETECTORS;
+    /// Hard maximum cap on registered detectors (256).
+    pub const HARD_MAX_REGISTERED_DETECTORS: usize =
+        DetectorRegistry::HARD_MAX_REGISTERED_DETECTORS;
+
+    /// Default maximum parameters per detector (32).
+    pub const DEFAULT_MAX_PARAMETERS_PER_DETECTOR: usize = 32;
+    /// Hard maximum cap on parameters per detector (256).
+    pub const HARD_MAX_PARAMETERS_PER_DETECTOR: usize = 256;
+
     /// Default maximum total findings (10,000).
     pub const DEFAULT_MAX_TOTAL_FINDINGS: usize = 10_000;
     /// Hard maximum cap on total findings (100,000).
@@ -150,22 +225,217 @@ impl DetectionLimits {
     /// Hard maximum cap on execution diagnostics (4,096).
     pub const HARD_MAX_DIAGNOSTICS: usize = 4_096;
 
+    /// Creates and validates new detection limits.
+    pub fn try_new(
+        max_registered_detectors: usize,
+        max_parameters_per_detector: usize,
+        max_total_findings: usize,
+        max_total_evidence_records: usize,
+        max_execution_diagnostics: usize,
+    ) -> Result<Self, DetectionLimitsValidationError> {
+        if max_registered_detectors == 0 {
+            return Err(DetectionLimitsValidationError::ZeroLimit(
+                "max_registered_detectors",
+            ));
+        }
+        if max_registered_detectors > Self::HARD_MAX_REGISTERED_DETECTORS {
+            return Err(DetectionLimitsValidationError::LimitAboveHardMaximum {
+                limit_name: "max_registered_detectors",
+                attempted: max_registered_detectors,
+                max: Self::HARD_MAX_REGISTERED_DETECTORS,
+            });
+        }
+
+        if max_parameters_per_detector == 0 {
+            return Err(DetectionLimitsValidationError::ZeroLimit(
+                "max_parameters_per_detector",
+            ));
+        }
+        if max_parameters_per_detector > Self::HARD_MAX_PARAMETERS_PER_DETECTOR {
+            return Err(DetectionLimitsValidationError::LimitAboveHardMaximum {
+                limit_name: "max_parameters_per_detector",
+                attempted: max_parameters_per_detector,
+                max: Self::HARD_MAX_PARAMETERS_PER_DETECTOR,
+            });
+        }
+
+        if max_total_findings == 0 {
+            return Err(DetectionLimitsValidationError::ZeroLimit(
+                "max_total_findings",
+            ));
+        }
+        if max_total_findings > Self::HARD_MAX_TOTAL_FINDINGS {
+            return Err(DetectionLimitsValidationError::LimitAboveHardMaximum {
+                limit_name: "max_total_findings",
+                attempted: max_total_findings,
+                max: Self::HARD_MAX_TOTAL_FINDINGS,
+            });
+        }
+
+        if max_total_evidence_records == 0 {
+            return Err(DetectionLimitsValidationError::ZeroLimit(
+                "max_total_evidence_records",
+            ));
+        }
+        if max_total_evidence_records > Self::HARD_MAX_TOTAL_EVIDENCE {
+            return Err(DetectionLimitsValidationError::LimitAboveHardMaximum {
+                limit_name: "max_total_evidence_records",
+                attempted: max_total_evidence_records,
+                max: Self::HARD_MAX_TOTAL_EVIDENCE,
+            });
+        }
+
+        if max_execution_diagnostics == 0 {
+            return Err(DetectionLimitsValidationError::ZeroLimit(
+                "max_execution_diagnostics",
+            ));
+        }
+        if max_execution_diagnostics > Self::HARD_MAX_DIAGNOSTICS {
+            return Err(DetectionLimitsValidationError::LimitAboveHardMaximum {
+                limit_name: "max_execution_diagnostics",
+                attempted: max_execution_diagnostics,
+                max: Self::HARD_MAX_DIAGNOSTICS,
+            });
+        }
+
+        Ok(Self {
+            max_registered_detectors,
+            max_parameters_per_detector,
+            max_total_findings,
+            max_total_evidence_records,
+            max_execution_diagnostics,
+        })
+    }
+
+    /// Returns a builder for configuring [`DetectionLimits`].
+    #[must_use]
+    pub fn builder() -> DetectionLimitsBuilder {
+        DetectionLimitsBuilder::new()
+    }
+
     /// Creates default detection limits.
     #[must_use]
     pub const fn default_limits() -> Self {
         Self {
-            max_registered_detectors: DetectorRegistry::DEFAULT_MAX_REGISTERED_DETECTORS,
-            max_parameters_per_detector: 32,
+            max_registered_detectors: Self::DEFAULT_MAX_REGISTERED_DETECTORS,
+            max_parameters_per_detector: Self::DEFAULT_MAX_PARAMETERS_PER_DETECTOR,
             max_total_findings: Self::DEFAULT_MAX_TOTAL_FINDINGS,
             max_total_evidence_records: Self::DEFAULT_MAX_TOTAL_EVIDENCE,
             max_execution_diagnostics: Self::DEFAULT_MAX_DIAGNOSTICS,
         }
+    }
+
+    /// Returns the maximum allowed registered detectors.
+    #[must_use]
+    pub const fn max_registered_detectors(&self) -> usize {
+        self.max_registered_detectors
+    }
+
+    /// Returns the maximum allowed parameters per detector.
+    #[must_use]
+    pub const fn max_parameters_per_detector(&self) -> usize {
+        self.max_parameters_per_detector
+    }
+
+    /// Returns the maximum total findings per run.
+    #[must_use]
+    pub const fn max_total_findings(&self) -> usize {
+        self.max_total_findings
+    }
+
+    /// Returns the maximum total evidence records per run.
+    #[must_use]
+    pub const fn max_total_evidence_records(&self) -> usize {
+        self.max_total_evidence_records
+    }
+
+    /// Returns the maximum diagnostic messages collected per run.
+    #[must_use]
+    pub const fn max_execution_diagnostics(&self) -> usize {
+        self.max_execution_diagnostics
     }
 }
 
 impl Default for DetectionLimits {
     fn default() -> Self {
         Self::default_limits()
+    }
+}
+
+/// Builder for constructing validated [`DetectionLimits`] instances.
+#[derive(Debug, Clone)]
+pub struct DetectionLimitsBuilder {
+    max_registered_detectors: usize,
+    max_parameters_per_detector: usize,
+    max_total_findings: usize,
+    max_total_evidence_records: usize,
+    max_execution_diagnostics: usize,
+}
+
+impl DetectionLimitsBuilder {
+    /// Creates a builder initialized with default limits.
+    #[must_use]
+    pub fn new() -> Self {
+        let defaults = DetectionLimits::default_limits();
+        Self {
+            max_registered_detectors: defaults.max_registered_detectors,
+            max_parameters_per_detector: defaults.max_parameters_per_detector,
+            max_total_findings: defaults.max_total_findings,
+            max_total_evidence_records: defaults.max_total_evidence_records,
+            max_execution_diagnostics: defaults.max_execution_diagnostics,
+        }
+    }
+
+    /// Sets the maximum registered detectors limit.
+    #[must_use]
+    pub fn max_registered_detectors(mut self, limit: usize) -> Self {
+        self.max_registered_detectors = limit;
+        self
+    }
+
+    /// Sets the maximum parameters per detector limit.
+    #[must_use]
+    pub fn max_parameters_per_detector(mut self, limit: usize) -> Self {
+        self.max_parameters_per_detector = limit;
+        self
+    }
+
+    /// Sets the maximum total findings limit.
+    #[must_use]
+    pub fn max_total_findings(mut self, limit: usize) -> Self {
+        self.max_total_findings = limit;
+        self
+    }
+
+    /// Sets the maximum total evidence records limit.
+    #[must_use]
+    pub fn max_total_evidence_records(mut self, limit: usize) -> Self {
+        self.max_total_evidence_records = limit;
+        self
+    }
+
+    /// Sets the maximum execution diagnostics limit.
+    #[must_use]
+    pub fn max_execution_diagnostics(mut self, limit: usize) -> Self {
+        self.max_execution_diagnostics = limit;
+        self
+    }
+
+    /// Builds and validates the [`DetectionLimits`].
+    pub fn build(self) -> Result<DetectionLimits, DetectionLimitsValidationError> {
+        DetectionLimits::try_new(
+            self.max_registered_detectors,
+            self.max_parameters_per_detector,
+            self.max_total_findings,
+            self.max_total_evidence_records,
+            self.max_execution_diagnostics,
+        )
+    }
+}
+
+impl Default for DetectionLimitsBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -229,7 +499,7 @@ pub struct DetectionRunOutcome {
 ///
 /// Preflights all detector configurations before any detector is evaluated.
 /// Executes detectors in canonical [`DetectorId`] order, enforcing incomplete data policies,
-/// referential integrity, duplicate finding rejection, and resource bounds.
+/// referential integrity, duplicate finding rejection, transactional output acceptance, and resource bounds.
 pub fn execute_detection(
     registry: &DetectorRegistry,
     input: &DetectionInput<'_>,
@@ -238,20 +508,54 @@ pub fn execute_detection(
 ) -> Result<DetectionRunOutcome, DetectionEngineError> {
     let default_cfg = DetectorConfig::enabled();
 
+    // Check registry size against limits
+    if registry.len() > limits.max_registered_detectors() {
+        return Err(DetectionEngineError::ResourceLimit {
+            resource: "registered_detectors",
+            capacity: limits.max_registered_detectors(),
+        });
+    }
+
     // STEP 1: Whole-configuration preflight validation.
-    // If ANY detector configuration is invalid, fail before evaluating ANY detector.
+    // Ensure all configured detector IDs exist in the registry.
+    for (detector_id, config) in configurations.iter() {
+        if registry.get(detector_id).is_none() {
+            return Err(DetectionEngineError::Config(
+                DetectorConfigError::UnregisteredDetector(detector_id.clone()),
+            ));
+        }
+        if config.parameters.len() > limits.max_parameters_per_detector() {
+            return Err(DetectionEngineError::Config(
+                DetectorConfigError::ParametersExceeded {
+                    count: config.parameters.len(),
+                    max: limits.max_parameters_per_detector(),
+                },
+            ));
+        }
+    }
+
+    // Validate parameters for all registered detectors.
     for detector in registry.iter() {
         let meta = detector.metadata();
         let cfg = configurations.get(meta.id()).unwrap_or(&default_cfg);
+        if cfg.parameters.len() > limits.max_parameters_per_detector() {
+            return Err(DetectionEngineError::Config(
+                DetectorConfigError::ParametersExceeded {
+                    count: cfg.parameters.len(),
+                    max: limits.max_parameters_per_detector(),
+                },
+            ));
+        }
         if cfg.enabled {
             detector.validate_parameters(&cfg.parameters)?;
         }
     }
 
-    // STEP 2: Deterministic execution in DetectorId order.
+    // STEP 2: Deterministic execution in canonical DetectorId order.
     let mut overall_completion = input.completeness();
     let mut execution_records = Vec::with_capacity(registry.len());
-    let mut accepted_drafts: Vec<FindingDraft> = Vec::new();
+    let mut accepted_findings: Vec<FindingRecord> = Vec::new();
+    let mut accepted_evidence: Vec<EvidenceRecord> = Vec::new();
     let mut diagnostics = Vec::new();
 
     for detector in registry.iter() {
@@ -285,7 +589,7 @@ pub fn execute_detection(
                     DetectorExecutionError::InternalError(msg) => msg.clone(),
                     DetectorExecutionError::ResourceLimitExceeded(msg) => msg.clone(),
                 };
-                if diagnostics.len() < limits.max_execution_diagnostics {
+                if diagnostics.len() < limits.max_execution_diagnostics() {
                     diagnostics.push(format!("detector '{}' failed: {reason}", meta.id()));
                 }
                 execution_records.push(DetectorExecutionRecord {
@@ -295,81 +599,172 @@ pub fn execute_detection(
                 });
             }
             Ok(drafts) => {
+                if drafts.is_empty() {
+                    execution_records.push(DetectorExecutionRecord {
+                        detector_id: meta.id().clone(),
+                        detector_version: meta.version(),
+                        status: DetectorExecutionStatus::Executed,
+                    });
+                    continue;
+                }
+
                 // Validate incomplete data policy for AllowWithLimitations
                 if input.completeness() == DetectionInputCompleteness::Partial
                     && meta.incomplete_data_policy() == IncompleteDataPolicy::AllowWithLimitations
                 {
                     for draft in &drafts {
-                        let has_limitation = draft
-                            .evidence
-                            .iter()
-                            .any(|evi| !evi.limitations().is_empty());
-                        if !has_limitation {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::IncompleteDataPolicyViolation {
-                                    detector_id: meta.id().clone(),
-                                    reason: "finding emitted on partial input without supporting limitation evidence",
-                                },
-                            ));
-                        }
-                    }
-                }
-
-                // Validate finding draft requirements: every finding requires evidence
-                for draft in &drafts {
-                    if draft.evidence.is_empty() {
-                        return Err(DetectionEngineError::Output(
-                            DetectionOutputError::FindingWithoutEvidence,
-                        ));
-                    }
-                }
-
-                // Check duplicate finding key collision within this detector or across drafts
-                for i in 0..drafts.len() {
-                    for j in (i + 1)..drafts.len() {
-                        if drafts[i].detector_id == drafts[j].detector_id
-                            && drafts[i].subject == drafts[j].subject
-                        {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::DuplicateFindingIdentity {
-                                    detector_id: drafts[i].detector_id.clone(),
-                                },
-                            ));
+                        for input_lim in input.limitations() {
+                            let mapped = input_lim.to_evidence_limitation();
+                            let has_limitation = draft
+                                .evidence()
+                                .iter()
+                                .any(|evi| evi.limitations().contains(&mapped));
+                            if !has_limitation {
+                                return Err(DetectionEngineError::Output(
+                                    DetectionOutputError::IncompleteDataPolicyViolation {
+                                        detector_id: meta.id().clone(),
+                                        reason: "finding emitted on partial input without required input limitation evidence",
+                                    },
+                                ));
+                            }
                         }
                     }
                 }
 
                 // Validate referential integrity of subject and evidence against DetectionInput
                 for draft in &drafts {
-                    for flow_ref in draft.subject.flow_references() {
-                        if !input.flows.iter().any(|f| f.reference == *flow_ref) {
+                    // Subject flow references
+                    for flow_ref in draft.subject().flow_references() {
+                        if !input.flows().iter().any(|f| f.reference == *flow_ref) {
                             return Err(DetectionEngineError::Output(
                                 DetectionOutputError::ReferentialIntegrityError(format!(
-                                    "finding subject references unknown flow {}",
-                                    flow_ref
+                                    "finding subject references unknown flow {flow_ref}"
                                 )),
                             ));
                         }
                     }
-                    for obs_ref in draft.subject.observation_references() {
-                        if !input.observations.iter().any(|o| o.reference() == *obs_ref) {
+                    // Subject observation references
+                    for obs_ref in draft.subject().observation_references() {
+                        if !input
+                            .observations()
+                            .iter()
+                            .any(|o| o.reference() == *obs_ref)
+                        {
                             return Err(DetectionEngineError::Output(
                                 DetectionOutputError::ReferentialIntegrityError(format!(
-                                    "finding subject references unknown observation {}",
-                                    obs_ref
+                                    "finding subject references unknown observation {obs_ref}"
                                 )),
+                            ));
+                        }
+                    }
+                    // Subject packet references
+                    for pkt_ref in draft.subject().packet_references() {
+                        let is_valid_pkt = input
+                            .flows()
+                            .iter()
+                            .any(|f| f.first_packet == *pkt_ref || f.last_packet == *pkt_ref)
+                            || input
+                                .observations()
+                                .iter()
+                                .any(|o| *o.packet_reference() == *pkt_ref);
+                        if !is_valid_pkt {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::ReferentialIntegrityError(format!(
+                                    "finding subject references unknown packet {pkt_ref:?}"
+                                )),
+                            ));
+                        }
+                    }
+
+                    // Evidence references
+                    for evi in draft.evidence() {
+                        for flow_ref in evi.flow_references() {
+                            if !input.flows().iter().any(|f| f.reference == *flow_ref) {
+                                return Err(DetectionEngineError::Output(
+                                    DetectionOutputError::ReferentialIntegrityError(format!(
+                                        "evidence references unknown flow {flow_ref}"
+                                    )),
+                                ));
+                            }
+                        }
+                        for obs_ref in evi.observation_references() {
+                            if !input
+                                .observations()
+                                .iter()
+                                .any(|o| o.reference() == *obs_ref)
+                            {
+                                return Err(DetectionEngineError::Output(
+                                    DetectionOutputError::ReferentialIntegrityError(format!(
+                                        "evidence references unknown observation {obs_ref}"
+                                    )),
+                                ));
+                            }
+                        }
+                        for pkt_ref in evi.packet_references() {
+                            let is_valid_pkt =
+                                input.flows().iter().any(|f| {
+                                    f.first_packet == *pkt_ref || f.last_packet == *pkt_ref
+                                }) || input
+                                    .observations()
+                                    .iter()
+                                    .any(|o| *o.packet_reference() == *pkt_ref);
+                            if !is_valid_pkt {
+                                return Err(DetectionEngineError::Output(
+                                    DetectionOutputError::ReferentialIntegrityError(format!(
+                                        "evidence references unknown packet {pkt_ref:?}"
+                                    )),
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                // Check duplicate finding key collision within drafts
+                for i in 0..drafts.len() {
+                    for j in (i + 1)..drafts.len() {
+                        if drafts[i].subject() == drafts[j].subject() {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::DuplicateFindingIdentity {
+                                    detector_id: meta.id().clone(),
+                                },
                             ));
                         }
                     }
                 }
 
-                // Check total output resource limits
-                if accepted_drafts.len() + drafts.len() > limits.max_total_findings {
+                // Check duplicate finding key collision against accepted findings
+                for draft in &drafts {
+                    if accepted_findings
+                        .iter()
+                        .any(|f| f.detector_id() == meta.id() && f.subject() == draft.subject())
+                    {
+                        return Err(DetectionEngineError::Output(
+                            DetectionOutputError::DuplicateFindingIdentity {
+                                detector_id: meta.id().clone(),
+                            },
+                        ));
+                    }
+                }
+
+                // Check transactional output budgets
+                let new_findings_count = drafts.len();
+                let new_evidence_count: usize = drafts.iter().map(|d| d.evidence().len()).sum();
+
+                let fits_findings = accepted_findings
+                    .len()
+                    .checked_add(new_findings_count)
+                    .is_some_and(|total| total <= limits.max_total_findings());
+
+                let fits_evidence = accepted_evidence
+                    .len()
+                    .checked_add(new_evidence_count)
+                    .is_some_and(|total| total <= limits.max_total_evidence_records());
+
+                if !fits_findings || !fits_evidence {
                     overall_completion = DetectionInputCompleteness::Partial;
-                    if diagnostics.len() < limits.max_execution_diagnostics {
+                    if diagnostics.len() < limits.max_execution_diagnostics() {
                         diagnostics.push(format!(
-                            "maximum finding limit ({}) reached, rejecting output from detector '{}'",
-                            limits.max_total_findings,
+                            "output budget exceeded, rejecting output from detector '{}'",
                             meta.id()
                         ));
                     }
@@ -381,7 +776,42 @@ pub fn execute_detection(
                     continue;
                 }
 
-                accepted_drafts.extend(drafts);
+                // Convert drafts transactionally to canonical EvidenceRecord and FindingRecord
+                for draft in drafts {
+                    let mut finding_evi_refs = Vec::with_capacity(draft.evidence().len());
+                    let subject = draft.subject().clone();
+                    let title = draft.title().clone();
+                    let summary = draft.summary().clone();
+                    let rationale = draft.rationale().clone();
+                    let severity = draft.severity();
+                    let confidence = draft.confidence();
+
+                    for evi_draft in draft.into_evidence() {
+                        let next_evi_idx = accepted_evidence.len() as u64;
+                        let evi_ref = EvidenceReference::new(next_evi_idx);
+                        let record = EvidenceRecord::from_draft(evi_ref, evi_draft);
+                        accepted_evidence.push(record);
+                        finding_evi_refs.push(evi_ref);
+                    }
+
+                    let next_find_idx = accepted_findings.len() as u64;
+                    let finding_ref = FindingReference::new(next_find_idx);
+                    let finding = FindingRecord::try_new(
+                        finding_ref,
+                        meta.id().clone(),
+                        meta.version(),
+                        subject,
+                        title,
+                        summary,
+                        rationale,
+                        severity,
+                        confidence,
+                        finding_evi_refs,
+                    )
+                    .map_err(DetectionOutputError::from)?;
+                    accepted_findings.push(finding);
+                }
+
                 execution_records.push(DetectorExecutionRecord {
                     detector_id: meta.id().clone(),
                     detector_version: meta.version(),
@@ -391,94 +821,11 @@ pub fn execute_detection(
         }
     }
 
-    // STEP 3: Canonical assignment and determinism.
-    // Sort accepted drafts deterministically by:
-    // 1. DetectorId
-    // 2. FindingSubject
-    // 3. Title
-    accepted_drafts.sort_by(|a, b| {
-        a.detector_id
-            .cmp(&b.detector_id)
-            .then_with(|| a.subject.cmp(&b.subject))
-            .then_with(|| a.title.as_str().cmp(b.title.as_str()))
-    });
-
-    let mut canonical_evidence: Vec<EvidenceRecord> = Vec::new();
-    let mut canonical_findings: Vec<FindingRecord> = Vec::with_capacity(accepted_drafts.len());
-
-    for (finding_idx, draft) in accepted_drafts.into_iter().enumerate() {
-        let mut finding_evidence_refs = Vec::with_capacity(draft.evidence.len());
-
-        for evidence_record in draft.evidence {
-            if canonical_evidence.len() >= limits.max_total_evidence_records {
-                overall_completion = DetectionInputCompleteness::Partial;
-                if diagnostics.len() < limits.max_execution_diagnostics {
-                    diagnostics.push(format!(
-                        "maximum evidence records limit ({}) reached",
-                        limits.max_total_evidence_records
-                    ));
-                }
-                break;
-            }
-
-            let evi_ref = EvidenceReference::new(canonical_evidence.len() as u64);
-            finding_evidence_refs.push(evi_ref);
-
-            // Construct canonical evidence record with engine-assigned EvidenceReference
-            let mut builder = EvidenceRecordBuilder::new(
-                evi_ref,
-                evidence_record.kind(),
-                evidence_record.description().clone(),
-            );
-            builder = builder.with_schema_version(evidence_record.schema_version());
-
-            for pkt in evidence_record.packet_references() {
-                let _ = builder.add_packet_reference(*pkt);
-            }
-            for flow in evidence_record.flow_references() {
-                let _ = builder.add_flow_reference(*flow);
-            }
-            for obs in evidence_record.observation_references() {
-                let _ = builder.add_observation_reference(*obs);
-            }
-            for m in evidence_record.measurements() {
-                let _ = builder.add_measurement(m.clone());
-            }
-            for lim in evidence_record.limitations() {
-                let _ = builder.add_limitation(*lim);
-            }
-
-            if let Ok(built_evidence) = builder.build() {
-                canonical_evidence.push(built_evidence);
-            }
-        }
-
-        if finding_evidence_refs.is_empty() {
-            continue;
-        }
-
-        let finding_ref = FindingReference::new(finding_idx as u64);
-        if let Ok(finding) = FindingRecord::try_new(
-            finding_ref,
-            draft.detector_id,
-            draft.detector_version,
-            draft.subject,
-            draft.title,
-            draft.summary,
-            draft.rationale,
-            draft.severity,
-            draft.confidence,
-            finding_evidence_refs,
-        ) {
-            canonical_findings.push(finding);
-        }
-    }
-
     Ok(DetectionRunOutcome {
         completion: overall_completion,
         detector_executions: execution_records,
-        findings: canonical_findings,
-        evidence: canonical_evidence,
+        findings: accepted_findings,
+        evidence: accepted_evidence,
         diagnostics,
     })
 }
