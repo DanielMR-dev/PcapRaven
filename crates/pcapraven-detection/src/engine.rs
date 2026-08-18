@@ -1,7 +1,7 @@
 //! Detection execution engine, immutable inputs, preflight configuration, and deterministic outcome generation.
 
 use crate::config::{DetectorConfig, DetectorConfigurations};
-use crate::detector::IncompleteDataPolicy;
+use crate::detector::{DetectorDraftSink, IncompleteDataPolicy};
 use crate::error::{
     DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
     DetectionOutputError, DetectorConfigError, DetectorExecutionError,
@@ -582,23 +582,42 @@ pub fn execute_detection(
             continue;
         }
 
-        match detector.evaluate(input, &cfg.parameters) {
-            Err(err) => {
+        let remaining_findings = limits
+            .max_total_findings()
+            .saturating_sub(accepted_findings.len());
+        let remaining_evidence = limits
+            .max_total_evidence_records()
+            .saturating_sub(accepted_evidence.len());
+        let mut sink = DetectorDraftSink::new(remaining_findings, remaining_evidence);
+
+        match detector.evaluate(input, &cfg.parameters, &mut sink) {
+            Err(DetectorExecutionError::ResourceLimitExceeded(msg)) => {
                 overall_completion = DetectionInputCompleteness::Partial;
-                let reason = match &err {
-                    DetectorExecutionError::InternalError(msg) => msg.clone(),
-                    DetectorExecutionError::ResourceLimitExceeded(msg) => msg.clone(),
-                };
                 if diagnostics.len() < limits.max_execution_diagnostics() {
-                    diagnostics.push(format!("detector '{}' failed: {reason}", meta.id()));
+                    diagnostics.push(format!(
+                        "output budget exceeded, rejecting output from detector '{}': {msg}",
+                        meta.id()
+                    ));
                 }
                 execution_records.push(DetectorExecutionRecord {
                     detector_id: meta.id().clone(),
                     detector_version: meta.version(),
-                    status: DetectorExecutionStatus::Failed { reason },
+                    status: DetectorExecutionStatus::ResourceLimited,
                 });
             }
-            Ok(drafts) => {
+            Err(DetectorExecutionError::InternalError(msg)) => {
+                overall_completion = DetectionInputCompleteness::Partial;
+                if diagnostics.len() < limits.max_execution_diagnostics() {
+                    diagnostics.push(format!("detector '{}' failed: {msg}", meta.id()));
+                }
+                execution_records.push(DetectorExecutionRecord {
+                    detector_id: meta.id().clone(),
+                    detector_version: meta.version(),
+                    status: DetectorExecutionStatus::Failed { reason: msg },
+                });
+            }
+            Ok(()) => {
+                let mut drafts = sink.into_drafts();
                 if drafts.is_empty() {
                     execution_records.push(DetectorExecutionRecord {
                         detector_id: meta.id().clone(),
@@ -607,6 +626,13 @@ pub fn execute_detection(
                     });
                     continue;
                 }
+
+                // Canonicalize detector draft order within this detector before identity assignment
+                drafts.sort_by(|a, b| {
+                    a.subject()
+                        .cmp(b.subject())
+                        .then_with(|| a.title().cmp(b.title()))
+                });
 
                 // Validate incomplete data policy for AllowWithLimitations
                 if input.completeness() == DetectionInputCompleteness::Partial
@@ -719,16 +745,14 @@ pub fn execute_detection(
                     }
                 }
 
-                // Check duplicate finding key collision within drafts
-                for i in 0..drafts.len() {
-                    for j in (i + 1)..drafts.len() {
-                        if drafts[i].subject() == drafts[j].subject() {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::DuplicateFindingIdentity {
-                                    detector_id: meta.id().clone(),
-                                },
-                            ));
-                        }
+                // Check duplicate finding key collision within sorted drafts
+                for window in drafts.windows(2) {
+                    if window[0].subject() == window[1].subject() {
+                        return Err(DetectionEngineError::Output(
+                            DetectionOutputError::DuplicateFindingIdentity {
+                                detector_id: meta.id().clone(),
+                            },
+                        ));
                     }
                 }
 
@@ -746,9 +770,15 @@ pub fn execute_detection(
                     }
                 }
 
-                // Check transactional output budgets
+                // Check transactional output budgets with checked arithmetic
                 let new_findings_count = drafts.len();
-                let new_evidence_count: usize = drafts.iter().map(|d| d.evidence().len()).sum();
+                let new_evidence_count = drafts
+                    .iter()
+                    .try_fold(0usize, |acc, d| acc.checked_add(d.evidence().len()))
+                    .ok_or_else(|| DetectionEngineError::ResourceLimit {
+                        resource: "evidence_count_overflow",
+                        capacity: limits.max_total_evidence_records(),
+                    })?;
 
                 let fits_findings = accepted_findings
                     .len()
@@ -776,7 +806,10 @@ pub fn execute_detection(
                     continue;
                 }
 
-                // Convert drafts transactionally to canonical EvidenceRecord and FindingRecord
+                // Convert drafts transactionally in a temporary batch before committing
+                let mut temp_findings = Vec::with_capacity(drafts.len());
+                let mut temp_evidence = Vec::with_capacity(new_evidence_count);
+
                 for draft in drafts {
                     let mut finding_evi_refs = Vec::with_capacity(draft.evidence().len());
                     let subject = draft.subject().clone();
@@ -787,14 +820,28 @@ pub fn execute_detection(
                     let confidence = draft.confidence();
 
                     for evi_draft in draft.into_evidence() {
-                        let next_evi_idx = accepted_evidence.len() as u64;
+                        let base_evi_len = accepted_evidence
+                            .len()
+                            .checked_add(temp_evidence.len())
+                            .ok_or_else(|| DetectionEngineError::ResourceLimit {
+                                resource: "evidence_index_overflow",
+                                capacity: limits.max_total_evidence_records(),
+                            })?;
+                        let next_evi_idx = base_evi_len as u64;
                         let evi_ref = EvidenceReference::new(next_evi_idx);
                         let record = EvidenceRecord::from_draft(evi_ref, evi_draft);
-                        accepted_evidence.push(record);
+                        temp_evidence.push(record);
                         finding_evi_refs.push(evi_ref);
                     }
 
-                    let next_find_idx = accepted_findings.len() as u64;
+                    let base_find_len = accepted_findings
+                        .len()
+                        .checked_add(temp_findings.len())
+                        .ok_or_else(|| DetectionEngineError::ResourceLimit {
+                            resource: "finding_index_overflow",
+                            capacity: limits.max_total_findings(),
+                        })?;
+                    let next_find_idx = base_find_len as u64;
                     let finding_ref = FindingReference::new(next_find_idx);
                     let finding = FindingRecord::try_new(
                         finding_ref,
@@ -809,8 +856,11 @@ pub fn execute_detection(
                         finding_evi_refs,
                     )
                     .map_err(DetectionOutputError::from)?;
-                    accepted_findings.push(finding);
+                    temp_findings.push(finding);
                 }
+
+                accepted_evidence.extend(temp_evidence);
+                accepted_findings.extend(temp_findings);
 
                 execution_records.push(DetectorExecutionRecord {
                     detector_id: meta.id().clone(),

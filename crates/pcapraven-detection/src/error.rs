@@ -318,14 +318,12 @@ impl DetectorExecutionError {
     fn sanitize_message(raw: &str) -> String {
         let mut clean = String::with_capacity(raw.len().min(MAX_DETECTOR_ERROR_MESSAGE_LENGTH));
         for c in raw.chars() {
-            if clean.len() >= MAX_DETECTOR_ERROR_MESSAGE_LENGTH {
+            let ch = if c.is_control() { ' ' } else { c };
+            let ch_len = ch.len_utf8();
+            if clean.len().saturating_add(ch_len) > MAX_DETECTOR_ERROR_MESSAGE_LENGTH {
                 break;
             }
-            if c.is_ascii_control() {
-                clean.push(' ');
-            } else {
-                clean.push(c);
-            }
+            clean.push(ch);
         }
         if clean.is_empty() {
             "unspecified error".to_string()

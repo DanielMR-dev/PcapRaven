@@ -4,13 +4,14 @@ use pcapraven_detection::periodic_beaconing::PeriodicBeaconingDetector;
 use pcapraven_detection::*;
 use pcapraven_domain::*;
 
-fn create_test_flow(
+fn create_test_flow_with_protocol(
     ordinal: u64,
+    protocol: TransportProtocol,
     a_to_b: FlowInterArrivalMetrics,
     b_to_a: FlowInterArrivalMetrics,
 ) -> FlowRecord {
     let key = FlowKey::new(
-        TransportProtocol::Tcp,
+        protocol,
         FlowEndpoint::new(IpAddress::Ipv4([192, 168, 1, 100]), 45000),
         FlowEndpoint::new(IpAddress::Ipv4([198, 51, 100, 1]), 443),
     );
@@ -44,6 +45,14 @@ fn create_test_flow(
         FlowTrafficStatistics::empty(),
         temporal,
     )
+}
+
+fn create_test_flow(
+    ordinal: u64,
+    a_to_b: FlowInterArrivalMetrics,
+    b_to_a: FlowInterArrivalMetrics,
+) -> FlowRecord {
+    create_test_flow_with_protocol(ordinal, TransportProtocol::Tcp, a_to_b, b_to_a)
 }
 
 fn create_periodic_metrics(
@@ -211,9 +220,11 @@ fn test_periodic_beaconing_clean_detection_a_to_b() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
+    let findings = sink.into_drafts();
     assert_eq!(findings.len(), 1);
 
     let finding = &findings[0];
@@ -280,9 +291,11 @@ fn test_periodic_beaconing_clean_detection_b_to_a() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
+    let findings = sink.into_drafts();
     assert_eq!(findings.len(), 1);
     assert_eq!(findings[0].evidence().len(), 1);
     assert!(
@@ -304,9 +317,11 @@ fn test_periodic_beaconing_both_directions() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
+    let findings = sink.into_drafts();
     assert_eq!(findings.len(), 1);
     // Emits 1 finding with 2 evidence drafts (one for each direction)
     assert_eq!(findings[0].evidence().len(), 2);
@@ -338,10 +353,11 @@ fn test_discontinuity_rejection() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
-    assert_eq!(findings.len(), 0);
+    assert_eq!(sink.len(), 0);
 }
 
 #[test]
@@ -358,10 +374,11 @@ fn test_insufficient_samples_rejection() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
-    assert_eq!(findings.len(), 0);
+    assert_eq!(sink.len(), 0);
 
     // Custom threshold minimum_interval_samples = 4 allows it
     let mut custom = DetectorParameters::builder();
@@ -371,8 +388,11 @@ fn test_insufficient_samples_rejection() {
             DetectorParameterValue::Unsigned(4),
         )
         .unwrap();
-    let findings_custom = detector.evaluate(&input, &custom.build().unwrap()).unwrap();
-    assert_eq!(findings_custom.len(), 1);
+    let mut sink_custom = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &custom.build().unwrap(), &mut sink_custom)
+        .unwrap();
+    assert_eq!(sink_custom.len(), 1);
 }
 
 #[test]
@@ -397,10 +417,11 @@ fn test_short_mean_interval_rejection() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
-    assert_eq!(findings.len(), 0);
+    assert_eq!(sink.len(), 0);
 
     // With minimum_mean_interval = 250ms (1/4 s), it is accepted
     let mut custom = DetectorParameters::builder();
@@ -410,8 +431,11 @@ fn test_short_mean_interval_rejection() {
             DetectorParameterValue::Duration(FlowDuration::from_fraction(1, 4).unwrap()),
         )
         .unwrap();
-    let findings_custom = detector.evaluate(&input, &custom.build().unwrap()).unwrap();
-    assert_eq!(findings_custom.len(), 1);
+    let mut sink_custom = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &custom.build().unwrap(), &mut sink_custom)
+        .unwrap();
+    assert_eq!(sink_custom.len(), 1);
 }
 
 #[test]
@@ -428,10 +452,11 @@ fn test_jitter_threshold_rejection() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
-    assert_eq!(findings.len(), 0);
+    assert_eq!(sink.len(), 0);
 
     // With maximum_jitter_ratio = 25% (1/4), it is accepted
     let mut custom = DetectorParameters::builder();
@@ -441,8 +466,11 @@ fn test_jitter_threshold_rejection() {
             DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(1, 4).unwrap()),
         )
         .unwrap();
-    let findings_custom = detector.evaluate(&input, &custom.build().unwrap()).unwrap();
-    assert_eq!(findings_custom.len(), 1);
+    let mut sink_custom = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &custom.build().unwrap(), &mut sink_custom)
+        .unwrap();
+    assert_eq!(sink_custom.len(), 1);
 }
 
 #[test]
@@ -468,10 +496,11 @@ fn test_spread_threshold_rejection() {
     let input =
         DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
 
-    let findings = detector
-        .evaluate(&input, &DetectorParameters::empty())
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
         .unwrap();
-    assert_eq!(findings.len(), 0);
+    assert_eq!(sink.len(), 0);
 
     // With maximum_spread_ratio = 50% (1/2), it is accepted
     let mut custom = DetectorParameters::builder();
@@ -481,8 +510,417 @@ fn test_spread_threshold_rejection() {
             DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(1, 2).unwrap()),
         )
         .unwrap();
-    let findings_custom = detector.evaluate(&input, &custom.build().unwrap()).unwrap();
-    assert_eq!(findings_custom.len(), 1);
+    let mut sink_custom = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &custom.build().unwrap(), &mut sink_custom)
+        .unwrap();
+    assert_eq!(sink_custom.len(), 1);
+}
+
+#[test]
+fn test_ratio_bounds_validation_and_rejections() {
+    let detector = PeriodicBeaconingDetector::new();
+
+    // 0/1 -> valid
+    let mut b0 = DetectorParameters::builder();
+    b0.add(
+        DetectorParameterKey::try_new("maximum_jitter_ratio").unwrap(),
+        DetectorParameterValue::Ratio(EvidenceRatio::ZERO),
+    )
+    .unwrap();
+    b0.add(
+        DetectorParameterKey::try_new("maximum_spread_ratio").unwrap(),
+        DetectorParameterValue::Ratio(EvidenceRatio::ZERO),
+    )
+    .unwrap();
+    assert!(detector.validate_parameters(&b0.build().unwrap()).is_ok());
+
+    // 1/1 -> valid
+    let mut b1 = DetectorParameters::builder();
+    b1.add(
+        DetectorParameterKey::try_new("maximum_jitter_ratio").unwrap(),
+        DetectorParameterValue::Ratio(EvidenceRatio::ONE),
+    )
+    .unwrap();
+    b1.add(
+        DetectorParameterKey::try_new("maximum_spread_ratio").unwrap(),
+        DetectorParameterValue::Ratio(EvidenceRatio::ONE),
+    )
+    .unwrap();
+    assert!(detector.validate_parameters(&b1.build().unwrap()).is_ok());
+
+    // 100/101 -> valid
+    let mut b_frac = DetectorParameters::builder();
+    b_frac
+        .add(
+            DetectorParameterKey::try_new("maximum_jitter_ratio").unwrap(),
+            DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(100, 101).unwrap()),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_frac.build().unwrap())
+            .is_ok()
+    );
+
+    // 2/1 -> rejected
+    let mut b_over = DetectorParameters::builder();
+    b_over
+        .add(
+            DetectorParameterKey::try_new("maximum_jitter_ratio").unwrap(),
+            DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(2, 1).unwrap()),
+        )
+        .unwrap();
+    assert_eq!(
+        detector
+            .validate_parameters(&b_over.build().unwrap())
+            .unwrap_err(),
+        DetectorConfigError::ParameterValueOutOfRange {
+            key: "maximum_jitter_ratio".to_string(),
+            reason: "maximum jitter ratio cannot exceed 1.0 (1/1)",
+        }
+    );
+
+    // 101/100 -> rejected
+    let mut b_over2 = DetectorParameters::builder();
+    b_over2
+        .add(
+            DetectorParameterKey::try_new("maximum_spread_ratio").unwrap(),
+            DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(101, 100).unwrap()),
+        )
+        .unwrap();
+    assert_eq!(
+        detector
+            .validate_parameters(&b_over2.build().unwrap())
+            .unwrap_err(),
+        DetectorConfigError::ParameterValueOutOfRange {
+            key: "maximum_spread_ratio".to_string(),
+            reason: "maximum spread ratio cannot exceed 1.0 (1/1)",
+        }
+    );
+
+    // u128::MAX / 1 -> rejected
+    let mut b_max = DetectorParameters::builder();
+    b_max
+        .add(
+            DetectorParameterKey::try_new("maximum_jitter_ratio").unwrap(),
+            DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(u128::MAX, 1).unwrap()),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_max.build().unwrap())
+            .is_err()
+    );
+}
+
+#[test]
+fn test_exact_threshold_equality_and_epsilon_rational() {
+    let detector = PeriodicBeaconingDetector::new();
+    // Mean = 10s. Jitter = 1s. Jitter ratio = 1/10 (exact default 1/10).
+    // Spread = 2.5s (5/2). Spread ratio = (5/2) / 10 = 5/20 = 1/4 (exact default 1/4).
+    let a_to_b = FlowInterArrivalMetrics::new(
+        10,
+        0,
+        FlowTemporalValue::Available(FlowDuration::from_fraction(15, 2).unwrap()), // 7.5s
+        FlowTemporalValue::Available(FlowDuration::from_secs(10)), // 10s -> spread = 2.5s
+        FlowTemporalValue::Available(FlowDuration::from_secs(10)), // 10s
+        9,
+        FlowTemporalValue::Available(FlowDuration::from_secs(1)), // jitter = 1s -> 1/10
+    );
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let b_to_a = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+
+    let flow = create_test_flow(0, a_to_b, b_to_a);
+    let flows = vec![flow];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+
+    // Exact match on default thresholds
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .unwrap();
+    assert_eq!(sink.len(), 1);
+
+    // If maximum_jitter_ratio is slightly below 1/10: 99/1000 (< 1/10) -> non-match
+    let mut custom = DetectorParameters::builder();
+    custom
+        .add(
+            DetectorParameterKey::try_new("maximum_jitter_ratio").unwrap(),
+            DetectorParameterValue::Ratio(EvidenceRatio::from_fraction(99, 1000).unwrap()),
+        )
+        .unwrap();
+    let mut sink_below = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &custom.build().unwrap(), &mut sink_below)
+        .unwrap();
+    assert_eq!(sink_below.len(), 0);
+}
+
+#[test]
+fn test_large_u128_temporal_metrics_no_overflow() {
+    let detector = PeriodicBeaconingDetector::new();
+    // Huge numerator/denominator fractions in FlowDuration that would overflow direct cross-multiplication
+    let num_a = 1_000_000_000_000_000_000u128;
+    let den_a = 3_000_000_000_000_000_000u128; // 1/3 s
+    let dur_a = FlowDuration::from_fraction(num_a, den_a).unwrap();
+
+    let a_to_b = FlowInterArrivalMetrics::new(
+        10,
+        0,
+        FlowTemporalValue::Available(dur_a),
+        FlowTemporalValue::Available(dur_a),
+        FlowTemporalValue::Available(dur_a),
+        9,
+        FlowTemporalValue::Available(FlowDuration::ZERO),
+    );
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let b_to_a = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+
+    let flow = create_test_flow(0, a_to_b, b_to_a);
+    let flows = vec![flow];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+
+    // With minimum_mean_interval = 250ms (1/4 s), 1/3s is greater and matches without overflow
+    let mut custom = DetectorParameters::builder();
+    custom
+        .add(
+            DetectorParameterKey::try_new("minimum_mean_interval").unwrap(),
+            DetectorParameterValue::Duration(FlowDuration::from_fraction(1, 4).unwrap()),
+        )
+        .unwrap();
+    let mut sink = DetectorDraftSink::new(10, 50);
+    assert!(
+        detector
+            .evaluate(&input, &custom.build().unwrap(), &mut sink)
+            .is_ok()
+    );
+    assert_eq!(sink.len(), 1);
+}
+
+#[test]
+fn test_temporal_coverage_and_end_reason_rejections() {
+    let detector = PeriodicBeaconingDetector::new();
+    let a_to_b = create_periodic_metrics(10, 0, 10, 10, 10, 0, 1);
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let b_to_a = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+
+    // 1. FlowEndReason::AnalysisStopped -> must not match
+    let mut flow_stopped = create_test_flow(0, a_to_b.clone(), b_to_a.clone());
+    flow_stopped.end_reason = FlowEndReason::AnalysisStopped;
+    let flows_stopped = vec![flow_stopped];
+    let input_stopped = DetectionInput::try_new(
+        &flows_stopped,
+        &[],
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input_stopped, &DetectorParameters::empty(), &mut sink)
+        .unwrap();
+    assert_eq!(sink.len(), 0);
+
+    // 2. Unavailable timestamp coverage -> must not match
+    let mut flow_unavail_cov = create_test_flow(1, a_to_b.clone(), b_to_a.clone());
+    flow_unavail_cov.temporal.coverage.unavailable_timestamps = 1;
+    let flows_unavail = vec![flow_unavail_cov];
+    let input_unavail = DetectionInput::try_new(
+        &flows_unavail,
+        &[],
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+    let mut sink2 = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input_unavail, &DetectorParameters::empty(), &mut sink2)
+        .unwrap();
+    assert_eq!(sink2.len(), 0);
+
+    // 3. Invalid timestamp coverage -> must not match
+    let mut flow_inv_cov = create_test_flow(2, a_to_b.clone(), b_to_a.clone());
+    flow_inv_cov.temporal.coverage.invalid_timestamps = 1;
+    let flows_inv = vec![flow_inv_cov];
+    let input_inv =
+        DetectionInput::try_new(&flows_inv, &[], DetectionInputCompleteness::Complete, &[])
+            .unwrap();
+    let mut sink3 = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input_inv, &DetectorParameters::empty(), &mut sink3)
+        .unwrap();
+    assert_eq!(sink3.len(), 0);
+
+    // 4. Non-monotonic transitions -> must not match
+    let mut flow_non_mono = create_test_flow(3, a_to_b.clone(), b_to_a.clone());
+    flow_non_mono.temporal.coverage.non_monotonic_transitions = 1;
+    let flows_mono = vec![flow_non_mono];
+    let input_mono =
+        DetectionInput::try_new(&flows_mono, &[], DetectionInputCompleteness::Complete, &[])
+            .unwrap();
+    let mut sink4 = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input_mono, &DetectorParameters::empty(), &mut sink4)
+        .unwrap();
+    assert_eq!(sink4.len(), 0);
+
+    // 5. Unavailable flow duration -> must not match
+    let mut flow_dur_unavail = create_test_flow(4, a_to_b, b_to_a);
+    flow_dur_unavail.temporal.duration =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::TimestampUnavailable);
+    let flows_dur = vec![flow_dur_unavail];
+    let input_dur =
+        DetectionInput::try_new(&flows_dur, &[], DetectionInputCompleteness::Complete, &[])
+            .unwrap();
+    let mut sink5 = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input_dur, &DetectorParameters::empty(), &mut sink5)
+        .unwrap();
+    assert_eq!(sink5.len(), 0);
+}
+
+#[test]
+fn test_udp_and_tcp_flows_qualify() {
+    let detector = PeriodicBeaconingDetector::new();
+    let a_to_b = create_periodic_metrics(10, 0, 10, 10, 10, 0, 1);
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let b_to_a = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+
+    let tcp_flow =
+        create_test_flow_with_protocol(0, TransportProtocol::Tcp, a_to_b.clone(), b_to_a.clone());
+    let udp_flow = create_test_flow_with_protocol(1, TransportProtocol::Udp, a_to_b, b_to_a);
+
+    let flows = vec![tcp_flow, udp_flow];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .unwrap();
+    assert_eq!(sink.len(), 2);
+}
+
+#[test]
+fn test_same_endpoint_series_does_not_match() {
+    let detector = PeriodicBeaconingDetector::new();
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let empty_metrics = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+    let periodic_same = create_periodic_metrics(10, 0, 10, 10, 10, 0, 1);
+
+    let key = FlowKey::new(
+        TransportProtocol::Udp,
+        FlowEndpoint::new(IpAddress::Ipv4([192, 168, 1, 100]), 53),
+        FlowEndpoint::new(IpAddress::Ipv4([192, 168, 1, 100]), 53),
+    );
+    let pkt = PacketReference::new(0, None, None, 100, 100, false);
+    let temporal = FlowTemporalMetrics::new(
+        PacketTimestamp::Unavailable,
+        PacketTimestamp::Unavailable,
+        FlowTemporalValue::Available(FlowDuration::from_secs(100)),
+        FlowTimestampCoverage {
+            available_timestamps: 10,
+            unavailable_timestamps: 0,
+            invalid_timestamps: 0,
+            non_monotonic_transitions: 0,
+        },
+        empty_metrics.clone(),
+        empty_metrics.clone(),
+        empty_metrics,
+        periodic_same,
+    );
+
+    let flow = FlowRecord::new(
+        FlowReference::new(0),
+        key,
+        pkt,
+        pkt,
+        FlowEndReason::EndOfInput,
+        FlowTrafficStatistics::empty(),
+        temporal,
+    );
+
+    let flows = vec![flow];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .unwrap();
+    assert_eq!(sink.len(), 0);
+}
+
+#[test]
+fn test_successive_delta_sample_count_requirement() {
+    let detector = PeriodicBeaconingDetector::new();
+    // 10 interval samples but only 4 successive delta samples (< 10 - 1 = 9)
+    let a_to_b = FlowInterArrivalMetrics::new(
+        10,
+        0,
+        FlowTemporalValue::Available(FlowDuration::from_secs(10)),
+        FlowTemporalValue::Available(FlowDuration::from_secs(10)),
+        FlowTemporalValue::Available(FlowDuration::from_secs(10)),
+        4, // deltas < min_samples - 1
+        FlowTemporalValue::Available(FlowDuration::ZERO),
+    );
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let b_to_a = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+
+    let flow = create_test_flow(0, a_to_b, b_to_a);
+    let flows = vec![flow];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .unwrap();
+    assert_eq!(sink.len(), 0);
+}
+
+#[test]
+fn test_sink_capacity_boundary_n_and_n_plus_1() {
+    let detector = PeriodicBeaconingDetector::new();
+    let a_to_b = create_periodic_metrics(10, 0, 10, 10, 10, 0, 1);
+    let unavail =
+        FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples);
+    let b_to_a = FlowInterArrivalMetrics::new(0, 0, unavail, unavail, unavail, 0, unavail);
+
+    let flow0 = create_test_flow(0, a_to_b.clone(), b_to_a.clone());
+    let flow1 = create_test_flow(1, a_to_b, b_to_a);
+
+    let flows = vec![flow0, flow1];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+
+    // Exactly capacity 2 findings -> fits
+    let mut sink_exact = DetectorDraftSink::new(2, 20);
+    assert!(
+        detector
+            .evaluate(&input, &DetectorParameters::empty(), &mut sink_exact)
+            .is_ok()
+    );
+    assert_eq!(sink_exact.len(), 2);
+
+    // Capacity 1 finding -> pushes first, fails on second with ResourceLimitExceeded
+    let mut sink_overflow = DetectorDraftSink::new(1, 20);
+    let err = detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink_overflow)
+        .unwrap_err();
+    assert_eq!(
+        err,
+        DetectorExecutionError::resource_limit("detector draft finding budget exceeded")
+    );
 }
 
 #[test]

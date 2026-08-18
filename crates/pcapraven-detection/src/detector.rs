@@ -92,6 +92,97 @@ impl DetectorMetadata {
     }
 }
 
+/// Bounded, engine-controlled sink for collecting finding drafts during detector evaluation.
+///
+/// Prevents detectors from unbounded allocation and strictly checks remaining finding
+/// and evidence capacity budgets on every push using checked arithmetic.
+#[derive(Debug)]
+pub struct DetectorDraftSink {
+    findings: Vec<FindingDraft>,
+    max_findings: usize,
+    max_evidence_records: usize,
+    current_evidence_records: usize,
+}
+
+impl DetectorDraftSink {
+    /// Creates a new bounded draft sink with the specified remaining finding and evidence capacities.
+    #[must_use]
+    pub fn new(max_findings: usize, max_evidence_records: usize) -> Self {
+        Self {
+            findings: Vec::with_capacity(max_findings.min(64)),
+            max_findings,
+            max_evidence_records,
+            current_evidence_records: 0,
+        }
+    }
+
+    /// Pushes a finding draft into the sink, checking remaining finding and evidence budgets.
+    ///
+    /// Returns a structured [`DetectorExecutionError::ResourceLimitExceeded`] if adding this draft
+    /// would exceed either remaining budget.
+    pub fn push(&mut self, draft: FindingDraft) -> Result<(), DetectorExecutionError> {
+        if self.findings.len() >= self.max_findings {
+            return Err(DetectorExecutionError::resource_limit(
+                "detector draft finding budget exceeded",
+            ));
+        }
+
+        let draft_evidence_count = draft.evidence().len();
+        let new_evidence_count = self
+            .current_evidence_records
+            .checked_add(draft_evidence_count)
+            .ok_or_else(|| {
+                DetectorExecutionError::resource_limit("detector evidence counter overflow")
+            })?;
+
+        if new_evidence_count > self.max_evidence_records {
+            return Err(DetectorExecutionError::resource_limit(
+                "detector draft evidence budget exceeded",
+            ));
+        }
+
+        self.current_evidence_records = new_evidence_count;
+        self.findings.push(draft);
+        Ok(())
+    }
+
+    /// Returns the number of finding drafts currently in the sink.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.findings.len()
+    }
+
+    /// Returns `true` if the sink contains zero finding drafts.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.findings.is_empty()
+    }
+
+    /// Returns the cumulative number of evidence records in all accepted finding drafts.
+    #[must_use]
+    pub fn evidence_count(&self) -> usize {
+        self.current_evidence_records
+    }
+
+    /// Returns a slice of the finding drafts currently held in the sink.
+    #[must_use]
+    pub fn drafts(&self) -> &[FindingDraft] {
+        &self.findings
+    }
+
+    /// Consumes the sink and returns the collected finding drafts.
+    #[must_use]
+    pub fn into_drafts(self) -> Vec<FindingDraft> {
+        self.findings
+    }
+
+    /// Clears all findings and resets the evidence count (used for transactional discard).
+    pub fn clear(&mut self) {
+        self.findings.clear();
+        self.current_evidence_records = 0;
+    }
+}
+
 /// Pure, offline analytical detector evaluation contract.
 ///
 /// Implementations must be pure functions of borrowed domain inputs and configuration parameters,
@@ -106,10 +197,11 @@ pub trait Detector: Send + Sync {
         parameters: &DetectorParameters,
     ) -> Result<(), DetectorConfigError>;
 
-    /// Evaluates normalized domain input facts against validated parameters, producing finding drafts.
+    /// Evaluates normalized domain input facts against validated parameters, emitting finding drafts into `output`.
     fn evaluate(
         &self,
         input: &DetectionInput<'_>,
         parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError>;
+        output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError>;
 }

@@ -7,14 +7,12 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, and Phase 11 are complete.
-Phase 11 delivered detection engine architecture in `pcapraven-detection` (`Detector`, `DetectorMetadata`, `IncompleteDataPolicy`,
-`DetectorRegistry`, `DetectorConfig`, `DetectorParameters`, `execute_detection`, `DetectionInput`, `DetectionRunOutcome`), and
-finding domain models in `pcapraven-domain` (`DetectorId`, `DetectorVersion`, `FindingReference`, `FindingSubject`, `FindingTitle`,
-`FindingSummary`, `FindingRationale`, `FindingDraft`, `FindingRecord`, `Severity`, `Confidence`), featuring whole-configuration preflight validation,
-deterministic execution ordering, duplicate finding identity collision detection, float-free parameter arithmetic, and comprehensive
-integration tests in `crates/pcapraven-detection/tests/engine.rs`.
-Phase 12 (periodic beaconing detection) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, and Phase 12 are complete.
+Phase 12 delivered explainable periodic beaconing detection in `pcapraven-detection` (`PeriodicBeaconingDetector`, `behavior.periodic_beaconing`)
+over exact directional flow temporal metrics, featuring exact rational metrics (`compute_duration_ratio`, `EvidenceRatio::Ord`),
+temporal coverage filtering, structured `TemporalMetric` evidence drafts, engine-level draft output bounding (`DetectorDraftSink`),
+canonical draft sorting, transactional output acceptance, and comprehensive integration tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs`.
+Phase 13 (DNS anomaly and possible tunneling heuristics) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -180,8 +178,9 @@ independently for both flow directions (`A -> B` and `B -> A`), applying exact r
 ($N \ge \text{minimum\_interval\_samples}$, default 6, minimum 3), mean duration ($\mu \ge \text{minimum\_mean\_interval}$, default 1s),
 jitter ratio ($\delta_{MAD} / \mu \le \text{maximum\_jitter\_ratio}$, default 10%), and spread ratio
 ($(\text{max} - \text{min}) / \mu \le \text{maximum\_spread\_ratio}$, default 25%). Enforced clean timestamp invariants
-(`discontinuity_count == 0`), exact rational cross-multiplication with checked unsigned arithmetic without floating-point
-numbers (`f32`/`f64`), single finding per matching flow with up to 2 directional `FlowMeasurement` evidence drafts,
+(`discontinuity_count == 0`), exact rational ratio construction (`compute_duration_ratio` with cross-cancellation GCD)
+and `EvidenceRatio::Ord` total comparison without floating-point numbers (`f32`/`f64`) or intermediate cross-multiplication
+overflow, single finding per matching flow with up to 2 directional `TemporalMetric` evidence drafts,
 and cautious explanatory wording avoiding uncorroborated malware or C2 claims. Implemented comprehensive integration
 tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs`, detector documentation in `docs/detectors/PERIODIC_BEACONING.md`,
 and the `periodic-beaconing` skill in `.agents/skills/periodic-beaconing/SKILL.md`.
@@ -189,9 +188,15 @@ DNS anomaly/tunneling heuristics and C2-like behavioral rules remain future work
 
 ## Phase 13 - DNS anomaly/tunneling heuristics
 
-Implement and validate explainable DNS anomaly and possible-tunneling
-heuristics over normalized observations and flows. Use cautious language and
-cover benign high-entropy or high-volume alternatives.
+Implemented explainable DNS anomaly and possible tunneling detectors (`DnsLongQueryNameDetector`, `dns.long_query_name`,
+and `DnsPossibleTunnelingDetector`, `dns.possible_tunneling`) over normalized DNS observations in `pcapraven-detection`.
+Implemented the exact rational `label_octet_diversity_ratio` metric using fixed `[bool; 256]` bitmap memory without
+floating-point arithmetic or Shannon entropy approximations. Enforced strict parameter validation, finite flow-tracking
+capacity (`maximum_tracked_dns_flows`), structured evidence measurements with comparison operators, terminal-safe
+string escaping, and cautious non-attribution rationales covering benign high-diversity lookups. Implemented comprehensive
+integration tests in `crates/pcapraven-detection/tests/dns_anomaly.rs`, detector documentation in `docs/detectors/DNS_ANOMALY_TUNNELING.md`,
+and the `dns-detection` skill in `.agents/skills/dns-detection/SKILL.md`.
+Connection/C2-like behavioral heuristics remain future work.
 
 ## Phase 14 - Connection/C2-like behavioral heuristics
 

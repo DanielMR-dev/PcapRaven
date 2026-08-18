@@ -12,8 +12,11 @@ rational temporal metrics in `pcapraven-flows`, Phase 6 adds initial functional
 CLI orchestration (`validate` and `flows`), Phase 7 adds bounded DNS protocol analysis
 and DNS inspection (`pcapraven dns`), Phase 8 adds bounded HTTP/1.x protocol analysis
 and HTTP inspection (`pcapraven http`), Phase 9 adds bounded visible TLS 1.2 / TLS 1.3
-handshake metadata analysis and TLS inspection (`pcapraven tls`), and Phase 10 adds
-unified protocol observations and structured evidence foundation in `pcapraven-domain`.
+handshake metadata analysis and TLS inspection (`pcapraven tls`), Phase 10 adds
+unified protocol observations and structured evidence foundation in `pcapraven-domain`,
+Phase 11 adds detection engine architecture in `pcapraven-detection`, Phase 12 adds
+explainable periodic beaconing detection in `pcapraven-detection`, and Phase 13 adds
+explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`.
 
 ## Assets
 
@@ -154,6 +157,29 @@ The Phase 4 and Phase 5 flow engine in `pcapraven-flows` must:
 - Order all completed flow records deterministically by monotonic `FlowReference`
   ordinals on finalization.
 
+## Detection Engine and Threat Detection Safety Requirements
+
+The Phase 11 detection engine in `pcapraven-detection` and Phase 12 periodic beaconing detector must:
+
+- **Detector Provenance Spoofing:** The engine strictly owns `DetectorId` and `DetectorVersion` provenance on all `FindingRecord` structures. Detectors produce `FindingDraft` instances containing only findings and factual `EvidenceDraft` records; detectors cannot forge or override their assigned identity or version.
+- **Whole-Configuration Preflight Validation:** All detector configurations and parameters are strictly validated prior to evaluating any detector. Parameter types, value ranges, and detector registration status are checked beforehand. If any configured detector or parameter is invalid, execution fails immediately before allocating finding buffers or evaluating input facts.
+- **Detector Output Bounds and Finding/Evidence Amplification:** Detectors emit finding drafts into an engine-controlled bounded output sink (`DetectorDraftSink`). Every push verifies remaining finding budget and cumulative evidence capacity using checked arithmetic. Reaching output capacity returns a structured resource-limit error. Failed or resource-limited detector output is discarded transactionally, ensuring zero partial findings reach the run result.
+- **Referential Integrity Verification:** Finding subjects and supporting evidence records must strictly reference valid flow ordinals, observation ordinals, or packet ordinals present in the borrowed `DetectionInput`. Dangling or forged references are rejected by the engine before identity assignment.
+- **Incomplete Input Handling:** Detectors declare their `IncompleteDataPolicy` (`Skip` or `AllowWithLimitations`). When analysis is partial, `Skip` detectors are skipped without evaluation, while `AllowWithLimitations` detectors must explicitly provide supporting `EvidenceLimitation` records for all input limitations.
+- **Deterministic Identity & Canonical Order:** Within each detector, accepted finding drafts are sorted canonically by `(FindingSubject, FindingTitle)` prior to sequential assignment of monotonic `FindingReference` (`find:{ordinal}`) and `EvidenceReference` (`evi:{ordinal}`) ordinals. Registry iteration order (`DetectorId`) ensures identical bit-for-bit results regardless of internal emission order. Duplicate finding identities (`DetectorId + FindingSubject`) are strictly rejected.
+- **Diagnostic Amplification Protection:** Engine-level execution diagnostics are capped at `max_execution_diagnostics`. Error messages from detectors are bounded to 512 UTF-8 bytes and sanitized to strip all control characters (including Unicode controls).
+- **Transactional Output Acceptance:** Output from each detector is canonicalized into temporary finding and evidence batches before committing to global run state. If any conversion fails, global output remains completely unmutated.
+
+## Periodic Beaconing Detector Risks and Controls
+
+The Phase 12 `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`) addresses specific analytical and adversarial risks:
+
+- **Adversarially Regular Traffic & Benign False Positives:** Periodic traffic timing is common in benign software (keepalives, health checks, NTP, telemetry, scheduled polling). Findings are classified with `Severity::Low` and `Confidence::Medium`, using cautious language that explains benign alternatives and avoids claiming malware or confirmed C2.
+- **Jitter Manipulation and Evasion:** Attackers may introduce artificial jitter or sleep variance to avoid detection. Thresholds are configurable within strict validated bounds (`maximum_jitter_ratio: 0..=1`, `maximum_spread_ratio: 0..=1`, `minimum_interval_samples >= 3`, `minimum_mean_interval > 0`).
+- **Incomplete Timestamp Coverage:** Flows with unavailable, invalid, or non-monotonic timestamps, or flows terminated due to analysis limits (`FlowEndReason::AnalysisStopped`), are strictly skipped to prevent false inferences from corrupted timing.
+- **Rational Arithmetic Overflow Prevention:** All timing, jitter, spread, and mean comparisons use exact rational arithmetic (`compute_duration_ratio` with cross-cancellation GCD and `EvidenceRatio::Ord` total continued-fraction comparison), completely eliminating floating-point imprecision and intermediate cross-multiplication overflow.
+- **Single-Flow Isolation:** The detector evaluates timing strictly within reconstructed bidirectional flows (`A -> B` and `B -> A`), preventing cross-flow cardinality explosion.
+
 ## Resource Exhaustion
 
 Memory, CPU, elapsed work, output size, open files, and retained diagnostics are
@@ -228,6 +254,7 @@ expand the attack surface.
 - `etherparse = 0.21.0` (in `pcapraven-protocols`): normal dependency, default features
   disabled. Direct dependency `arrayvec` (locked `0.7.8`). MIT/Apache-2.0, MSRV 1.83.0.
 - `pcapraven-flows`: zero third-party production dependencies.
+- `pcapraven-detection`: zero third-party production dependencies (`std` and `pcapraven-domain` only).
 - `clap = "=4.6.4"` (in `pcapraven-cli`): normal dependency, `default-features = false`,
   features `["std", "help", "usage", "error-context"]`. Audited transitive tree:
   `clap_builder 4.6.2`, `clap_lex 1.1.0`, `anstyle 1.0.14`. MIT/Apache-2.0, MSRV 1.85.

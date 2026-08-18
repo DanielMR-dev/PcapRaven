@@ -4,7 +4,7 @@
 //! or heuristic malware claims.
 
 use crate::config::{DetectorParameterValue, DetectorParameters};
-use crate::detector::{Detector, DetectorMetadata, IncompleteDataPolicy};
+use crate::detector::{Detector, DetectorDraftSink, DetectorMetadata, IncompleteDataPolicy};
 use crate::engine::DetectionInput;
 use crate::error::{DetectorConfigError, DetectorExecutionError};
 use pcapraven_domain::{
@@ -32,7 +32,7 @@ fn compute_duration_ratio(
 ) -> Result<EvidenceRatio, DetectorExecutionError> {
     if dur_den.numerator() == 0 {
         return Err(DetectorExecutionError::internal_error(
-            "division by zero duration in ratio computation",
+            "unable to construct exact duration ratio: zero denominator",
         ));
     }
     let a = dur_num.numerator();
@@ -49,14 +49,18 @@ fn compute_duration_ratio(
     let b1 = b / g2;
 
     let num = a1.checked_mul(d1).ok_or_else(|| {
-        DetectorExecutionError::internal_error("duration ratio numerator overflow")
+        DetectorExecutionError::internal_error(
+            "unable to construct exact duration ratio: numerator overflow",
+        )
     })?;
     let den = b1.checked_mul(c1).ok_or_else(|| {
-        DetectorExecutionError::internal_error("duration ratio denominator overflow")
+        DetectorExecutionError::internal_error(
+            "unable to construct exact duration ratio: denominator overflow",
+        )
     })?;
 
     EvidenceRatio::from_fraction(num, den).ok_or_else(|| {
-        DetectorExecutionError::internal_error("computed duration ratio out of bounds (0..=1)")
+        DetectorExecutionError::internal_error("unable to construct exact duration ratio")
     })
 }
 
@@ -88,6 +92,11 @@ impl PeriodicBeaconingDetector {
     pub const DEFAULT_MAX_JITTER_NUMERATOR: u64 = 1;
     /// Default maximum jitter ratio denominator (10, meaning 10%).
     pub const DEFAULT_MAX_JITTER_DENOMINATOR: u64 = 10;
+    /// Default maximum jitter ratio (1/10).
+    pub const DEFAULT_MAX_JITTER_RATIO: EvidenceRatio = match EvidenceRatio::from_fraction(1, 10) {
+        Some(r) => r,
+        None => EvidenceRatio::ZERO,
+    };
 
     /// Parameter key for maximum spread ratio (`maximum_spread_ratio`).
     pub const PARAM_MAXIMUM_SPREAD_RATIO: &'static str = "maximum_spread_ratio";
@@ -95,6 +104,11 @@ impl PeriodicBeaconingDetector {
     pub const DEFAULT_MAX_SPREAD_NUMERATOR: u64 = 1;
     /// Default maximum spread ratio denominator (4, meaning 25%).
     pub const DEFAULT_MAX_SPREAD_DENOMINATOR: u64 = 4;
+    /// Default maximum spread ratio (1/4).
+    pub const DEFAULT_MAX_SPREAD_RATIO: EvidenceRatio = match EvidenceRatio::from_fraction(1, 4) {
+        Some(r) => r,
+        None => EvidenceRatio::ZERO,
+    };
 
     /// Parameter key for minimum mean interval (`minimum_mean_interval`).
     pub const PARAM_MINIMUM_MEAN_INTERVAL: &'static str = "minimum_mean_interval";
@@ -104,17 +118,36 @@ impl PeriodicBeaconingDetector {
     /// Creates and initializes a new periodic beaconing detector instance.
     #[must_use]
     pub fn new() -> Self {
+        let id = match DetectorId::try_new(Self::DETECTOR_ID) {
+            Ok(id) => id,
+            Err(_) => match DetectorId::try_new("behavior.fallback") {
+                Ok(id) => id,
+                Err(_) => unreachable!("fallback detector id is valid"),
+            },
+        };
+        let title = match FindingTitle::try_new("Possible periodic beaconing behavior") {
+            Ok(t) => t,
+            Err(_) => match FindingTitle::try_new("finding") {
+                Ok(t) => t,
+                Err(_) => unreachable!("fallback finding title is valid"),
+            },
+        };
+        let purpose = match FindingSummary::try_new(
+            "Identify reconstructed flow instances exhibiting highly regular directional packet inter-arrival timing using exact temporal metrics",
+        ) {
+            Ok(s) => s,
+            Err(_) => match FindingSummary::try_new("summary") {
+                Ok(s) => s,
+                Err(_) => unreachable!("fallback finding summary is valid"),
+            },
+        };
+
         Self {
             metadata: DetectorMetadata::new(
-                DetectorId::try_new(Self::DETECTOR_ID)
-                    .expect("valid canonical periodic beaconing detector id"),
+                id,
                 Self::DETECTOR_VERSION,
-                FindingTitle::try_new("Possible periodic beaconing behavior")
-                    .expect("valid static finding title"),
-                FindingSummary::try_new(
-                    "Identify reconstructed flow instances exhibiting highly regular directional packet inter-arrival timing using exact temporal metrics",
-                )
-                .expect("valid static finding summary"),
+                title,
+                purpose,
                 IncompleteDataPolicy::Skip,
             ),
         }
@@ -124,16 +157,8 @@ impl PeriodicBeaconingDetector {
         parameters: &DetectorParameters,
     ) -> Result<(u64, EvidenceRatio, EvidenceRatio, FlowDuration), DetectorConfigError> {
         let mut min_samples = Self::DEFAULT_MINIMUM_INTERVAL_SAMPLES;
-        let mut max_jitter = EvidenceRatio::from_fraction(
-            Self::DEFAULT_MAX_JITTER_NUMERATOR as u128,
-            Self::DEFAULT_MAX_JITTER_DENOMINATOR as u128,
-        )
-        .expect("valid default jitter ratio");
-        let mut max_spread = EvidenceRatio::from_fraction(
-            Self::DEFAULT_MAX_SPREAD_NUMERATOR as u128,
-            Self::DEFAULT_MAX_SPREAD_DENOMINATOR as u128,
-        )
-        .expect("valid default spread ratio");
+        let mut max_jitter = Self::DEFAULT_MAX_JITTER_RATIO;
+        let mut max_spread = Self::DEFAULT_MAX_SPREAD_RATIO;
         let mut min_mean_interval = FlowDuration::from_secs(Self::DEFAULT_MIN_MEAN_INTERVAL_SECS);
 
         for param in parameters.iter() {
@@ -173,6 +198,12 @@ impl PeriodicBeaconingDetector {
                             });
                         }
                     };
+                    if ratio > EvidenceRatio::ONE {
+                        return Err(DetectorConfigError::ParameterValueOutOfRange {
+                            key: key.to_string(),
+                            reason: "maximum jitter ratio cannot exceed 1.0 (1/1)",
+                        });
+                    }
                     max_jitter = ratio;
                 }
                 Self::PARAM_MAXIMUM_SPREAD_RATIO => {
@@ -185,6 +216,12 @@ impl PeriodicBeaconingDetector {
                             });
                         }
                     };
+                    if ratio > EvidenceRatio::ONE {
+                        return Err(DetectorConfigError::ParameterValueOutOfRange {
+                            key: key.to_string(),
+                            reason: "maximum spread ratio cannot exceed 1.0 (1/1)",
+                        });
+                    }
                     max_spread = ratio;
                 }
                 Self::PARAM_MINIMUM_MEAN_INTERVAL => {
@@ -271,51 +308,17 @@ impl PeriodicBeaconingDetector {
             None => return Ok(None),
         };
 
-        // 8. Check Jitter Ratio Condition: (jitter_dur / mean_dur) <= max_jitter
-        let jitter_left_1 = jitter_dur
-            .numerator()
-            .checked_mul(mean_dur.denominator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("jitter calculation overflow"))?;
-        let jitter_left = jitter_left_1
-            .checked_mul(max_jitter.denominator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("jitter calculation overflow"))?;
-
-        let jitter_right_1 = jitter_dur
-            .denominator()
-            .checked_mul(mean_dur.numerator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("jitter calculation overflow"))?;
-        let jitter_right = jitter_right_1
-            .checked_mul(max_jitter.numerator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("jitter calculation overflow"))?;
-
-        if jitter_left > jitter_right {
-            return Ok(None);
-        }
-
+        // 8. Check Jitter Ratio Condition: observed_jitter <= max_jitter using exact ratio
         let observed_jitter_ratio = compute_duration_ratio(&jitter_dur, &mean_dur)?;
-
-        // 9. Check Spread Ratio Condition: (spread_dur / mean_dur) <= max_spread
-        let spread_left_1 = spread_dur
-            .numerator()
-            .checked_mul(mean_dur.denominator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("spread calculation overflow"))?;
-        let spread_left = spread_left_1
-            .checked_mul(max_spread.denominator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("spread calculation overflow"))?;
-
-        let spread_right_1 = spread_dur
-            .denominator()
-            .checked_mul(mean_dur.numerator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("spread calculation overflow"))?;
-        let spread_right = spread_right_1
-            .checked_mul(max_spread.numerator())
-            .ok_or_else(|| DetectorExecutionError::internal_error("spread calculation overflow"))?;
-
-        if spread_left > spread_right {
+        if observed_jitter_ratio > max_jitter {
             return Ok(None);
         }
 
+        // 9. Check Spread Ratio Condition: observed_spread <= max_spread using exact ratio
         let observed_spread_ratio = compute_duration_ratio(&spread_dur, &mean_dur)?;
+        if observed_spread_ratio > max_spread {
+            return Ok(None);
+        }
 
         // 10. Build Directional EvidenceDraft (EvidenceKind::TemporalMetric)
         let desc_text = match direction {
@@ -554,15 +557,14 @@ impl Detector for PeriodicBeaconingDetector {
         &self,
         input: &DetectionInput<'_>,
         parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
+        output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
         let (min_samples, max_jitter, max_spread, min_mean_interval) =
             Self::parse_and_validate_parameters(parameters).map_err(|e| {
                 DetectorExecutionError::internal_error(format!(
                     "unexpected parameter validation failure: {e}"
                 ))
             })?;
-
-        let mut findings = Vec::new();
 
         for flow in input.flows() {
             // Check flow-level temporal eligibility:
@@ -653,9 +655,9 @@ impl Detector for PeriodicBeaconingDetector {
                 DetectorExecutionError::internal_error(format!("invalid finding draft: {e}"))
             })?;
 
-            findings.push(draft);
+            output.push(draft)?;
         }
 
-        Ok(findings)
+        Ok(())
     }
 }

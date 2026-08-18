@@ -19,13 +19,14 @@ in `pcapraven-domain`.
   - `FindingTitle` (max 128 bytes, terminal-safe, non-empty)
   - `FindingSummary` (max 512 bytes, terminal-safe, non-empty)
   - `FindingRationale` (max 2,048 bytes, terminal-safe, non-empty)
-  - `FindingDraft` (draft emitted by detector during evaluation)
-  - `FindingRecord` (canonical engine record with assigned `FindingReference` and validated `EvidenceReference`s)
+  - `FindingDraft` (draft emitted by detector into `DetectorDraftSink` during evaluation with supporting `EvidenceDraft`s)
+  - `FindingRecord` (canonical engine record with assigned `FindingReference`, engine-owned `DetectorId`/`DetectorVersion`, and validated `EvidenceReference`s)
   - `Severity` (`Info`, `Low`, `Medium`, `High`, `Critical`)
   - `Confidence` (`Low`, `Medium`, `High`)
   - `FindingValidationError`
 - `pcapraven-detection` owns the detection engine and execution pipeline:
-  - `Detector` trait (`metadata()`, `validate_parameters()`, `evaluate()`)
+  - `Detector` trait (`metadata()`, `validate_parameters()`, `evaluate(&input, &params, &mut output)`)
+  - `DetectorDraftSink` (engine-controlled bounded output sink tracking remaining findings and evidence capacity)
   - `DetectorMetadata` (`id`, `version`, `title`, `purpose`, `incomplete_data_policy`)
   - `IncompleteDataPolicy` (`Skip`, `AllowWithLimitations`)
   - `DetectorParameterKey` (validated ASCII key `[a-z0-9][a-z0-9._-]*`, max 64 bytes)
@@ -39,22 +40,27 @@ in `pcapraven-domain`.
   - `DetectionLimits` (bounded capacity for findings, evidence, detectors, parameters, diagnostics)
   - `DetectorExecutionStatus` (`Executed`, `Disabled`, `SkippedIncompleteData`, `Failed`, `ResourceLimited`)
   - `DetectionRunOutcome` (complete/partial status, detector execution records, canonical findings, canonical evidence, diagnostics)
-  - `execute_detection()` (preflight configuration, deterministic evaluation, referential integrity check, canonical identity assignment)
+  - `execute_detection()` (preflight configuration, deterministic evaluation, referential integrity check, canonical identity assignment, transactional batch commit)
 
 ## Invariants and Rules
 
 ### 1. Separation of Parsing and Detection
 - Parsers produce normalized facts (`NormalizedPacket`, `FlowRecord`, `DnsObservation`, `HttpObservation`, `TlsObservation`).
-- Detectors interpret normalized facts and produce finding drafts supported by `EvidenceRecord`s.
+- Detectors interpret normalized facts and push finding drafts with `EvidenceDraft`s into `DetectorDraftSink`.
 - Detection code must never inspect raw capture container bytes, parse packet bytes, or duplicate transport state tracking.
 
 ### 2. Whole-Configuration Preflight Validation
 - Configuration errors must be caught before ANY detector is evaluated.
 - If ANY detector configuration fails validation, `execute_detection` returns an error immediately and zero detectors run.
 
-### 3. Deterministic Execution & Canonical Assignment
+### 3. Bounded Output & Transactional Acceptance
+- Detectors emit drafts into `DetectorDraftSink`. Pushing verifies remaining finding and evidence budgets using checked arithmetic.
+- Budget exhaustion yields `DetectorExecutionStatus::ResourceLimited` and marks run completion `Partial`, transactionally discarding all partial findings from that detector.
+- Accepted drafts from a detector are converted into temporary batches before committing to global run state.
+
+### 4. Deterministic Execution & Canonical Assignment
 - Detector execution order is always sorted by `DetectorId`, regardless of registration sequence.
-- Accepted finding drafts are sorted deterministically by `(DetectorId, FindingSubject, Title)`.
+- Within each detector, accepted finding drafts are sorted canonically by `(FindingSubject, FindingTitle)`.
 - `EvidenceReference` (`evi:0`, `evi:1`, ...) and `FindingReference` (`find:0`, `find:1`, ...) are assigned sequentially and deterministically.
 - Duplicate finding collision (`(DetectorId, FindingSubject)` emitted twice by the same detector) is rejected with structured error `DuplicateFindingIdentity`.
 - Different detectors reporting on the same `FindingSubject` are both accepted with their respective `DetectorId`s.

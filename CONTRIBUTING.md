@@ -49,9 +49,9 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 10 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, and CLI
+Phase 12 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, detection engine, periodic beaconing, and CLI
 integration tests, baseline quality commands, fuzz-target builds, and architecture checker
-described in [Testing](docs/TESTING.md#phase-10-quality-gates). The pinned development
+described in [Testing](docs/TESTING.md#phase-12-quality-gates). The pinned development
 toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
 the CLI orchestrates streaming execution and human inspection output.
 

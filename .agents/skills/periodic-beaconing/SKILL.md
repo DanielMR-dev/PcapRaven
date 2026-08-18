@@ -45,10 +45,10 @@ in `pcapraven-detection`.
 - All calculations, ratio checks, spread evaluations, and temporal comparisons MUST use exact rational numbers (`FlowDuration` and `EvidenceRatio`) with checked arithmetic.
 - Floating-point types (`f32`, `f64`) are strictly forbidden.
 
-### 2. Cross-Multiplication Without Overflow
-- Jitter condition: $(N_\delta \cdot D_\mu) \cdot D_j \le (D_\delta \cdot N_\mu) \cdot N_j$
-- Spread condition: $(N_s \cdot D_\mu) \cdot D_{smax} \le (D_s \cdot N_\mu) \cdot N_{smax}$
-- Every intermediate multiplication must be checked for overflow (`checked_mul`).
+### 2. Exact Duration Ratio Construction and Total Ordering
+- Ratio construction uses `compute_duration_ratio` with cross-cancellation GCD and checked multiplication to build canonical `EvidenceRatio` instances.
+- Threshold comparison uses `EvidenceRatio::Ord` total continued-fraction comparison, eliminating 3-factor intermediate cross-multiplication overflow.
+- Ratio parameters (`maximum_jitter_ratio` and `maximum_spread_ratio`) are validated within $0..=1$.
 
 ### 3. Non-Attribution & Explainability
 - Benign periodicity is common in NTP, telemetry, heartbeats, polling, and health checks.

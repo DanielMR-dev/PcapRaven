@@ -51,7 +51,7 @@ EXPECTED_TEST_TARGETS = {
     "pcapraven-pcap": {"reader"},
     "pcapraven-protocols": {"normalization", "dns", "http", "tls"},
     "pcapraven-flows": {"reconstruction", "statistics"},
-    "pcapraven-detection": {"engine", "periodic_beaconing"},
+    "pcapraven-detection": {"engine", "periodic_beaconing", "dns_anomaly"},
     "pcapraven-cli": {"cli"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"

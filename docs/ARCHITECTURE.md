@@ -9,15 +9,16 @@ temporal metrics, Phase 6 initial functional CLI with streaming capture and
 flow inspection, Phase 7 bounded DNS protocol analysis, Phase 8 bounded HTTP/1.x
 protocol analysis, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake
 metadata analysis, Phase 10 unified protocol observations and structured evidence
-foundation, and Phase 11 detection engine architecture are complete.
+foundation, Phase 11 detection engine architecture, and Phase 12 explainable periodic beaconing
+detection are complete.
 `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation,
 evidence, and finding models, statistics, and exact temporal metrics,
 `pcapraven-pcap` provides capture ingestion, `pcapraven-protocols` provides packet normalization,
 DNS parsing, HTTP/1.x parsing, and TLS handshake parsing, `pcapraven-flows` provides stateful
 flow reconstruction, traffic statistics, and exact rational temporal metrics,
 `pcapraven-detection` provides detection engine execution pipeline, detector registry,
-and parameter configuration, and `pcapraven-cli` provides the functional CLI.
-Phase 12 (periodic beaconing detection), threat detection heuristics, and reporting remain future work.
+parameter configuration, and explainable behavioral detectors, and `pcapraven-cli` provides the functional CLI.
+Phase 14 (connection/C2-like behavioral heuristics), further threat detection heuristics, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -62,8 +63,8 @@ intentionally newer than the declared MSRV. The only dependencies are the
 documented path edges below and the audited external dependencies. Every member
 opts into the workspace lint policy, which forbids project `unsafe` code by default.
 
-The source files for detection and reporting packages remain
-compile-only documentation skeletons. They do not define business behavior or
+The source files for the reporting package remain
+a compile-only documentation skeleton. It does not define business behavior or
 implement analysis.
 
 ## Phase 2 Capture-Container Boundary
@@ -353,7 +354,7 @@ over exact directional flow temporal metrics:
 - **Exact Rational Formulas:** Uses `FlowDuration` and `EvidenceRatio` without floating-point numbers (`f32`/`f64`) to evaluate
   sample counts ($N \ge 6$), mean duration ($\mu \ge 1\text{s}$), jitter ratio ($\delta_{MAD} / \mu \le 10\%$), and spread ratio
   ($(\text{max} - \text{min}) / \mu \le 25\%$).
-- **Structured Evidence:** Emits factual `FlowMeasurement` evidence drafts with strict metric keys and threshold comparisons.
+- **Structured Evidence:** Emits factual `TemporalMetric` evidence drafts with strict metric keys and threshold comparisons.
 - **Cautious Interpretation:** Formulates explainable findings without asserting confirmed malware or C2.
 
 ## Crate Responsibilities
@@ -482,8 +483,8 @@ pcapraven-cli configures and orchestrates each stage.
 
 Capture records are streamed by the Phase 2 reader, normalized by the Phase 3
 normalizer, and associated into flows by the Phase 4 flow reconstructor.
-Detection, reporting, and CLI stages in this diagram remain a logical contract
-for later phases.
+Reporting stages in this diagram remain a logical contract for later phases;
+detection and CLI are implemented for their supported phase subsets.
 
 ## Domain Boundary
 

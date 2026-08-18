@@ -38,8 +38,9 @@ impl Detector for NoMatchStubDetector {
         &self,
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
-        Ok(Vec::new())
+        _output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
+        Ok(())
     }
 }
 
@@ -80,7 +81,8 @@ impl Detector for OneFindingStubDetector {
         &self,
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
+        output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
         let subject = FindingSubject::try_new(
             Vec::new(),
             vec![FlowReference::new(self.flow_ord)],
@@ -119,7 +121,8 @@ impl Detector for OneFindingStubDetector {
         )
         .unwrap();
 
-        Ok(vec![draft])
+        output.push(draft)?;
+        Ok(())
     }
 }
 
@@ -128,6 +131,7 @@ struct MultiFindingStubDetector {
     metadata: DetectorMetadata,
     count: usize,
     evidence_per_finding: usize,
+    reverse_order: bool,
 }
 
 impl MultiFindingStubDetector {
@@ -142,6 +146,22 @@ impl MultiFindingStubDetector {
             ),
             count,
             evidence_per_finding,
+            reverse_order: false,
+        }
+    }
+
+    fn new_reversed(id_str: &str, count: usize, evidence_per_finding: usize) -> Self {
+        Self {
+            metadata: DetectorMetadata::new(
+                DetectorId::try_new(id_str).unwrap(),
+                DetectorVersion::new(1, 0, 0),
+                FindingTitle::try_new("Multi Finding Stub").unwrap(),
+                FindingSummary::try_new("Emits multiple findings").unwrap(),
+                IncompleteDataPolicy::Skip,
+            ),
+            count,
+            evidence_per_finding,
+            reverse_order: true,
         }
     }
 }
@@ -162,9 +182,15 @@ impl Detector for MultiFindingStubDetector {
         &self,
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
-        let mut drafts = Vec::with_capacity(self.count);
-        for i in 0..self.count {
+        output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
+        let indices: Vec<usize> = if self.reverse_order {
+            (0..self.count).rev().collect()
+        } else {
+            (0..self.count).collect()
+        };
+
+        for i in indices {
             let flow_ref = FlowReference::new(i as u64);
             let subject = FindingSubject::try_new(Vec::new(), vec![flow_ref], Vec::new()).unwrap();
 
@@ -188,20 +214,20 @@ impl Detector for MultiFindingStubDetector {
                 evidence.push(evi_builder.build().unwrap());
             }
 
-            drafts.push(
-                FindingDraft::try_new(
-                    subject,
-                    FindingTitle::try_new(format!("Finding {i}")).unwrap(),
-                    FindingSummary::try_new(format!("Summary {i}")).unwrap(),
-                    FindingRationale::try_new(format!("Rationale {i}")).unwrap(),
-                    Severity::Low,
-                    Confidence::Medium,
-                    evidence,
-                )
-                .unwrap(),
-            );
+            let draft = FindingDraft::try_new(
+                subject,
+                FindingTitle::try_new(format!("Finding {i}")).unwrap(),
+                FindingSummary::try_new(format!("Summary {i}")).unwrap(),
+                FindingRationale::try_new(format!("Rationale {i}")).unwrap(),
+                Severity::Low,
+                Confidence::Medium,
+                evidence,
+            )
+            .unwrap();
+
+            output.push(draft)?;
         }
-        Ok(drafts)
+        Ok(())
     }
 }
 
@@ -249,8 +275,9 @@ impl Detector for ParameterValidationStubDetector {
         &self,
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
-        Ok(Vec::new())
+        _output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
+        Ok(())
     }
 }
 
@@ -289,7 +316,8 @@ impl Detector for FailingStubDetector {
         &self,
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
+        _output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
         Err(DetectorExecutionError::internal_error(
             "simulated detector execution error",
         ))
@@ -333,7 +361,8 @@ impl Detector for IncompleteInputStubDetector {
         &self,
         _input: &DetectionInput<'_>,
         _parameters: &DetectorParameters,
-    ) -> Result<Vec<FindingDraft>, DetectorExecutionError> {
+        output: &mut DetectorDraftSink,
+    ) -> Result<(), DetectorExecutionError> {
         let subject =
             FindingSubject::try_new(Vec::new(), vec![FlowReference::new(0)], Vec::new()).unwrap();
 
@@ -363,7 +392,8 @@ impl Detector for IncompleteInputStubDetector {
         )
         .unwrap();
 
-        Ok(vec![draft])
+        output.push(draft)?;
+        Ok(())
     }
 }
 
@@ -1203,4 +1233,192 @@ fn test_finding_subject_validations() {
     // Valid subject accepted
     let subj = FindingSubject::try_new(vec![pkt1, pkt2], Vec::new(), Vec::new()).unwrap();
     assert_eq!(subj.packet_references().len(), 2);
+}
+
+#[test]
+fn test_canonical_draft_sorting_invariance() {
+    let mut reg_forward = DetectorRegistry::default();
+    reg_forward
+        .register(Box::new(MultiFindingStubDetector::new(
+            "test.detector",
+            3,
+            2,
+        )))
+        .unwrap();
+
+    let mut reg_reversed = DetectorRegistry::default();
+    reg_reversed
+        .register(Box::new(MultiFindingStubDetector::new_reversed(
+            "test.detector",
+            3,
+            2,
+        )))
+        .unwrap();
+
+    let flows = vec![
+        create_synthetic_flow(0),
+        create_synthetic_flow(1),
+        create_synthetic_flow(2),
+    ];
+    let input =
+        DetectionInput::try_new(&flows, &[], DetectionInputCompleteness::Complete, &[]).unwrap();
+    let configs = DetectorConfigurations::new();
+    let limits = DetectionLimits::default();
+
+    let outcome_forward = execute_detection(&reg_forward, &input, &configs, &limits).unwrap();
+    let outcome_reversed = execute_detection(&reg_reversed, &input, &configs, &limits).unwrap();
+
+    assert_eq!(outcome_forward.findings, outcome_reversed.findings);
+    assert_eq!(outcome_forward.evidence, outcome_reversed.evidence);
+}
+
+#[test]
+fn test_detector_draft_sink_capacity_enforcement() {
+    // Sink with max 2 findings, max 3 evidence
+    let mut sink = DetectorDraftSink::new(2, 3);
+    assert_eq!(sink.len(), 0);
+    assert_eq!(sink.evidence_count(), 0);
+    assert!(sink.is_empty());
+
+    let subject0 =
+        FindingSubject::try_new(Vec::new(), vec![FlowReference::new(0)], Vec::new()).unwrap();
+    let subject1 =
+        FindingSubject::try_new(Vec::new(), vec![FlowReference::new(1)], Vec::new()).unwrap();
+    let subject2 =
+        FindingSubject::try_new(Vec::new(), vec![FlowReference::new(2)], Vec::new()).unwrap();
+
+    let mut evi_builder = EvidenceDraft::builder(
+        EvidenceKind::FlowMeasurement,
+        EvidenceDescription::try_new("evidence").unwrap(),
+    );
+    evi_builder
+        .add_flow_reference(FlowReference::new(0))
+        .unwrap();
+    let evi1 = evi_builder.build().unwrap();
+
+    let draft0 = FindingDraft::try_new(
+        subject0,
+        FindingTitle::try_new("title").unwrap(),
+        FindingSummary::try_new("summary").unwrap(),
+        FindingRationale::try_new("rationale").unwrap(),
+        Severity::Low,
+        Confidence::Medium,
+        vec![evi1.clone(), evi1.clone()],
+    )
+    .unwrap();
+
+    // Push 1 draft with 2 evidence -> total 1 finding, 2 evidence (fits)
+    assert!(sink.push(draft0).is_ok());
+    assert_eq!(sink.len(), 1);
+    assert_eq!(sink.evidence_count(), 2);
+
+    let draft1_overflow_evidence = FindingDraft::try_new(
+        subject1.clone(),
+        FindingTitle::try_new("title").unwrap(),
+        FindingSummary::try_new("summary").unwrap(),
+        FindingRationale::try_new("rationale").unwrap(),
+        Severity::Low,
+        Confidence::Medium,
+        vec![evi1.clone(), evi1.clone()],
+    )
+    .unwrap();
+
+    // Push second draft with 2 evidence -> 2+2 = 4 > 3 evidence max -> rejected
+    let err = sink.push(draft1_overflow_evidence).unwrap_err();
+    assert_eq!(
+        err,
+        DetectorExecutionError::resource_limit("detector draft evidence budget exceeded")
+    );
+    assert_eq!(sink.len(), 1);
+    assert_eq!(sink.evidence_count(), 2);
+
+    let draft1_fitting = FindingDraft::try_new(
+        subject1,
+        FindingTitle::try_new("title").unwrap(),
+        FindingSummary::try_new("summary").unwrap(),
+        FindingRationale::try_new("rationale").unwrap(),
+        Severity::Low,
+        Confidence::Medium,
+        vec![evi1.clone()],
+    )
+    .unwrap();
+
+    // Push second draft with 1 evidence -> 2+1 = 3 <= 3 evidence max -> accepted
+    assert!(sink.push(draft1_fitting).is_ok());
+    assert_eq!(sink.len(), 2);
+    assert_eq!(sink.evidence_count(), 3);
+
+    let draft2_overflow_findings = FindingDraft::try_new(
+        subject2,
+        FindingTitle::try_new("title").unwrap(),
+        FindingSummary::try_new("summary").unwrap(),
+        FindingRationale::try_new("rationale").unwrap(),
+        Severity::Low,
+        Confidence::Medium,
+        vec![evi1],
+    )
+    .unwrap();
+
+    // Push third draft -> 3 > 2 findings max -> rejected
+    let err2 = sink.push(draft2_overflow_findings).unwrap_err();
+    assert_eq!(
+        err2,
+        DetectorExecutionError::resource_limit("detector draft finding budget exceeded")
+    );
+    assert_eq!(sink.len(), 2);
+}
+
+#[test]
+fn test_detector_error_sanitizer_bounds_and_unicode_controls() {
+    // 1. Empty message returns "unspecified error"
+    let err_empty = DetectorExecutionError::internal_error("");
+    assert_eq!(
+        err_empty,
+        DetectorExecutionError::InternalError("unspecified error".to_string())
+    );
+
+    // 2. Control characters (NUL, ESC, CR, LF, non-ASCII controls) replaced with ' '
+    let raw_controls = "Error\x00with\x1bcontrol\r\nand\u{0080}unicode\u{009F}controls";
+    let err_controls = DetectorExecutionError::internal_error(raw_controls);
+    if let DetectorExecutionError::InternalError(clean) = err_controls {
+        assert!(!clean.contains('\x00'));
+        assert!(!clean.contains('\x1b'));
+        assert!(!clean.contains('\r'));
+        assert!(!clean.contains('\n'));
+        assert!(!clean.contains('\u{0080}'));
+        assert!(!clean.contains('\u{009F}'));
+        assert_eq!(clean, "Error with control  and unicode controls");
+    } else {
+        panic!("unexpected error variant");
+    }
+
+    // 3. 511 ASCII chars + 2-byte char -> 2-byte char cannot fit in 512, so length is exactly 511 bytes
+    let msg_511_plus_2 = format!("{}é", "a".repeat(511));
+    let err_511 = DetectorExecutionError::internal_error(&msg_511_plus_2);
+    if let DetectorExecutionError::InternalError(clean) = err_511 {
+        assert_eq!(clean.len(), 511);
+        assert_eq!(clean, "a".repeat(511));
+    } else {
+        panic!("unexpected error variant");
+    }
+
+    // 4. 510 ASCII chars + 2-byte char -> exactly 512 bytes
+    let msg_510_plus_2 = format!("{}é", "a".repeat(510));
+    let err_510 = DetectorExecutionError::internal_error(&msg_510_plus_2);
+    if let DetectorExecutionError::InternalError(clean) = err_510 {
+        assert_eq!(clean.len(), 512);
+        assert!(clean.ends_with('é'));
+    } else {
+        panic!("unexpected error variant");
+    }
+
+    // 5. Multibyte Unicode near limit (3-byte characters)
+    let msg_multibyte = "€".repeat(200); // 200 * 3 = 600 bytes
+    let err_multibyte = DetectorExecutionError::resource_limit(&msg_multibyte);
+    if let DetectorExecutionError::ResourceLimitExceeded(clean) = err_multibyte {
+        assert!(clean.len() <= MAX_DETECTOR_ERROR_MESSAGE_LENGTH);
+        assert_eq!(clean.len(), 510); // 170 * 3 = 510 bytes (171st would be 513 > 512)
+    } else {
+        panic!("unexpected error variant");
+    }
 }
