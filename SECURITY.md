@@ -3,11 +3,11 @@
 ## Supported Versions
 
 PcapRaven has completed Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6,
-Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, and Phase 12; it has no released or supported software versions yet. This policy covers
+Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, and Phase 14; it has no released or supported software versions yet. This policy covers
 vulnerabilities in repository configuration, documentation, the bounded PCAP/PCAPNG reader,
 protocol normalizer, flow reconstructor and metrics engine, DNS, HTTP/1.x, and TLS 1.2 / TLS 1.3 protocol parsers,
 unified protocol observations, structured evidence foundation, detection engine architecture,
-periodic beaconing detection, functional CLI orchestration, remaining workspace skeletons, and future code as it is introduced.
+periodic beaconing detection, DNS anomaly and possible tunneling detection, repeated low-volume flow behavior detection, cross-detector finding correlation, functional CLI orchestration, remaining workspace skeletons, and future code as it is introduced.
 Supported release ranges will be published before v1.0.0.
 
 ## Reporting a Vulnerability

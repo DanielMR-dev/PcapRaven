@@ -292,22 +292,41 @@ Phase 12 implements explainable periodic beaconing detection over exact directio
 ## Phase 13 Gate
 
 Phase 13 implements explainable DNS anomaly and possible tunneling detection over normalized DNS observations in `pcapraven-detection`.
-- `pcapraven-detection` implements `DnsLongQueryNameDetector` (`dns.long_query_name`, version `1.0.0`, policy `Skip`, severity `Info`, confidence `Medium`, evidence kind `ProtocolObservation`).
-- `pcapraven-detection` implements `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, version `1.0.0`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `RatioComparison`).
+- `pcapraven-detection` implements `DnsLongQueryNameDetector` (`dns.long_query_name`, version `1.0.1`, policy `Skip`, severity `Info`, confidence `Medium`, evidence kind `ProtocolObservation`).
+- `pcapraven-detection` implements `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, version `1.0.1`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `RatioComparison`).
 - `pcapraven-detection` implements `label_octet_diversity_ratio` as a pure helper function:
   - Exact rational formula: `distinct label octets / label length` (`EvidenceRatio`).
   - Fixed-size `[bool; 256]` bitmap memory without heap allocations.
   - Zero floats (`f32`/`f64`), zero logarithms, zero Shannon entropy approximations.
+- Canonical DNS query classification: enforces `completeness.is_complete() && message_kind == DnsMessageKind::Query && flags.qr == false`.
+- Causally coherent evidence: structural maxima derive strictly from matching questions and qualifying labels (`label.len() >= minimum_label_length`).
+- Flow lookup complexity: verified via binary search on `input.flows()` ($O(\log F)$).
 - Enforces strict parameter validation:
   - `DnsLongQueryNameDetector`: `minimum_qname_wire_length` ($1..=255$, default 120), `minimum_label_length` ($1..=63$, default 40), `minimum_label_octet_diversity_ratio` ($0..=1$, default 1/3).
   - `DnsPossibleTunnelingDetector`: `minimum_query_observations` ($2..=u64::MAX$, default 8), `minimum_candidate_query_ratio` ($0 < r \le 1$, default 3/4), `minimum_qname_wire_length` ($1..=255$, default 120), `minimum_label_length` ($1..=63$, default 40), `minimum_label_octet_diversity_ratio` ($0..=1$, default 1/3), `maximum_tracked_dns_flows` ($1..=1\_000\_000$, default 65_536).
 - Structured evidence with strictly sorted alphabetical metric keys:
   - `DnsLongQueryNameDetector`: `matching_question_count`, `maximum_label_length`, `maximum_label_octet_diversity_ratio`, `maximum_qname_wire_length`, `question_count`.
   - `DnsPossibleTunnelingDetector`: `candidate_query_count`, `candidate_query_ratio`, `dns_query_observation_count`, `maximum_label_length`, `maximum_label_octet_diversity_ratio`, `maximum_qname_wire_length`.
-- Resource and sink bounding: flow aggregation is bounded by `maximum_tracked_dns_flows` (exceeding returns `ResourceLimited`); findings are emitted into `DetectorDraftSink`.
+- Resource and sink bounding: flow aggregation is bounded by `maximum_tracked_dns_flows` (exceeding returns `ResourceLimited`); findings are emitted into `DetectorDraftSink` with transactional discard on capacity exhaustion.
 - Non-attribution principle: rationales clearly describe factual observations and emphasize benign alternatives (CDNs, anti-spam lookups, DKIM/SPF TXT records, security scanners) without claiming confirmed malware or C2.
-- Full verification: integration tests in `crates/pcapraven-detection/tests/dns_anomaly.rs`, documentation in `docs/detectors/DNS_ANOMALY_TUNNELING.md`, and skill in `.agents/skills/dns-detection/SKILL.md`.
-- Connection/C2-like behavioral heuristics (Phase 14) and formal reporting (Phase 16) remain strictly future roadmap phases.
+- Full verification: integration tests in `crates/pcapraven-detection/tests/dns_anomaly.rs` and `crates/pcapraven-detection/tests/engine.rs`, detector documentation in `docs/detectors/DNS_ANOMALY_TUNNELING.md`, and skill in `.agents/skills/dns-detection/SKILL.md`.
+- Connection/C2-like behavioral heuristics (Phase 14) are complete.
+  That historical gate is superseded by the current Phase 14 gate below.
+
+## Phase 14 Gate
+
+Phase 14 implements explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`.
+- `pcapraven-domain` extends `FindingRecord` with `source_finding_references: Vec<FindingReference>`, enforced by `HARD_MAX_SOURCE_FINDING_REFERENCES = 256` and strict sort/uniqueness/capacity validation. Verified in `crates/pcapraven-domain/tests/finding.rs`.
+- `pcapraven-detection` implements `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`, version `1.0.0`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `FlowMeasurement`).
+- Aggregates flows using port-agnostic `ConnectionPeerKey` (`TransportProtocol`, `peer_a <= peer_b` where ports are excluded), bounded by `maximum_tracked_peers` ($1..=1\_000\_000$).
+- Enforces flow eligibility: excludes flows with `AnalysisStopped`, `same_endpoint > 0`, `packet_count == 0`, and flows exceeding byte/packet caps.
+- Emits structured evidence with 5 factual measurements in strict alphabetical order: `flow_count`, `maximum_flow_bytes`, `maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`.
+- Implements finding correlation pipeline in `crates/pcapraven-detection/src/correlation.rs` and `engine.rs` (`FindingCorrelator` trait, `CorrelationRegistry`, `CorrelationDraftSink`, `execute_detection_with_correlators`).
+- Implements `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, version `1.0.0`, severity `Medium`, confidence `Medium`) correlating `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
+- Full verification: integration tests in `crates/pcapraven-detection/tests/connection_behavior.rs` and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`, and skills in `.agents/skills/connection-behavior-detection/SKILL.md` and `.agents/skills/finding-correlation/SKILL.md`.
+- Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings (Phase 15) and formal reporting (Phase 16) remain strictly future roadmap phases.
+
+
 
 
 

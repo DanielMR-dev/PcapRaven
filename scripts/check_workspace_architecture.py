@@ -47,11 +47,17 @@ EXPECTED = {
 
 EXPECTED_NAMES = set(EXPECTED)
 EXPECTED_TEST_TARGETS = {
-    "pcapraven-domain": {"observation_evidence"},
+    "pcapraven-domain": {"observation_evidence", "finding"},
     "pcapraven-pcap": {"reader"},
     "pcapraven-protocols": {"normalization", "dns", "http", "tls"},
     "pcapraven-flows": {"reconstruction", "statistics"},
-    "pcapraven-detection": {"engine", "periodic_beaconing", "dns_anomaly"},
+    "pcapraven-detection": {
+        "engine",
+        "periodic_beaconing",
+        "dns_anomaly",
+        "connection_behavior",
+        "correlation",
+    },
     "pcapraven-cli": {"cli"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1047,7 +1047,8 @@ fn test_finding_record_strict_evidence_reference_order() {
             rationale.clone(),
             Severity::Low,
             Confidence::Medium,
-            valid_refs
+            valid_refs,
+            Vec::new(),
         )
         .is_ok()
     );
@@ -1065,7 +1066,8 @@ fn test_finding_record_strict_evidence_reference_order() {
             rationale.clone(),
             Severity::Low,
             Confidence::Medium,
-            dup_refs
+            dup_refs,
+            Vec::new(),
         )
         .unwrap_err(),
         FindingValidationError::DuplicateEvidenceReference(EvidenceReference::new(1))
@@ -1084,7 +1086,8 @@ fn test_finding_record_strict_evidence_reference_order() {
             rationale,
             Severity::Low,
             Confidence::Medium,
-            desc_refs
+            desc_refs,
+            Vec::new(),
         )
         .unwrap_err(),
         FindingValidationError::OutOfOrderEvidenceReference {
@@ -1421,4 +1424,143 @@ fn test_detector_error_sanitizer_bounds_and_unicode_controls() {
     } else {
         panic!("unexpected error variant");
     }
+}
+
+#[test]
+fn test_engine_dns_detector_sink_exhaustion_transactional_discard() {
+    let mut registry = DetectorRegistry::new(10).unwrap();
+    registry
+        .register(Box::new(DnsLongQueryNameDetector::new()))
+        .unwrap();
+
+    let flow = FlowRecord::new(
+        FlowReference::new(0),
+        FlowKey::new(
+            TransportProtocol::Udp,
+            FlowEndpoint::new(IpAddress::Ipv4([10, 0, 0, 1]), 5353),
+            FlowEndpoint::new(IpAddress::Ipv4([10, 0, 0, 2]), 53),
+        ),
+        PacketReference::new(0, None, None, 100, 100, false),
+        PacketReference::new(0, None, None, 100, 100, false),
+        FlowEndReason::EndOfInput,
+        FlowTrafficStatistics::empty(),
+        FlowTemporalMetrics::new(
+            PacketTimestamp::Unavailable,
+            PacketTimestamp::Unavailable,
+            FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+            FlowTimestampCoverage {
+                available_timestamps: 0,
+                unavailable_timestamps: 0,
+                invalid_timestamps: 0,
+                non_monotonic_transitions: 0,
+            },
+            FlowInterArrivalMetrics::new(
+                0,
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+            ),
+            FlowInterArrivalMetrics::new(
+                0,
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+            ),
+            FlowInterArrivalMetrics::new(
+                0,
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+            ),
+            FlowInterArrivalMetrics::new(
+                0,
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+                0,
+                FlowTemporalValue::Unavailable(FlowTemporalUnavailableReason::InsufficientSamples),
+            ),
+        ),
+    );
+
+    let mut observations = Vec::new();
+    // Create 5 matching DNS query observations
+    for i in 0..5 {
+        let label45_1: Vec<u8> = (0..45).map(|j| b'a' + (j % 26)).collect();
+        let label45_2: Vec<u8> = (0..45).map(|j| b'A' + (j % 26)).collect();
+        let label45_3: Vec<u8> = (0..45).map(|j| b'0' + (j % 10)).collect();
+        let name =
+            DnsName::from_labels(vec![label45_1, label45_2, label45_3, b"net".to_vec()]).unwrap();
+        let question = DnsQuestion::new(name, 1, 1);
+        let pkt = PacketReference::new(i, None, None, 100, 100, false);
+        let dns_obs = DnsObservation {
+            packet: pkt,
+            timestamp: PacketTimestamp::Unavailable,
+            transport: DnsTransport::Udp,
+            source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
+            source_port: 5353,
+            destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
+            destination_port: 53,
+            transaction_id: 1234 + i as u16,
+            message_kind: DnsMessageKind::Query,
+            opcode: 0,
+            response_code: 0,
+            effective_response_code: 0,
+            flags: DnsFlags {
+                qr: false,
+                ..Default::default()
+            },
+            declared_qdcount: 1,
+            declared_ancount: 0,
+            declared_nscount: 0,
+            declared_arcount: 0,
+            questions: vec![question],
+            records: Vec::new(),
+            edns: None,
+            completeness: DnsObservationCompleteness::Complete,
+        };
+        observations.push(ProtocolObservation::new(
+            ObservationReference::new(i, ProtocolKind::Dns, 0),
+            ObservationFlowAssociation::Associated {
+                flow: flow.reference,
+                direction: FlowDirection::AToB,
+            },
+            ProtocolObservationData::Dns(dns_obs),
+        ));
+    }
+
+    let flows = vec![flow];
+    let input = DetectionInput::try_new(
+        &flows,
+        &observations,
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+
+    // Set max_findings to 4 (so 5th finding causes sink capacity exhaustion)
+    let limits = DetectionLimits::try_new(64, 32, 4, 50, 10).unwrap();
+    let outcome = execute_detection(&registry, &input, &DetectorConfigurations::new(), &limits)
+        .expect("execution succeeds with partial outcome");
+
+    // Partial outcome due to resource limit
+    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
+    // 0 accepted findings from dns.long_query_name because of transactional discard
+    assert_eq!(outcome.findings.len(), 0);
+    assert_eq!(outcome.evidence.len(), 0);
+    assert_eq!(outcome.detector_executions.len(), 1);
+    assert_eq!(
+        outcome.detector_executions[0].status,
+        DetectorExecutionStatus::ResourceLimited
+    );
 }

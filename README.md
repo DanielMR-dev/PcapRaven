@@ -19,17 +19,18 @@ exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspe
 **Phase 10: Unified protocol observations + structured evidence foundation**,
 **Phase 11: Detection engine architecture**,
 **Phase 12: Explainable periodic beaconing detection over exact flow temporal metrics**,
-and **Phase 13: Explainable DNS anomaly and possible tunneling detection**
+**Phase 13: Explainable DNS anomaly and possible tunneling detection**,
+and **Phase 14: Explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation**
 are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, and finding domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
 - `pcapraven-protocols` provides bounded packet normalization, bounded DNS wire-format parsing, bounded HTTP/1.x message header parsing, and bounded TLS 1.2 / TLS 1.3 handshake metadata parsing.
 - `pcapraven-flows` provides stateful bidirectional flow reconstruction, checked traffic statistics accumulation, and exact rational temporal metric calculations.
-- `pcapraven-detection` provides the detection engine execution pipeline, deterministic detector registry, preflight parameter validation, and explainable behavioral detectors including `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`), `DnsLongQueryNameDetector` (`dns.long_query_name`), and `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`).
+- `pcapraven-detection` provides the detection engine execution pipeline, deterministic detector registry, correlation pipeline, preflight parameter validation, explainable behavioral detectors including `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`), `DnsLongQueryNameDetector` (`dns.long_query_name`), `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`), `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`), and finding correlators including `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`).
 - `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, HTTP inspection, and TLS inspection.
 
-### Implemented CLI Commands (Phase 13)
+### Implemented CLI Commands (Phase 14)
 
 ```text
 # Validate capture container integrity and factual metadata:
@@ -90,7 +91,7 @@ v1 CLI contract.
 - [Repository structure](MANIFEST.md)
 
 Workspace tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-12-quality-gates),
+workspace quality commands in [Testing](docs/TESTING.md#phase-13-quality-gates),
 the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 

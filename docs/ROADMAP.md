@@ -7,12 +7,13 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, and Phase 12 are complete.
-Phase 12 delivered explainable periodic beaconing detection in `pcapraven-detection` (`PeriodicBeaconingDetector`, `behavior.periodic_beaconing`)
-over exact directional flow temporal metrics, featuring exact rational metrics (`compute_duration_ratio`, `EvidenceRatio::Ord`),
-temporal coverage filtering, structured `TemporalMetric` evidence drafts, engine-level draft output bounding (`DetectorDraftSink`),
-canonical draft sorting, transactional output acceptance, and comprehensive integration tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs`.
-Phase 13 (DNS anomaly and possible tunneling heuristics) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, and Phase 14 are complete.
+Phase 14 delivered explainable repeated low-volume flow behavior detection in `pcapraven-detection` (`RepeatedLowVolumeFlowDetector`, `behavior.repeated_low_volume_flows`)
+and deterministic cross-detector finding correlation (`PossibleC2MultiSignalCorrelator`, `behavior.possible_c2_multi_signal`)
+over normalized flow statistics and temporal metrics, featuring canonical `ConnectionPeerKey` aggregation, 5 factual traffic measurements,
+finding domain model extension (`source_finding_references`), zero new evidence allocation during correlation, and comprehensive integration tests
+in `crates/pcapraven-domain/tests/finding.rs`, `crates/pcapraven-detection/tests/connection_behavior.rs`, and `crates/pcapraven-detection/tests/correlation.rs`.
+Phase 15 (severity, confidence, filtering, and MITRE ATT&CK mappings) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -196,13 +197,17 @@ capacity (`maximum_tracked_dns_flows`), structured evidence measurements with co
 string escaping, and cautious non-attribution rationales covering benign high-diversity lookups. Implemented comprehensive
 integration tests in `crates/pcapraven-detection/tests/dns_anomaly.rs`, detector documentation in `docs/detectors/DNS_ANOMALY_TUNNELING.md`,
 and the `dns-detection` skill in `.agents/skills/dns-detection/SKILL.md`.
-Connection/C2-like behavioral heuristics remain future work.
-
 ## Phase 14 - Connection/C2-like behavioral heuristics
 
-Implement and validate explainable connection and C2-like behavioral
-heuristics without asserting malware or confirmed command-and-control. Include
-cross-detector interaction and false-positive testing.
+Implemented explainable repeated low-volume flow behavior detector (`RepeatedLowVolumeFlowDetector`, `behavior.repeated_low_volume_flows`)
+and deterministic cross-detector finding correlation (`PossibleC2MultiSignalCorrelator`, `behavior.possible_c2_multi_signal`) in `pcapraven-detection`.
+Aggregated flows using port-agnostic `ConnectionPeerKey` (`peer_a <= peer_b`), evaluated 5 factual traffic measurements (`flow_count`, `maximum_flow_bytes`,
+`maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`), extended the finding domain model with `source_finding_references`,
+and implemented the post-evaluation correlation pipeline reusing existing primary evidence without redundant allocations or unevidenced malware/C2 assertions.
+Delivered comprehensive integration tests in `crates/pcapraven-domain/tests/finding.rs`, `crates/pcapraven-detection/tests/connection_behavior.rs`,
+and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`,
+and the `connection-behavior-detection` and `finding-correlation` skills.
+Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings remain future work.
 
 ## Phase 15 - Severity, confidence, filtering and MITRE mappings
 

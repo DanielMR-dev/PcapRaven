@@ -118,31 +118,18 @@ impl PeriodicBeaconingDetector {
     /// Creates and initializes a new periodic beaconing detector instance.
     #[must_use]
     pub fn new() -> Self {
-        let id = match DetectorId::try_new(Self::DETECTOR_ID) {
-            Ok(id) => id,
-            Err(_) => match DetectorId::try_new("behavior.fallback") {
-                Ok(id) => id,
-                Err(_) => unreachable!("fallback detector id is valid"),
-            },
-        };
-        let title = match FindingTitle::try_new("Possible periodic beaconing behavior") {
-            Ok(t) => t,
-            Err(_) => match FindingTitle::try_new("finding") {
-                Ok(t) => t,
-                Err(_) => unreachable!("fallback finding title is valid"),
-            },
-        };
-        let purpose = match FindingSummary::try_new(
-            "Identify reconstructed flow instances exhibiting highly regular directional packet inter-arrival timing using exact temporal metrics",
-        ) {
-            Ok(s) => s,
-            Err(_) => match FindingSummary::try_new("summary") {
-                Ok(s) => s,
-                Err(_) => unreachable!("fallback finding summary is valid"),
-            },
-        };
+        Self::try_new().expect("canonical detector metadata is valid")
+    }
 
-        Self {
+    /// Fallibly creates and initializes a new periodic beaconing detector instance.
+    pub fn try_new() -> Result<Self, pcapraven_domain::FindingValidationError> {
+        let id = DetectorId::try_new(Self::DETECTOR_ID)?;
+        let title = FindingTitle::try_new("Possible periodic beaconing behavior")?;
+        let purpose = FindingSummary::try_new(
+            "Identify reconstructed flow instances exhibiting highly regular directional packet inter-arrival timing using exact temporal metrics",
+        )?;
+
+        Ok(Self {
             metadata: DetectorMetadata::new(
                 id,
                 Self::DETECTOR_VERSION,
@@ -150,7 +137,7 @@ impl PeriodicBeaconingDetector {
                 purpose,
                 IncompleteDataPolicy::Skip,
             ),
-        }
+        })
     }
 
     fn parse_and_validate_parameters(

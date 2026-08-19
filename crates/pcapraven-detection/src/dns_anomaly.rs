@@ -7,11 +7,12 @@
 use std::collections::BTreeMap;
 
 use pcapraven_domain::{
-    Confidence, DnsMessageKind, DnsQuestion, EvidenceComparison, EvidenceDescription,
-    EvidenceDraftBuilder, EvidenceKind, EvidenceMeasurement, EvidenceMetricKey, EvidenceRatio,
-    EvidenceUnit, EvidenceValue, FindingDraft, FindingRationale, FindingSubject, FindingSummary,
-    FindingTitle, FlowEndReason, FlowReference, ObservationFlowAssociation, ObservationReference,
-    ProtocolKind, ProtocolObservationData, Severity,
+    Confidence, DetectorId, DetectorVersion, DnsMessageKind, DnsQuestion, EvidenceComparison,
+    EvidenceDescription, EvidenceDraftBuilder, EvidenceKind, EvidenceMeasurement,
+    EvidenceMetricKey, EvidenceRatio, EvidenceUnit, EvidenceValue, FindingDraft, FindingRationale,
+    FindingSubject, FindingSummary, FindingTitle, FindingValidationError, FlowEndReason,
+    FlowReference, ObservationFlowAssociation, ObservationReference, ProtocolKind,
+    ProtocolObservationData, Severity,
 };
 
 use crate::config::{DetectorParameterValue, DetectorParameters};
@@ -34,10 +35,16 @@ pub fn label_octet_diversity_ratio(label: &[u8]) -> EvidenceRatio {
         let idx = b as usize;
         if !seen[idx] {
             seen[idx] = true;
-            distinct_count = distinct_count.saturating_add(1);
+            distinct_count = match distinct_count.checked_add(1) {
+                Some(c) => c,
+                None => return EvidenceRatio::ZERO,
+            };
         }
     }
-    let length = label.len() as u128;
+    let length = match u128::try_from(label.len()) {
+        Ok(l) => l,
+        Err(_) => return EvidenceRatio::ZERO,
+    };
     EvidenceRatio::from_fraction(distinct_count, length).unwrap_or(EvidenceRatio::ZERO)
 }
 
@@ -60,34 +67,29 @@ impl DnsQuestionShape {
         let qname_wire_length = question.name.wire_length();
         let labels = question.name.labels();
 
-        let mut maximum_label_length = 0usize;
-        let mut maximum_label_octet_diversity_ratio = EvidenceRatio::ZERO;
+        let mut max_qualifying_label_length = 0usize;
+        let mut max_qualifying_diversity_ratio = EvidenceRatio::ZERO;
 
         for label in labels {
-            if label.len() > maximum_label_length {
-                maximum_label_length = label.len();
-            }
-            let div = label_octet_diversity_ratio(label);
-            if div > maximum_label_octet_diversity_ratio {
-                maximum_label_octet_diversity_ratio = div;
+            if label.len() >= min_label_length {
+                if label.len() > max_qualifying_label_length {
+                    max_qualifying_label_length = label.len();
+                }
+                let div = label_octet_diversity_ratio(label);
+                if div > max_qualifying_diversity_ratio {
+                    max_qualifying_diversity_ratio = div;
+                }
             }
         }
 
-        let qualifying_diversity = labels
-            .iter()
-            .filter(|l| l.len() >= min_label_length)
-            .map(|l| label_octet_diversity_ratio(l))
-            .max()
-            .unwrap_or(EvidenceRatio::ZERO);
-
         let matches = qname_wire_length >= min_qname_wire_length
-            && maximum_label_length >= min_label_length
-            && qualifying_diversity >= min_diversity_ratio;
+            && max_qualifying_label_length >= min_label_length
+            && max_qualifying_diversity_ratio >= min_diversity_ratio;
 
         Self {
             qname_wire_length,
-            maximum_label_length,
-            maximum_label_octet_diversity_ratio,
+            maximum_label_length: max_qualifying_label_length,
+            maximum_label_octet_diversity_ratio: max_qualifying_diversity_ratio,
             matches,
         }
     }
@@ -102,9 +104,8 @@ pub struct DnsLongQueryNameDetector {
 impl DnsLongQueryNameDetector {
     /// Canonical detector identifier (`dns.long_query_name`).
     pub const DETECTOR_ID: &'static str = "dns.long_query_name";
-    /// Detector version (`v1.0.0`).
-    pub const DETECTOR_VERSION: pcapraven_domain::DetectorVersion =
-        pcapraven_domain::DetectorVersion::new(1, 0, 0);
+    /// Detector version (`v1.0.1`).
+    pub const DETECTOR_VERSION: DetectorVersion = DetectorVersion::new(1, 0, 1);
 
     /// Parameter key for minimum QNAME wire length (`minimum_qname_wire_length`).
     pub const PARAM_MINIMUM_QNAME_WIRE_LENGTH: &'static str = "minimum_qname_wire_length";
@@ -134,31 +135,18 @@ impl DnsLongQueryNameDetector {
     /// Creates and initializes a new long query name detector instance.
     #[must_use]
     pub fn new() -> Self {
-        let id = match pcapraven_domain::DetectorId::try_new(Self::DETECTOR_ID) {
-            Ok(id) => id,
-            Err(_) => match pcapraven_domain::DetectorId::try_new("dns.fallback") {
-                Ok(id) => id,
-                Err(_) => unreachable!("fallback detector id is valid"),
-            },
-        };
-        let title = match FindingTitle::try_new("Unusually long DNS query name") {
-            Ok(t) => t,
-            Err(_) => match FindingTitle::try_new("finding") {
-                Ok(t) => t,
-                Err(_) => unreachable!("fallback finding title is valid"),
-            },
-        };
-        let purpose = match FindingSummary::try_new(
-            "Identify complete DNS query observations containing questions with unusually long, high-octet-diversity domain names",
-        ) {
-            Ok(s) => s,
-            Err(_) => match FindingSummary::try_new("summary") {
-                Ok(s) => s,
-                Err(_) => unreachable!("fallback finding summary is valid"),
-            },
-        };
+        Self::try_new().expect("canonical detector metadata is valid")
+    }
 
-        Self {
+    /// Fallibly creates and initializes a new long query name detector instance.
+    pub fn try_new() -> Result<Self, FindingValidationError> {
+        let id = DetectorId::try_new(Self::DETECTOR_ID)?;
+        let title = FindingTitle::try_new("Unusually long DNS query name")?;
+        let purpose = FindingSummary::try_new(
+            "Identify complete DNS query observations containing questions with unusually long, high-octet-diversity domain names",
+        )?;
+
+        Ok(Self {
             metadata: DetectorMetadata::new(
                 id,
                 Self::DETECTOR_VERSION,
@@ -166,7 +154,7 @@ impl DnsLongQueryNameDetector {
                 purpose,
                 IncompleteDataPolicy::Skip,
             ),
-        }
+        })
     }
 }
 
@@ -251,13 +239,27 @@ impl Detector for DnsLongQueryNameDetector {
         output: &mut DetectorDraftSink,
     ) -> Result<(), DetectorExecutionError> {
         let min_qname_wire_length = match parameters.get(Self::PARAM_MINIMUM_QNAME_WIRE_LENGTH) {
-            Some(DetectorParameterValue::Unsigned(v)) => *v as usize,
-            _ => Self::DEFAULT_MIN_QNAME_WIRE_LENGTH as usize,
+            Some(DetectorParameterValue::Unsigned(v)) => usize::try_from(*v).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "minimum_qname_wire_length exceeds host usize",
+                )
+            })?,
+            _ => usize::try_from(Self::DEFAULT_MIN_QNAME_WIRE_LENGTH).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "default minimum_qname_wire_length exceeds host usize",
+                )
+            })?,
         };
 
         let min_label_length = match parameters.get(Self::PARAM_MINIMUM_LABEL_LENGTH) {
-            Some(DetectorParameterValue::Unsigned(v)) => *v as usize,
-            _ => Self::DEFAULT_MIN_LABEL_LENGTH as usize,
+            Some(DetectorParameterValue::Unsigned(v)) => usize::try_from(*v).map_err(|_| {
+                DetectorExecutionError::internal_error("minimum_label_length exceeds host usize")
+            })?,
+            _ => usize::try_from(Self::DEFAULT_MIN_LABEL_LENGTH).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "default minimum_label_length exceeds host usize",
+                )
+            })?,
         };
 
         let min_diversity_ratio =
@@ -275,11 +277,11 @@ impl Detector for DnsLongQueryNameDetector {
                 _ => continue,
             };
 
-            // Inspect only complete query messages (message_kind == Query or flags.qr == false)
+            // Inspect only complete query messages (message_kind == Query AND flags.qr == false)
             if !obs.completeness().is_complete() {
                 continue;
             }
-            if dns.message_kind != DnsMessageKind::Query && dns.flags.qr {
+            if dns.message_kind != DnsMessageKind::Query || dns.flags.qr {
                 continue;
             }
 
@@ -294,7 +296,9 @@ impl Detector for DnsLongQueryNameDetector {
             let mut max_diversity_ratio = EvidenceRatio::ZERO;
 
             for question in &dns.questions {
-                question_count = question_count.saturating_add(1);
+                question_count = question_count.checked_add(1).ok_or_else(|| {
+                    DetectorExecutionError::internal_error("question count overflow")
+                })?;
                 let shape = DnsQuestionShape::evaluate(
                     question,
                     min_qname_wire_length,
@@ -302,18 +306,22 @@ impl Detector for DnsLongQueryNameDetector {
                     min_diversity_ratio,
                 );
 
-                if shape.qname_wire_length > max_qname_wire_length {
-                    max_qname_wire_length = shape.qname_wire_length;
-                }
-                if shape.maximum_label_length > max_label_length {
-                    max_label_length = shape.maximum_label_length;
-                }
-                if shape.maximum_label_octet_diversity_ratio > max_diversity_ratio {
-                    max_diversity_ratio = shape.maximum_label_octet_diversity_ratio;
-                }
-
                 if shape.matches {
-                    matching_question_count = matching_question_count.saturating_add(1);
+                    matching_question_count =
+                        matching_question_count.checked_add(1).ok_or_else(|| {
+                            DetectorExecutionError::internal_error(
+                                "matching question count overflow",
+                            )
+                        })?;
+                    if shape.qname_wire_length > max_qname_wire_length {
+                        max_qname_wire_length = shape.qname_wire_length;
+                    }
+                    if shape.maximum_label_length > max_label_length {
+                        max_label_length = shape.maximum_label_length;
+                    }
+                    if shape.maximum_label_octet_diversity_ratio > max_diversity_ratio {
+                        max_diversity_ratio = shape.maximum_label_octet_diversity_ratio;
+                    }
                 }
             }
 
@@ -322,35 +330,25 @@ impl Detector for DnsLongQueryNameDetector {
                 continue;
             }
 
-            let subject =
-                match FindingSubject::try_new(Vec::new(), Vec::new(), vec![obs.reference()]) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        return Err(DetectorExecutionError::internal_error(format!(
-                            "finding subject creation error: {e}"
-                        )));
-                    }
-                };
+            let subject = FindingSubject::try_new(Vec::new(), Vec::new(), vec![obs.reference()])
+                .map_err(|e| {
+                    DetectorExecutionError::internal_error(format!(
+                        "finding subject creation error: {e}"
+                    ))
+                })?;
 
-            let title = match FindingTitle::try_new("Unusually long DNS query name") {
-                Ok(t) => t,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding title creation error: {e}"
-                    )));
-                }
-            };
+            let title = FindingTitle::try_new("Unusually long DNS query name").map_err(|e| {
+                DetectorExecutionError::internal_error(format!("finding title creation error: {e}"))
+            })?;
 
-            let summary = match FindingSummary::try_new(
+            let summary = FindingSummary::try_new(
                 "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
-            ) {
-                Ok(s) => s,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding summary creation error: {e}"
-                    )));
-                }
-            };
+            )
+            .map_err(|e| {
+                DetectorExecutionError::internal_error(format!(
+                    "finding summary creation error: {e}"
+                ))
+            })?;
 
             let rationale_text = format!(
                 "Observed DNS query observation contains {} matching question(s) (total {}) with maximum QNAME wire length {} octets (threshold >= {}), maximum label length {} octets (threshold >= {}), and maximum label octet diversity ratio {} (threshold >= {}). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
@@ -363,24 +361,18 @@ impl Detector for DnsLongQueryNameDetector {
                 max_diversity_ratio,
                 min_diversity_ratio,
             );
-            let rationale = match FindingRationale::try_new(&rationale_text) {
-                Ok(r) => r,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding rationale creation error: {e}"
-                    )));
-                }
-            };
+            let rationale = FindingRationale::try_new(&rationale_text).map_err(|e| {
+                DetectorExecutionError::internal_error(format!(
+                    "finding rationale creation error: {e}"
+                ))
+            })?;
 
-            let evi_desc =
-                match EvidenceDescription::try_new("DNS query-name structural measurements") {
-                    Ok(d) => d,
-                    Err(e) => {
-                        return Err(DetectorExecutionError::internal_error(format!(
-                            "evidence description creation error: {e}"
-                        )));
-                    }
-                };
+            let evi_desc = EvidenceDescription::try_new("DNS query-name structural measurements")
+                .map_err(|e| {
+                DetectorExecutionError::internal_error(format!(
+                    "evidence description creation error: {e}"
+                ))
+            })?;
 
             let mut evi_builder =
                 EvidenceDraftBuilder::new(EvidenceKind::ProtocolObservation, evi_desc);
@@ -415,6 +407,12 @@ impl Detector for DnsLongQueryNameDetector {
                 })?;
 
             // 2. maximum_label_length
+            let max_label_u128 = u128::try_from(max_label_length).map_err(|_| {
+                DetectorExecutionError::internal_error("max_label_length exceeds u128")
+            })?;
+            let min_label_u128 = u128::try_from(min_label_length).map_err(|_| {
+                DetectorExecutionError::internal_error("min_label_length exceeds u128")
+            })?;
             let k_label = EvidenceMetricKey::try_new("maximum_label_length").map_err(|e| {
                 DetectorExecutionError::internal_error(format!("metric key error: {e}"))
             })?;
@@ -422,8 +420,8 @@ impl Detector for DnsLongQueryNameDetector {
                 .add_measurement(
                     EvidenceMeasurement::try_with_threshold(
                         k_label,
-                        EvidenceValue::Unsigned(max_label_length as u128),
-                        EvidenceValue::Unsigned(min_label_length as u128),
+                        EvidenceValue::Unsigned(max_label_u128),
+                        EvidenceValue::Unsigned(min_label_u128),
                         EvidenceComparison::GreaterThanOrEqual,
                         EvidenceUnit::Bytes,
                     )
@@ -462,6 +460,12 @@ impl Detector for DnsLongQueryNameDetector {
                 })?;
 
             // 4. maximum_qname_wire_length
+            let max_qname_u128 = u128::try_from(max_qname_wire_length).map_err(|_| {
+                DetectorExecutionError::internal_error("max_qname_wire_length exceeds u128")
+            })?;
+            let min_qname_u128 = u128::try_from(min_qname_wire_length).map_err(|_| {
+                DetectorExecutionError::internal_error("min_qname_wire_length exceeds u128")
+            })?;
             let k_wire = EvidenceMetricKey::try_new("maximum_qname_wire_length").map_err(|e| {
                 DetectorExecutionError::internal_error(format!("metric key error: {e}"))
             })?;
@@ -469,8 +473,8 @@ impl Detector for DnsLongQueryNameDetector {
                 .add_measurement(
                     EvidenceMeasurement::try_with_threshold(
                         k_wire,
-                        EvidenceValue::Unsigned(max_qname_wire_length as u128),
-                        EvidenceValue::Unsigned(min_qname_wire_length as u128),
+                        EvidenceValue::Unsigned(max_qname_u128),
+                        EvidenceValue::Unsigned(min_qname_u128),
                         EvidenceComparison::GreaterThanOrEqual,
                         EvidenceUnit::Bytes,
                     )
@@ -485,13 +489,13 @@ impl Detector for DnsLongQueryNameDetector {
                 })?;
 
             // 5. question_count
-            let k_qcount = EvidenceMetricKey::try_new("question_count").map_err(|e| {
+            let k_cnt = EvidenceMetricKey::try_new("question_count").map_err(|e| {
                 DetectorExecutionError::internal_error(format!("metric key error: {e}"))
             })?;
             evi_builder
                 .add_measurement(
                     EvidenceMeasurement::try_new(
-                        k_qcount,
+                        k_cnt,
                         EvidenceValue::Unsigned(question_count),
                         EvidenceUnit::Count,
                     )
@@ -509,7 +513,7 @@ impl Detector for DnsLongQueryNameDetector {
                 DetectorExecutionError::internal_error(format!("evidence draft build error: {e}"))
             })?;
 
-            let finding_draft = match FindingDraft::try_new(
+            let finding_draft = FindingDraft::try_new(
                 subject,
                 title,
                 summary,
@@ -517,14 +521,10 @@ impl Detector for DnsLongQueryNameDetector {
                 Severity::Info,
                 Confidence::Medium,
                 vec![evidence_draft],
-            ) {
-                Ok(f) => f,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding draft creation error: {e}"
-                    )));
-                }
-            };
+            )
+            .map_err(|e| {
+                DetectorExecutionError::internal_error(format!("finding draft creation error: {e}"))
+            })?;
 
             output.push(finding_draft)?;
         }
@@ -565,10 +565,18 @@ impl DnsFlowAggregate {
         shape_qname_wire_length: usize,
         shape_label_length: usize,
         shape_diversity_ratio: EvidenceRatio,
-    ) {
-        self.dns_query_observation_count = self.dns_query_observation_count.saturating_add(1);
+    ) -> Result<(), DetectorExecutionError> {
+        self.dns_query_observation_count = self
+            .dns_query_observation_count
+            .checked_add(1)
+            .ok_or_else(|| {
+                DetectorExecutionError::internal_error("dns query observation count overflow")
+            })?;
         if is_candidate {
-            self.candidate_query_count = self.candidate_query_count.saturating_add(1);
+            self.candidate_query_count =
+                self.candidate_query_count.checked_add(1).ok_or_else(|| {
+                    DetectorExecutionError::internal_error("candidate query count overflow")
+                })?;
             if shape_qname_wire_length > self.maximum_qname_wire_length {
                 self.maximum_qname_wire_length = shape_qname_wire_length;
             }
@@ -584,6 +592,7 @@ impl DnsFlowAggregate {
             }
             self.last_candidate_observation = Some(obs_ref);
         }
+        Ok(())
     }
 }
 
@@ -596,9 +605,8 @@ pub struct DnsPossibleTunnelingDetector {
 impl DnsPossibleTunnelingDetector {
     /// Canonical detector identifier (`dns.possible_tunneling`).
     pub const DETECTOR_ID: &'static str = "dns.possible_tunneling";
-    /// Detector version (`v1.0.0`).
-    pub const DETECTOR_VERSION: pcapraven_domain::DetectorVersion =
-        pcapraven_domain::DetectorVersion::new(1, 0, 0);
+    /// Detector version (`v1.0.1`).
+    pub const DETECTOR_VERSION: DetectorVersion = DetectorVersion::new(1, 0, 1);
 
     /// Parameter key for minimum total query observations (`minimum_query_observations`).
     pub const PARAM_MINIMUM_QUERY_OBSERVATIONS: &'static str = "minimum_query_observations";
@@ -645,31 +653,18 @@ impl DnsPossibleTunnelingDetector {
     /// Creates and initializes a new possible tunneling detector instance.
     #[must_use]
     pub fn new() -> Self {
-        let id = match pcapraven_domain::DetectorId::try_new(Self::DETECTOR_ID) {
-            Ok(id) => id,
-            Err(_) => match pcapraven_domain::DetectorId::try_new("dns.fallback") {
-                Ok(id) => id,
-                Err(_) => unreachable!("fallback detector id is valid"),
-            },
-        };
-        let title = match FindingTitle::try_new("Possible DNS tunneling pattern") {
-            Ok(t) => t,
-            Err(_) => match FindingTitle::try_new("finding") {
-                Ok(t) => t,
-                Err(_) => unreachable!("fallback finding title is valid"),
-            },
-        };
-        let purpose = match FindingSummary::try_new(
-            "Identify reconstructed DNS flow instances containing repeated query observations whose names exhibit unusually long, high-octet-diversity characteristics",
-        ) {
-            Ok(s) => s,
-            Err(_) => match FindingSummary::try_new("summary") {
-                Ok(s) => s,
-                Err(_) => unreachable!("fallback finding summary is valid"),
-            },
-        };
+        Self::try_new().expect("canonical detector metadata is valid")
+    }
 
-        Self {
+    /// Fallibly creates and initializes a new possible tunneling detector instance.
+    pub fn try_new() -> Result<Self, FindingValidationError> {
+        let id = DetectorId::try_new(Self::DETECTOR_ID)?;
+        let title = FindingTitle::try_new("Possible DNS tunneling pattern")?;
+        let purpose = FindingSummary::try_new(
+            "Identify reconstructed DNS flow instances containing repeated query observations whose names exhibit unusually long, high-octet-diversity characteristics",
+        )?;
+
+        Ok(Self {
             metadata: DetectorMetadata::new(
                 id,
                 Self::DETECTOR_VERSION,
@@ -677,7 +672,7 @@ impl DnsPossibleTunnelingDetector {
                 purpose,
                 IncompleteDataPolicy::Skip,
             ),
-        }
+        })
     }
 }
 
@@ -701,10 +696,10 @@ impl Detector for DnsPossibleTunnelingDetector {
             match key {
                 Self::PARAM_MINIMUM_QUERY_OBSERVATIONS => match &param.value {
                     DetectorParameterValue::Unsigned(val) => {
-                        if *val < 2 {
+                        if *val < 2 || u64::try_from(*val).is_err() {
                             return Err(DetectorConfigError::ParameterValueOutOfRange {
                                 key: key.to_string(),
-                                reason: "minimum query observations must be at least 2",
+                                reason: "minimum query observations must be between 2 and 18,446,744,073,709,551,615",
                             });
                         }
                     }
@@ -814,7 +809,11 @@ impl Detector for DnsPossibleTunnelingDetector {
         output: &mut DetectorDraftSink,
     ) -> Result<(), DetectorExecutionError> {
         let min_query_obs = match parameters.get(Self::PARAM_MINIMUM_QUERY_OBSERVATIONS) {
-            Some(DetectorParameterValue::Unsigned(v)) => *v as u64,
+            Some(DetectorParameterValue::Unsigned(v)) => u64::try_from(*v).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "minimum_query_observations exceeds host u64",
+                )
+            })?,
             _ => Self::DEFAULT_MIN_QUERY_OBSERVATIONS,
         };
 
@@ -824,13 +823,27 @@ impl Detector for DnsPossibleTunnelingDetector {
         };
 
         let min_qname_wire_length = match parameters.get(Self::PARAM_MINIMUM_QNAME_WIRE_LENGTH) {
-            Some(DetectorParameterValue::Unsigned(v)) => *v as usize,
-            _ => Self::DEFAULT_MIN_QNAME_WIRE_LENGTH as usize,
+            Some(DetectorParameterValue::Unsigned(v)) => usize::try_from(*v).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "minimum_qname_wire_length exceeds host usize",
+                )
+            })?,
+            _ => usize::try_from(Self::DEFAULT_MIN_QNAME_WIRE_LENGTH).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "default minimum_qname_wire_length exceeds host usize",
+                )
+            })?,
         };
 
         let min_label_length = match parameters.get(Self::PARAM_MINIMUM_LABEL_LENGTH) {
-            Some(DetectorParameterValue::Unsigned(v)) => *v as usize,
-            _ => Self::DEFAULT_MIN_LABEL_LENGTH as usize,
+            Some(DetectorParameterValue::Unsigned(v)) => usize::try_from(*v).map_err(|_| {
+                DetectorExecutionError::internal_error("minimum_label_length exceeds host usize")
+            })?,
+            _ => usize::try_from(Self::DEFAULT_MIN_LABEL_LENGTH).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "default minimum_label_length exceeds host usize",
+                )
+            })?,
         };
 
         let min_diversity_ratio =
@@ -840,8 +853,16 @@ impl Detector for DnsPossibleTunnelingDetector {
             };
 
         let max_tracked_flows = match parameters.get(Self::PARAM_MAXIMUM_TRACKED_DNS_FLOWS) {
-            Some(DetectorParameterValue::Unsigned(v)) => *v as usize,
-            _ => Self::DEFAULT_MAX_TRACKED_DNS_FLOWS as usize,
+            Some(DetectorParameterValue::Unsigned(v)) => usize::try_from(*v).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "maximum_tracked_dns_flows exceeds host usize",
+                )
+            })?,
+            _ => usize::try_from(Self::DEFAULT_MAX_TRACKED_DNS_FLOWS).map_err(|_| {
+                DetectorExecutionError::internal_error(
+                    "default maximum_tracked_dns_flows exceeds host usize",
+                )
+            })?,
         };
 
         let mut flow_aggregates: BTreeMap<FlowReference, DnsFlowAggregate> = BTreeMap::new();
@@ -856,11 +877,11 @@ impl Detector for DnsPossibleTunnelingDetector {
                 _ => continue,
             };
 
-            // Inspect only complete query messages
+            // Inspect only complete query messages (message_kind == Query AND flags.qr == false)
             if !obs.completeness().is_complete() {
                 continue;
             }
-            if dns.message_kind != DnsMessageKind::Query && dns.flags.qr {
+            if dns.message_kind != DnsMessageKind::Query || dns.flags.qr {
                 continue;
             }
 
@@ -875,12 +896,18 @@ impl Detector for DnsPossibleTunnelingDetector {
                 _ => continue,
             };
 
-            // Check if flow exists in detection input and was not stopped by analysis limit
-            if let Some(flow_record) = input.flows().iter().find(|f| f.reference == flow_ref) {
-                if flow_record.end_reason == FlowEndReason::AnalysisStopped {
-                    continue;
-                }
-            } else {
+            // Check if flow exists in detection input and was not stopped by analysis limit (O(log F) binary search)
+            let flow_record = match input
+                .flows()
+                .binary_search_by_key(&flow_ref, |f| f.reference)
+                .ok()
+                .map(|idx| &input.flows()[idx])
+            {
+                Some(f) => f,
+                None => continue,
+            };
+
+            if flow_record.end_reason == FlowEndReason::AnalysisStopped {
                 continue;
             }
 
@@ -897,17 +924,17 @@ impl Detector for DnsPossibleTunnelingDetector {
                     min_label_length,
                     min_diversity_ratio,
                 );
-                if shape.qname_wire_length > shape_qname_wire {
-                    shape_qname_wire = shape.qname_wire_length;
-                }
-                if shape.maximum_label_length > shape_label_len {
-                    shape_label_len = shape.maximum_label_length;
-                }
-                if shape.maximum_label_octet_diversity_ratio > shape_diversity {
-                    shape_diversity = shape.maximum_label_octet_diversity_ratio;
-                }
                 if shape.matches {
                     is_candidate = true;
+                    if shape.qname_wire_length > shape_qname_wire {
+                        shape_qname_wire = shape.qname_wire_length;
+                    }
+                    if shape.maximum_label_length > shape_label_len {
+                        shape_label_len = shape.maximum_label_length;
+                    }
+                    if shape.maximum_label_octet_diversity_ratio > shape_diversity {
+                        shape_diversity = shape.maximum_label_octet_diversity_ratio;
+                    }
                 }
             }
 
@@ -918,7 +945,7 @@ impl Detector for DnsPossibleTunnelingDetector {
                     shape_qname_wire,
                     shape_label_len,
                     shape_diversity,
-                );
+                )?;
             } else {
                 if flow_aggregates.len() >= max_tracked_flows {
                     return Err(DetectorExecutionError::resource_limit(format!(
@@ -932,7 +959,7 @@ impl Detector for DnsPossibleTunnelingDetector {
                     shape_qname_wire,
                     shape_label_len,
                     shape_diversity,
-                );
+                )?;
                 flow_aggregates.insert(flow_ref, aggregate);
             }
         }
@@ -947,8 +974,8 @@ impl Detector for DnsPossibleTunnelingDetector {
             }
 
             let candidate_ratio = match EvidenceRatio::from_fraction(
-                aggregate.candidate_query_count as u128,
-                aggregate.dns_query_observation_count as u128,
+                u128::from(aggregate.candidate_query_count),
+                u128::from(aggregate.dns_query_observation_count),
             ) {
                 Some(r) => r,
                 None => continue,
@@ -958,36 +985,26 @@ impl Detector for DnsPossibleTunnelingDetector {
                 continue;
             }
 
-            let subject = match FindingSubject::try_new(Vec::new(), vec![flow_ref], Vec::new()) {
-                Ok(s) => s,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
+            let subject =
+                FindingSubject::try_new(Vec::new(), vec![flow_ref], Vec::new()).map_err(|e| {
+                    DetectorExecutionError::internal_error(format!(
                         "finding subject creation error: {e}"
-                    )));
-                }
-            };
+                    ))
+                })?;
 
-            let title = match FindingTitle::try_new("Possible DNS tunneling pattern") {
-                Ok(t) => t,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding title creation error: {e}"
-                    )));
-                }
-            };
+            let title = FindingTitle::try_new("Possible DNS tunneling pattern").map_err(|e| {
+                DetectorExecutionError::internal_error(format!("finding title creation error: {e}"))
+            })?;
 
             let summary_text = format!(
                 "Repeated DNS query observations within this flow contain unusually long, high-octet-diversity names in a proportion ({}) meeting configured aggregate thresholds",
                 candidate_ratio
             );
-            let summary = match FindingSummary::try_new(&summary_text) {
-                Ok(s) => s,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding summary creation error: {e}"
-                    )));
-                }
-            };
+            let summary = FindingSummary::try_new(&summary_text).map_err(|e| {
+                DetectorExecutionError::internal_error(format!(
+                    "finding summary creation error: {e}"
+                ))
+            })?;
 
             let rationale_text = format!(
                 "Flow contains {} DNS query observation(s), of which {} ({}) exhibit long QNAME wire length (max {} octets), long labels (max {} octets), and high label octet diversity (max {}). The pattern is consistent with possible DNS data tunneling or encoded exfiltration channels, but can also arise from benign generated identifiers, telemetry, cache keys, service discovery, security products, or application-specific opaque labels.",
@@ -998,25 +1015,20 @@ impl Detector for DnsPossibleTunnelingDetector {
                 aggregate.maximum_label_length,
                 aggregate.maximum_label_octet_diversity_ratio,
             );
-            let rationale = match FindingRationale::try_new(&rationale_text) {
-                Ok(r) => r,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding rationale creation error: {e}"
-                    )));
-                }
-            };
+            let rationale = FindingRationale::try_new(&rationale_text).map_err(|e| {
+                DetectorExecutionError::internal_error(format!(
+                    "finding rationale creation error: {e}"
+                ))
+            })?;
 
-            let evi_desc = match EvidenceDescription::try_new(
+            let evi_desc = EvidenceDescription::try_new(
                 "Flow-level DNS query structural and candidate proportion measurements",
-            ) {
-                Ok(d) => d,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "evidence description creation error: {e}"
-                    )));
-                }
-            };
+            )
+            .map_err(|e| {
+                DetectorExecutionError::internal_error(format!(
+                    "evidence description creation error: {e}"
+                ))
+            })?;
 
             let mut evi_builder =
                 EvidenceDraftBuilder::new(EvidenceKind::RatioComparison, evi_desc);
@@ -1054,7 +1066,7 @@ impl Detector for DnsPossibleTunnelingDetector {
                 .add_measurement(
                     EvidenceMeasurement::try_new(
                         k_cand,
-                        EvidenceValue::Unsigned(aggregate.candidate_query_count as u128),
+                        EvidenceValue::Unsigned(u128::from(aggregate.candidate_query_count)),
                         EvidenceUnit::Count,
                     )
                     .map_err(|e| {
@@ -1098,8 +1110,8 @@ impl Detector for DnsPossibleTunnelingDetector {
                 .add_measurement(
                     EvidenceMeasurement::try_with_threshold(
                         k_tot,
-                        EvidenceValue::Unsigned(aggregate.dns_query_observation_count as u128),
-                        EvidenceValue::Unsigned(min_query_obs as u128),
+                        EvidenceValue::Unsigned(u128::from(aggregate.dns_query_observation_count)),
+                        EvidenceValue::Unsigned(u128::from(min_query_obs)),
                         EvidenceComparison::GreaterThanOrEqual,
                         EvidenceUnit::Count,
                     )
@@ -1114,6 +1126,12 @@ impl Detector for DnsPossibleTunnelingDetector {
                 })?;
 
             // 4. maximum_label_length
+            let max_label_u128 = u128::try_from(aggregate.maximum_label_length).map_err(|_| {
+                DetectorExecutionError::internal_error("maximum_label_length exceeds u128")
+            })?;
+            let min_label_u128 = u128::try_from(min_label_length).map_err(|_| {
+                DetectorExecutionError::internal_error("min_label_length exceeds u128")
+            })?;
             let k_label = EvidenceMetricKey::try_new("maximum_label_length").map_err(|e| {
                 DetectorExecutionError::internal_error(format!("metric key error: {e}"))
             })?;
@@ -1121,8 +1139,8 @@ impl Detector for DnsPossibleTunnelingDetector {
                 .add_measurement(
                     EvidenceMeasurement::try_with_threshold(
                         k_label,
-                        EvidenceValue::Unsigned(aggregate.maximum_label_length as u128),
-                        EvidenceValue::Unsigned(min_label_length as u128),
+                        EvidenceValue::Unsigned(max_label_u128),
+                        EvidenceValue::Unsigned(min_label_u128),
                         EvidenceComparison::GreaterThanOrEqual,
                         EvidenceUnit::Bytes,
                     )
@@ -1161,6 +1179,13 @@ impl Detector for DnsPossibleTunnelingDetector {
                 })?;
 
             // 6. maximum_qname_wire_length
+            let max_qname_u128 =
+                u128::try_from(aggregate.maximum_qname_wire_length).map_err(|_| {
+                    DetectorExecutionError::internal_error("maximum_qname_wire_length exceeds u128")
+                })?;
+            let min_qname_u128 = u128::try_from(min_qname_wire_length).map_err(|_| {
+                DetectorExecutionError::internal_error("min_qname_wire_length exceeds u128")
+            })?;
             let k_wire = EvidenceMetricKey::try_new("maximum_qname_wire_length").map_err(|e| {
                 DetectorExecutionError::internal_error(format!("metric key error: {e}"))
             })?;
@@ -1168,8 +1193,8 @@ impl Detector for DnsPossibleTunnelingDetector {
                 .add_measurement(
                     EvidenceMeasurement::try_with_threshold(
                         k_wire,
-                        EvidenceValue::Unsigned(aggregate.maximum_qname_wire_length as u128),
-                        EvidenceValue::Unsigned(min_qname_wire_length as u128),
+                        EvidenceValue::Unsigned(max_qname_u128),
+                        EvidenceValue::Unsigned(min_qname_u128),
                         EvidenceComparison::GreaterThanOrEqual,
                         EvidenceUnit::Bytes,
                     )
@@ -1187,7 +1212,7 @@ impl Detector for DnsPossibleTunnelingDetector {
                 DetectorExecutionError::internal_error(format!("evidence draft build error: {e}"))
             })?;
 
-            let finding_draft = match FindingDraft::try_new(
+            let finding_draft = FindingDraft::try_new(
                 subject,
                 title,
                 summary,
@@ -1195,14 +1220,10 @@ impl Detector for DnsPossibleTunnelingDetector {
                 Severity::Low,
                 Confidence::Medium,
                 vec![evidence_draft],
-            ) {
-                Ok(f) => f,
-                Err(e) => {
-                    return Err(DetectorExecutionError::internal_error(format!(
-                        "finding draft creation error: {e}"
-                    )));
-                }
-            };
+            )
+            .map_err(|e| {
+                DetectorExecutionError::internal_error(format!("finding draft creation error: {e}"))
+            })?;
 
             output.push(finding_draft)?;
         }

@@ -15,8 +15,9 @@ and HTTP inspection (`pcapraven http`), Phase 9 adds bounded visible TLS 1.2 / T
 handshake metadata analysis and TLS inspection (`pcapraven tls`), Phase 10 adds
 unified protocol observations and structured evidence foundation in `pcapraven-domain`,
 Phase 11 adds detection engine architecture in `pcapraven-detection`, Phase 12 adds
-explainable periodic beaconing detection in `pcapraven-detection`, and Phase 13 adds
-explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`.
+explainable periodic beaconing detection in `pcapraven-detection`, Phase 13 adds
+explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`, and Phase 14 adds
+explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`.
 
 ## Assets
 

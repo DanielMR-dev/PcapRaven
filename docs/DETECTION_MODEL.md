@@ -3,14 +3,16 @@
 ## Purpose and Status
 
 This document defines the contract for detectors, findings, severity, and confidence.
-Through Phase 12, PcapRaven contains capture ingestion, protocol normalization, flow
+Through Phase 14, PcapRaven contains capture ingestion, protocol normalization, flow
 reconstruction, checked flow statistics/exact temporal metrics, DNS protocol analysis,
 HTTP/1.x protocol analysis, TLS handshake analysis, unified protocol observations,
 structured evidence models, and finding models in `pcapraven-domain`, alongside functional CLI inspection
 (`validate`, `flows`, `dns`, `http`, `tls`) in `pcapraven-cli`, detection engine architecture
 in `pcapraven-detection`, the explainable periodic beaconing detector (`behavior.periodic_beaconing`),
-and explainable DNS anomaly and possible tunneling detectors (`dns.long_query_name`, `dns.possible_tunneling`).
-Specific threat detection rules for C2-like behaviors (Phase 14) remain targets for later roadmap phases.
+explainable DNS anomaly and possible tunneling detectors (`dns.long_query_name`, `dns.possible_tunneling`),
+explainable repeated low-volume flow detector (`behavior.repeated_low_volume_flows`), and
+deterministic cross-detector finding correlation (`behavior.possible_c2_multi_signal`).
+Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings (Phase 15) remain targets for later roadmap phases.
 
 ## Separation from Parsing
 

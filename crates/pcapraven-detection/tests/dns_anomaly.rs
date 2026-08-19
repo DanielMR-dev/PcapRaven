@@ -71,6 +71,49 @@ fn create_synthetic_dns_obs(
     )
 }
 
+fn create_synthetic_dns_obs_custom(
+    obs_ordinal: u64,
+    pkt_ordinal: u64,
+    flow_assoc: ObservationFlowAssociation,
+    message_kind: DnsMessageKind,
+    flags: DnsFlags,
+    labels: Vec<Vec<u8>>,
+) -> ProtocolObservation {
+    let name = DnsName::from_labels(labels).expect("valid dns name");
+    let question = DnsQuestion::new(name, 1, 1);
+    let pkt = PacketReference::new(pkt_ordinal, None, None, 100, 100, false);
+
+    let dns_obs = DnsObservation {
+        packet: pkt,
+        timestamp: PacketTimestamp::Unavailable,
+        transport: DnsTransport::Udp,
+        source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
+        source_port: 5353,
+        destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
+        destination_port: 53,
+        transaction_id: 1234,
+        message_kind,
+        opcode: 0,
+        response_code: 0,
+        effective_response_code: 0,
+        flags,
+        declared_qdcount: 1,
+        declared_ancount: 0,
+        declared_nscount: 0,
+        declared_arcount: 0,
+        questions: vec![question],
+        records: Vec::new(),
+        edns: None,
+        completeness: DnsObservationCompleteness::Complete,
+    };
+
+    ProtocolObservation::new(
+        ObservationReference::new(pkt_ordinal, ProtocolKind::Dns, obs_ordinal as u32),
+        flow_assoc,
+        ProtocolObservationData::Dns(dns_obs),
+    )
+}
+
 fn create_synthetic_flow(ordinal: u64) -> FlowRecord {
     let key = FlowKey::new(
         TransportProtocol::Udp,
@@ -888,4 +931,520 @@ fn test_dns_possible_tunneling_unassociated_queries_ignored() {
             .is_ok()
     );
     assert_eq!(sink.len(), 0);
+}
+
+#[test]
+fn test_dns_possible_tunneling_minimum_query_observations_boundary_validation() {
+    let detector = DnsPossibleTunnelingDetector::new();
+
+    // 1. Valid: minimum_query_observations = 2 (lower bound)
+    let mut b_min = DetectorParameters::builder();
+    b_min
+        .add(
+            DetectorParameterKey::try_new("minimum_query_observations").unwrap(),
+            DetectorParameterValue::Unsigned(2),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_min.build().unwrap())
+            .is_ok()
+    );
+
+    // 2. Valid: minimum_query_observations = u64::MAX (upper bound)
+    let mut b_max_u64 = DetectorParameters::builder();
+    b_max_u64
+        .add(
+            DetectorParameterKey::try_new("minimum_query_observations").unwrap(),
+            DetectorParameterValue::Unsigned(u64::MAX as u128),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_max_u64.build().unwrap())
+            .is_ok()
+    );
+
+    // 3. Invalid: minimum_query_observations = 1 (< 2)
+    let mut b_under = DetectorParameters::builder();
+    b_under
+        .add(
+            DetectorParameterKey::try_new("minimum_query_observations").unwrap(),
+            DetectorParameterValue::Unsigned(1),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_under.build().unwrap())
+            .is_err()
+    );
+
+    // 4. Invalid: minimum_query_observations = u64::MAX + 1 (> u64::MAX)
+    let mut b_over_u64 = DetectorParameters::builder();
+    b_over_u64
+        .add(
+            DetectorParameterKey::try_new("minimum_query_observations").unwrap(),
+            DetectorParameterValue::Unsigned((u64::MAX as u128) + 1),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_over_u64.build().unwrap())
+            .is_err()
+    );
+
+    // 5. Invalid: minimum_query_observations = u128::MAX
+    let mut b_max_u128 = DetectorParameters::builder();
+    b_max_u128
+        .add(
+            DetectorParameterKey::try_new("minimum_query_observations").unwrap(),
+            DetectorParameterValue::Unsigned(u128::MAX),
+        )
+        .unwrap();
+    assert!(
+        detector
+            .validate_parameters(&b_max_u128.build().unwrap())
+            .is_err()
+    );
+}
+
+#[test]
+fn test_dns_causal_evidence_matching_questions_only_and_qualifying_labels() {
+    let detector = DnsLongQueryNameDetector::new();
+    let flow = create_synthetic_flow(0);
+
+    // Question 1: Non-matching short domain with 100% diversity: "abc.com"
+    // (wire length 9 < 120, max label 3 < 40, diversity 3/3 = 1.0)
+    let name_short = DnsName::from_labels(vec![b"abc".to_vec(), b"com".to_vec()]).unwrap();
+    let q_short = DnsQuestion::new(name_short, 1, 1);
+
+    // Question 2: Matching long domain with 40% diversity on qualifying labels:
+    // 3 labels of 45 characters with diversity ~18/45 = 2/5 (0.4) >= 1/3
+    let label45_1: Vec<u8> = (0..45).map(|j| b'a' + (j % 18)).collect();
+    let label45_2: Vec<u8> = (0..45).map(|j| b'A' + (j % 18)).collect();
+    let label45_3: Vec<u8> = (0..45).map(|j| b'0' + (j % 10)).collect();
+    let name_long = DnsName::from_labels(vec![
+        label45_1,
+        label45_2,
+        label45_3,
+        b"xyz".to_vec(), // 3-char TLD with 100% diversity: MUST NOT inflate evidence diversity
+    ])
+    .unwrap();
+    let q_long = DnsQuestion::new(name_long, 1, 1);
+
+    let pkt = PacketReference::new(0, None, None, 200, 200, false);
+    let dns_obs = DnsObservation {
+        packet: pkt,
+        timestamp: PacketTimestamp::Unavailable,
+        transport: DnsTransport::Udp,
+        source_ip: IpAddress::Ipv4([10, 0, 0, 1]),
+        source_port: 5353,
+        destination_ip: IpAddress::Ipv4([10, 0, 0, 2]),
+        destination_port: 53,
+        transaction_id: 1234,
+        message_kind: DnsMessageKind::Query,
+        opcode: 0,
+        response_code: 0,
+        effective_response_code: 0,
+        flags: DnsFlags {
+            qr: false,
+            ..Default::default()
+        },
+        declared_qdcount: 2,
+        declared_ancount: 0,
+        declared_nscount: 0,
+        declared_arcount: 0,
+        questions: vec![q_short, q_long],
+        records: Vec::new(),
+        edns: None,
+        completeness: DnsObservationCompleteness::Complete,
+    };
+
+    let obs = ProtocolObservation::new(
+        ObservationReference::new(0, ProtocolKind::Dns, 0),
+        ObservationFlowAssociation::Associated {
+            flow: flow.reference,
+            direction: FlowDirection::AToB,
+        },
+        ProtocolObservationData::Dns(dns_obs),
+    );
+
+    let flows = vec![flow];
+    let observations = vec![obs];
+    let input = DetectionInput::try_new(
+        &flows,
+        &observations,
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .expect("evaluation succeeds");
+
+    assert_eq!(sink.len(), 1);
+    let findings = sink.into_drafts();
+    let evi = &findings[0].evidence()[0];
+
+    // matching_question_count must be 1, question_count must be 2
+    assert_eq!(
+        evi.measurements()[0].observed_value(),
+        &EvidenceValue::Unsigned(1)
+    );
+    assert_eq!(
+        evi.measurements()[4].observed_value(),
+        &EvidenceValue::Unsigned(2)
+    );
+
+    // maximum_label_octet_diversity_ratio must be <= 2/5 (from qualifying labels), NOT 1/1 (from "abc" or "xyz")
+    if let EvidenceValue::Ratio(r) = evi.measurements()[2].observed_value() {
+        assert!(*r < EvidenceRatio::ONE);
+        assert!(*r >= EvidenceRatio::from_fraction(1, 3).unwrap());
+    } else {
+        panic!("expected ratio evidence value");
+    }
+}
+
+#[test]
+fn test_dns_query_classification_canonical_filter() {
+    let detector = DnsLongQueryNameDetector::new();
+    let flow = create_synthetic_flow(0);
+
+    let label45_1: Vec<u8> = (0..45).map(|j| b'a' + (j % 26)).collect();
+    let label45_2: Vec<u8> = (0..45).map(|j| b'A' + (j % 26)).collect();
+    let label45_3: Vec<u8> = (0..45).map(|j| b'0' + (j % 10)).collect();
+
+    // 1. Query with qr = false -> VALID query -> MATCHES
+    let obs_valid_query = create_synthetic_dns_obs_custom(
+        0,
+        0,
+        ObservationFlowAssociation::Associated {
+            flow: flow.reference,
+            direction: FlowDirection::AToB,
+        },
+        DnsMessageKind::Query,
+        DnsFlags {
+            qr: false,
+            ..Default::default()
+        },
+        vec![
+            label45_1.clone(),
+            label45_2.clone(),
+            label45_3.clone(),
+            b"net".to_vec(),
+        ],
+    );
+
+    // 2. Query with qr = true -> CONTRADICTION -> MUST BE IGNORED
+    let obs_query_qr_true = create_synthetic_dns_obs_custom(
+        1,
+        1,
+        ObservationFlowAssociation::Associated {
+            flow: flow.reference,
+            direction: FlowDirection::AToB,
+        },
+        DnsMessageKind::Query,
+        DnsFlags {
+            qr: true,
+            ..Default::default()
+        },
+        vec![
+            label45_1.clone(),
+            label45_2.clone(),
+            label45_3.clone(),
+            b"net".to_vec(),
+        ],
+    );
+
+    // 3. Response with qr = false -> CONTRADICTION -> MUST BE IGNORED
+    let obs_resp_qr_false = create_synthetic_dns_obs_custom(
+        2,
+        2,
+        ObservationFlowAssociation::Associated {
+            flow: flow.reference,
+            direction: FlowDirection::AToB,
+        },
+        DnsMessageKind::Response,
+        DnsFlags {
+            qr: false,
+            ..Default::default()
+        },
+        vec![
+            label45_1.clone(),
+            label45_2.clone(),
+            label45_3.clone(),
+            b"net".to_vec(),
+        ],
+    );
+
+    // 4. Response with qr = true -> VALID response -> MUST BE IGNORED
+    let obs_valid_resp = create_synthetic_dns_obs_custom(
+        3,
+        3,
+        ObservationFlowAssociation::Associated {
+            flow: flow.reference,
+            direction: FlowDirection::AToB,
+        },
+        DnsMessageKind::Response,
+        DnsFlags {
+            qr: true,
+            ..Default::default()
+        },
+        vec![label45_1, label45_2, label45_3, b"net".to_vec()],
+    );
+
+    let flows = vec![flow];
+    let observations = vec![
+        obs_valid_query,
+        obs_query_qr_true,
+        obs_resp_qr_false,
+        obs_valid_resp,
+    ];
+    let input = DetectionInput::try_new(
+        &flows,
+        &observations,
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .expect("evaluation succeeds");
+
+    // Exactly 1 finding from obs_valid_query
+    assert_eq!(sink.len(), 1);
+    let findings = sink.into_drafts();
+    assert_eq!(
+        findings[0].subject().observation_references(),
+        &[ObservationReference::new(0, ProtocolKind::Dns, 0)]
+    );
+}
+
+#[test]
+fn test_dns_possible_tunneling_candidate_ratio_threshold_boundaries() {
+    let detector = DnsPossibleTunnelingDetector::new();
+    let flow_match = create_synthetic_flow(1);
+    let flow_nomatch = create_synthetic_flow(2);
+
+    let mut observations = Vec::new();
+
+    // Flow 1: 6 candidate queries + 2 non-candidate queries = 8 queries -> ratio 6/8 = 3/4 (0.75) >= 3/4 -> MATCH
+    for i in 0..6 {
+        let label45_1: Vec<u8> = (0..45)
+            .map(|j| b'a' + (((i * 45) + j) % 26) as u8)
+            .collect();
+        let label45_2: Vec<u8> = (0..45)
+            .map(|j| b'A' + (((i * 45) + j) % 26) as u8)
+            .collect();
+        let label45_3: Vec<u8> = (0..45)
+            .map(|j| b'0' + (((i * 45) + j) % 10) as u8)
+            .collect();
+        observations.push(create_synthetic_dns_obs(
+            i as u64,
+            i as u64,
+            Some(flow_match.reference),
+            true,
+            vec![label45_1, label45_2, label45_3, b"net".to_vec()],
+        ));
+    }
+    for i in 6..8 {
+        observations.push(create_synthetic_dns_obs(
+            i as u64,
+            i as u64,
+            Some(flow_match.reference),
+            true,
+            vec![b"short".to_vec(), b"com".to_vec()],
+        ));
+    }
+
+    // Flow 2: 5 candidate queries + 3 non-candidate queries = 8 queries -> ratio 5/8 (0.625) < 3/4 -> NO MATCH
+    for i in 0..5 {
+        let label45_1: Vec<u8> = (0..45)
+            .map(|j| b'a' + (((i * 45) + j) % 26) as u8)
+            .collect();
+        let label45_2: Vec<u8> = (0..45)
+            .map(|j| b'A' + (((i * 45) + j) % 26) as u8)
+            .collect();
+        let label45_3: Vec<u8> = (0..45)
+            .map(|j| b'0' + (((i * 45) + j) % 10) as u8)
+            .collect();
+        observations.push(create_synthetic_dns_obs(
+            10 + i as u64,
+            10 + i as u64,
+            Some(flow_nomatch.reference),
+            true,
+            vec![label45_1, label45_2, label45_3, b"net".to_vec()],
+        ));
+    }
+    for i in 5..8 {
+        observations.push(create_synthetic_dns_obs(
+            10 + i as u64,
+            10 + i as u64,
+            Some(flow_nomatch.reference),
+            true,
+            vec![b"short".to_vec(), b"com".to_vec()],
+        ));
+    }
+
+    let flows = vec![flow_match, flow_nomatch];
+    let input = DetectionInput::try_new(
+        &flows,
+        &observations,
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .expect("evaluation succeeds");
+
+    // Only Flow 1 matches
+    assert_eq!(sink.len(), 1);
+    let findings = sink.into_drafts();
+    assert_eq!(
+        findings[0].subject().flow_references(),
+        &[FlowReference::new(1)]
+    );
+}
+
+#[test]
+fn test_dns_possible_tunneling_flow_exclusions_and_analysis_stopped() {
+    let detector = DnsPossibleTunnelingDetector::new();
+
+    // Flow 1: Stopped by analysis limit -> MUST BE IGNORED
+    let mut flow_stopped = create_synthetic_flow(1);
+    flow_stopped.end_reason = FlowEndReason::AnalysisStopped;
+
+    // Flow 2: Normal flow with SameEndpoint direction -> MUST BE IGNORED
+    let flow_normal = create_synthetic_flow(2);
+
+    let mut observations = Vec::new();
+
+    // 8 queries on stopped flow
+    for i in 0..8 {
+        let label45_1: Vec<u8> = (0..45).map(|j| b'a' + (j % 26)).collect();
+        let label45_2: Vec<u8> = (0..45).map(|j| b'A' + (j % 26)).collect();
+        let label45_3: Vec<u8> = (0..45).map(|j| b'0' + (j % 10)).collect();
+        observations.push(create_synthetic_dns_obs(
+            i as u64,
+            i as u64,
+            Some(flow_stopped.reference),
+            true,
+            vec![label45_1, label45_2, label45_3, b"net".to_vec()],
+        ));
+    }
+
+    // 8 queries on normal flow but with SameEndpoint direction
+    for i in 0..8 {
+        let label45_1: Vec<u8> = (0..45).map(|j| b'a' + (j % 26)).collect();
+        let label45_2: Vec<u8> = (0..45).map(|j| b'A' + (j % 26)).collect();
+        let label45_3: Vec<u8> = (0..45).map(|j| b'0' + (j % 10)).collect();
+        let obs = create_synthetic_dns_obs_custom(
+            10 + i as u64,
+            10 + i as u64,
+            ObservationFlowAssociation::Associated {
+                flow: flow_normal.reference,
+                direction: FlowDirection::SameEndpoint,
+            },
+            DnsMessageKind::Query,
+            DnsFlags {
+                qr: false,
+                ..Default::default()
+            },
+            vec![label45_1, label45_2, label45_3, b"net".to_vec()],
+        );
+        observations.push(obs);
+    }
+
+    let flows = vec![flow_stopped, flow_normal];
+    let input = DetectionInput::try_new(
+        &flows,
+        &observations,
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .expect("evaluation succeeds");
+
+    assert_eq!(sink.len(), 0);
+}
+
+#[test]
+fn test_dns_detector_versions_v1_0_1() {
+    assert_eq!(
+        DnsLongQueryNameDetector::DETECTOR_VERSION,
+        pcapraven_domain::DetectorVersion::new(1, 0, 1)
+    );
+    assert_eq!(
+        DnsPossibleTunnelingDetector::DETECTOR_VERSION,
+        pcapraven_domain::DetectorVersion::new(1, 0, 1)
+    );
+
+    let d_long = DnsLongQueryNameDetector::new();
+    assert_eq!(
+        d_long.metadata().version(),
+        pcapraven_domain::DetectorVersion::new(1, 0, 1)
+    );
+
+    let d_tunnel = DnsPossibleTunnelingDetector::new();
+    assert_eq!(
+        d_tunnel.metadata().version(),
+        pcapraven_domain::DetectorVersion::new(1, 0, 1)
+    );
+}
+
+#[test]
+fn test_dns_finding_and_evidence_text_sanitization_no_raw_qnames() {
+    let detector = DnsLongQueryNameDetector::new();
+    let flow = create_synthetic_flow(0);
+
+    let secret_qname_fragment = b"super_secret_raw_domain_data_never_leak_this";
+    let mut label45: Vec<u8> = secret_qname_fragment.to_vec();
+    label45.resize(45, b'x');
+
+    let obs = create_synthetic_dns_obs(
+        0,
+        0,
+        Some(flow.reference),
+        true,
+        vec![label45.clone(), label45.clone(), label45, b"com".to_vec()],
+    );
+
+    let flows = vec![flow];
+    let observations = vec![obs];
+    let input = DetectionInput::try_new(
+        &flows,
+        &observations,
+        DetectionInputCompleteness::Complete,
+        &[],
+    )
+    .unwrap();
+
+    let mut sink = DetectorDraftSink::new(10, 50);
+    detector
+        .evaluate(&input, &DetectorParameters::empty(), &mut sink)
+        .unwrap();
+
+    assert_eq!(sink.len(), 1);
+    let findings = sink.into_drafts();
+    let f = &findings[0];
+
+    // Verify raw secret string does NOT appear in title, summary, rationale, or evidence descriptions
+    let secret_str = "super_secret_raw_domain_data";
+    assert!(!f.title().as_str().contains(secret_str));
+    assert!(!f.summary().as_str().contains(secret_str));
+    assert!(!f.rationale().as_str().contains(secret_str));
+    for evi in f.evidence() {
+        assert!(!evi.description().as_str().contains(secret_str));
+    }
 }

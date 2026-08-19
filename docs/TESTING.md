@@ -378,6 +378,32 @@ Phase 12 validation and Phase 12.1 hardening confirm:
 - **Canonical Identity Determinism:** Accepted finding drafts are sorted canonically by `(FindingSubject, FindingTitle)` prior to sequential identifier assignment (`find:{ordinal}`, `evi:{ordinal}`).
 - **Comprehensive Integration Tests:** Unit and integration tests in `crates/pcapraven-detection/tests/periodic_beaconing.rs` verify clean matches in both directions, discontinuity rejection, insufficient samples, short mean intervals, jitter/spread threshold rejections, ratio bounds `0..=1`, large `u128` values, coverage/end reason rejections, TCP/UDP qualification, and sink capacity limits.
 
+## Phase 13 Explainable DNS Anomaly and Possible Tunneling Detection Validation (completed)
+
+Phase 13 validation and Phase 13.1 hardening confirm:
+
+- **DNS Anomaly and Tunneling Detector Implementations:** `DnsLongQueryNameDetector` (`dns.long_query_name`, v1.0.1, policy `Skip`, severity `Info`, confidence `Medium`) and `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, v1.0.1, policy `Skip`, severity `Low`, confidence `Medium`) implemented in `crates/pcapraven-detection/src/dns_anomaly.rs`.
+- **Exact Label Octet Diversity Metric:** Computes `label_octet_diversity_ratio` using a fixed `[bool; 256]` bitmap with zero floats, zero heap allocations, and zero Shannon entropy approximations.
+- **Canonical DNS Query Classification:** Enforces strict query validation (`completeness.is_complete() && message_kind == DnsMessageKind::Query && flags.qr == false`). Responses and contradictory message states are safely ignored.
+- **Causally Coherent Evidence:** Finding threshold measurements derive strictly from matching questions and qualifying labels (`label.len() >= min_label_length`). Non-matching questions and short unrelated labels cannot inflate displayed evidence metrics.
+- **$O(\log F)$ Binary Search Flow Lookup:** Flow existence verification and `AnalysisStopped` filtering use binary search over strictly sorted `DetectionInput::flows()`.
+- **Checked Counters & Parameter Validation:** Replaces saturating arithmetic with checked addition; strictly validates `minimum_query_observations` within range `2..=u64::MAX`.
+- **Engine Output Bounding & Transactional Discard:** Output capacity exhaustion records `ResourceLimited` status and transactionally discards all partial findings from the failing detector.
+- **Comprehensive Integration Tests:** Integration tests in `crates/pcapraven-detection/tests/dns_anomaly.rs` and `crates/pcapraven-detection/tests/engine.rs` verify all match rules, non-matches, parameter boundaries (`u64::MAX`, `u64::MAX + 1`), multi-question causal metrics, response/contradiction exclusions, candidate ratio thresholds, flow exclusions, capacity limits, and deterministic output ordering.
+
+## Phase 14 Explainable Repeated Low-Volume Flow Behavior and Cross-Detector Correlation Validation (completed)
+
+Phase 14 validation confirms:
+
+- **Finding Domain Model Extension:** Added `source_finding_references: Vec<FindingReference>` to `FindingRecord` in `crates/pcapraven-domain/src/finding.rs` with `HARD_MAX_SOURCE_FINDING_REFERENCES = 256` and strict sort/uniqueness/capacity validation. Verified via `crates/pcapraven-domain/tests/finding.rs`.
+- **Repeated Low-Volume Flow Detector:** `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`, v1.0.0, policy `Skip`, severity `Low`, confidence `Medium`) implemented in `crates/pcapraven-detection/src/connection_behavior.rs`.
+- **Canonical Peer Aggregation:** Aggregates flows using port-agnostic `ConnectionPeerKey` (`peer_a <= peer_b`), bounded by `maximum_tracked_peers` ($1..=1\_000\_000$).
+- **Flow Qualification & Exclusions:** Excludes flows with `AnalysisStopped`, `same_endpoint > 0`, `packet_count == 0`, and flows exceeding byte/packet caps.
+- **Ordered Factual Evidence:** Emits `EvidenceKind::FlowMeasurement` with 5 canonical measurements in strict alphabetical order (`flow_count`, `maximum_flow_bytes`, `maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`).
+- **Cross-Detector Correlation Pipeline:** Implemented `FindingCorrelator` trait, `CorrelationRegistry`, `CorrelationDraftSink`, and `execute_detection_with_correlators` in `crates/pcapraven-detection/src/correlation.rs` and `engine.rs`.
+- **Multi-Signal C2 Correlator:** `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, v1.0.0, severity `Medium`, confidence `Medium`) correlates `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
+- **Comprehensive Integration Tests:** Unit and integration tests in `crates/pcapraven-detection/tests/connection_behavior.rs` and `crates/pcapraven-detection/tests/correlation.rs` verify all match rules, thresholds, flow exclusions, incomplete data handling, parameter validation, multi-signal matching, partial signal rejections, and capacity bounds.
+
 ## Dependency Audits
 
 ### `pcap-parser = 0.17.0` (Phase 2)
@@ -398,7 +424,7 @@ or network behavior.
 
 `pcapraven-flows` introduces zero third-party production dependencies.
 
-### `pcapraven-detection` (Phase 11 and Phase 12)
+### `pcapraven-detection` (Phase 11, Phase 12, Phase 13, Phase 14)
 
 `pcapraven-detection` introduces zero third-party production dependencies (pure safe Rust and `std`).
 
@@ -434,9 +460,9 @@ runtime.
   purity.
 - Tests may not hide panics or accept broad output merely to tolerate defects.
 
-## Phase 12 Quality Gates
+## Phase 14 Quality Gates
 
-The full workspace verification commands for Phase 12 are:
+The full workspace verification commands for Phase 14 are:
 
 ```text
 # 1. Format check
@@ -451,7 +477,7 @@ cargo test --workspace --all-features --locked
 # 4. CLI end-to-end integration tests
 cargo test -p pcapraven-cli --locked
 
-# 5. Detection engine and periodic beaconing integration tests
+# 5. Detection engine, periodic beaconing, DNS anomaly, connection behavior, and correlation integration tests
 cargo test -p pcapraven-detection --locked
 
 # 6. Documentation build

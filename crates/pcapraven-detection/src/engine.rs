@@ -1,6 +1,7 @@
 //! Detection execution engine, immutable inputs, preflight configuration, and deterministic outcome generation.
 
 use crate::config::{DetectorConfig, DetectorConfigurations};
+use crate::correlation::{CorrelationDraftSink, CorrelationRegistry};
 use crate::detector::{DetectorDraftSink, IncompleteDataPolicy};
 use crate::error::{
     DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
@@ -854,6 +855,7 @@ pub fn execute_detection(
                         severity,
                         confidence,
                         finding_evi_refs,
+                        Vec::new(),
                     )
                     .map_err(DetectionOutputError::from)?;
                     temp_findings.push(finding);
@@ -871,11 +873,138 @@ pub fn execute_detection(
         }
     }
 
-    Ok(DetectionRunOutcome {
+    let outcome = DetectionRunOutcome {
         completion: overall_completion,
         detector_executions: execution_records,
         findings: accepted_findings,
         evidence: accepted_evidence,
         diagnostics,
-    })
+    };
+
+    Ok(outcome)
+}
+
+/// Evaluates all registered detectors and correlators over normalized domain input facts.
+///
+/// Executes primary detectors first, then runs post-evaluation finding correlators in canonical order.
+/// Correlated findings reuse existing evidence records without creating new evidence records.
+pub fn execute_detection_with_correlators(
+    detector_registry: &DetectorRegistry,
+    correlator_registry: &CorrelationRegistry,
+    input: &DetectionInput<'_>,
+    configurations: &DetectorConfigurations,
+    limits: &DetectionLimits,
+) -> Result<DetectionRunOutcome, DetectionEngineError> {
+    let mut outcome = execute_detection(detector_registry, input, configurations, limits)?;
+
+    // Run post-evaluation correlators in canonical order
+    for correlator in correlator_registry.iter() {
+        let meta = correlator.metadata();
+        let remaining_findings = limits
+            .max_total_findings()
+            .saturating_sub(outcome.findings.len());
+
+        let mut sink = CorrelationDraftSink::new(remaining_findings);
+        let corr_res = correlator.correlate(&outcome.findings, &outcome.evidence, &mut sink);
+
+        match corr_res {
+            Err(DetectorExecutionError::ResourceLimitExceeded(msg)) => {
+                outcome.completion = DetectionInputCompleteness::Partial;
+                if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
+                    outcome.diagnostics.push(format!(
+                        "correlator {} resource limit exceeded: {}",
+                        meta.id(),
+                        msg
+                    ));
+                }
+                outcome.detector_executions.push(DetectorExecutionRecord {
+                    detector_id: meta.id().clone(),
+                    detector_version: meta.version(),
+                    status: DetectorExecutionStatus::ResourceLimited,
+                });
+            }
+            Err(DetectorExecutionError::InternalError(msg)) => {
+                outcome.completion = DetectionInputCompleteness::Partial;
+                if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
+                    outcome.diagnostics.push(format!(
+                        "correlator {} internal error: {}",
+                        meta.id(),
+                        msg
+                    ));
+                }
+                outcome.detector_executions.push(DetectorExecutionRecord {
+                    detector_id: meta.id().clone(),
+                    detector_version: meta.version(),
+                    status: DetectorExecutionStatus::Failed { reason: msg },
+                });
+            }
+            Ok(()) => {
+                let drafts = sink.into_drafts();
+                let mut temp_findings = Vec::new();
+
+                for draft in drafts {
+                    // Validate referential integrity:
+                    // 1. Source finding references must exist in outcome.findings
+                    for src_ref in draft.source_finding_references() {
+                        if !outcome.findings.iter().any(|f| f.reference() == *src_ref) {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::ReferentialIntegrityError(format!(
+                                    "correlator {} referenced unknown source finding {src_ref}",
+                                    meta.id()
+                                )),
+                            ));
+                        }
+                    }
+                    // 2. Evidence references must exist in outcome.evidence
+                    for evi_ref in draft.evidence_references() {
+                        if !outcome.evidence.iter().any(|e| e.reference() == *evi_ref) {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::ReferentialIntegrityError(format!(
+                                    "correlator {} referenced unknown evidence {evi_ref}",
+                                    meta.id()
+                                )),
+                            ));
+                        }
+                    }
+
+                    let base_find_len = outcome
+                        .findings
+                        .len()
+                        .checked_add(temp_findings.len())
+                        .ok_or_else(|| DetectionEngineError::ResourceLimit {
+                            resource: "finding_index_overflow",
+                            capacity: limits.max_total_findings(),
+                        })?;
+                    let next_find_idx = base_find_len as u64;
+                    let finding_ref = FindingReference::new(next_find_idx);
+
+                    let finding = FindingRecord::try_new(
+                        finding_ref,
+                        meta.id().clone(),
+                        meta.version(),
+                        draft.subject().clone(),
+                        draft.title().clone(),
+                        draft.summary().clone(),
+                        draft.rationale().clone(),
+                        draft.severity(),
+                        draft.confidence(),
+                        draft.evidence_references().to_vec(),
+                        draft.source_finding_references().to_vec(),
+                    )
+                    .map_err(DetectionOutputError::from)?;
+
+                    temp_findings.push(finding);
+                }
+
+                outcome.findings.extend(temp_findings);
+                outcome.detector_executions.push(DetectorExecutionRecord {
+                    detector_id: meta.id().clone(),
+                    detector_version: meta.version(),
+                    status: DetectorExecutionStatus::Executed,
+                });
+            }
+        }
+    }
+
+    Ok(outcome)
 }
