@@ -1380,14 +1380,14 @@ fn test_dns_possible_tunneling_flow_exclusions_and_analysis_stopped() {
 }
 
 #[test]
-fn test_dns_detector_versions_v1_0_1() {
+fn test_dns_detector_versions() {
     assert_eq!(
         DnsLongQueryNameDetector::DETECTOR_VERSION,
         pcapraven_domain::DetectorVersion::new(1, 0, 1)
     );
     assert_eq!(
         DnsPossibleTunnelingDetector::DETECTOR_VERSION,
-        pcapraven_domain::DetectorVersion::new(1, 0, 1)
+        pcapraven_domain::DetectorVersion::new(1, 1, 0)
     );
 
     let d_long = DnsLongQueryNameDetector::new();
@@ -1399,7 +1399,7 @@ fn test_dns_detector_versions_v1_0_1() {
     let d_tunnel = DnsPossibleTunnelingDetector::new();
     assert_eq!(
         d_tunnel.metadata().version(),
-        pcapraven_domain::DetectorVersion::new(1, 0, 1)
+        pcapraven_domain::DetectorVersion::new(1, 1, 0)
     );
 }
 

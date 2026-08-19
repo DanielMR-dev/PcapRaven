@@ -72,21 +72,24 @@ An eligible flow is a candidate when all are true:
 
 ### 3.1 Metadata and Contracts
 - **Correlator Identifier:** `behavior.possible_c2_multi_signal`
-- **Correlator Logic Version:** `v1.0.0`
+- **Correlator Logic Version:** `v1.1.0`
+- **Required Primary Detector IDs:** `["behavior.periodic_beaconing", "dns.possible_tunneling"]`
 - **Severity:** `Severity::Medium`
 - **Confidence:** `Confidence::Medium`
 - **Finding Title:** `Possible multi-signal C2-like behavior`
 
 ### 3.2 Correlation Mechanics
-1. Runs post-primary-evaluation during the detection engine pipeline.
-2. Identifies pairs of primary findings where:
+1. Runs post-primary-evaluation during the detection engine pipeline over an immutable snapshot of primary findings.
+2. Preflights required primary detector registration and cross-registry identifier uniqueness before evaluation.
+3. Indexes primary findings by single `FlowReference` in $O(P \log P)$ time using `BTreeMap`.
+4. Identifies pairs of primary findings where:
    - Finding A is `behavior.periodic_beaconing`.
    - Finding B is `dns.possible_tunneling`.
-   - Finding A and Finding B share at least one common `FlowReference` in their `FindingSubject`.
-3. Emits a `CorrelationDraft` with:
+   - Finding A and Finding B share the same `FlowReference`.
+5. Emits a `CorrelationDraft` with:
    - `source_finding_references`: `[finding_a.reference(), finding_b.reference()]` (sorted and deduplicated).
-   - `evidence_references`: Union of `evidence_references` from finding A and finding B (sorted and deduplicated).
-   - `subject`: Union of packet, flow, and observation references from finding A and finding B.
+   - `evidence_references`: Exact union of `evidence_references` from finding A and finding B (sorted and deduplicated).
+   - `subject`: Exactly the single shared `FlowReference` (zero packet or observation references).
    - **Zero New Evidence Records:** Reuses existing evidence records from primary findings to prevent duplicate metric tracking.
 
 ### 3.3 Explainable Rationale

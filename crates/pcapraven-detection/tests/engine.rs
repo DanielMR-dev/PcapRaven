@@ -118,6 +118,7 @@ impl Detector for OneFindingStubDetector {
             Severity::Low,
             Confidence::High,
             vec![evi],
+            Vec::new(),
         )
         .unwrap();
 
@@ -222,6 +223,7 @@ impl Detector for MultiFindingStubDetector {
                 Severity::Low,
                 Confidence::Medium,
                 evidence,
+                Vec::new(),
             )
             .unwrap();
 
@@ -389,6 +391,7 @@ impl Detector for IncompleteInputStubDetector {
             Severity::Medium,
             Confidence::Low,
             vec![evi],
+            Vec::new(),
         )
         .unwrap();
 
@@ -1049,6 +1052,7 @@ fn test_finding_record_strict_evidence_reference_order() {
             Confidence::Medium,
             valid_refs,
             Vec::new(),
+            Vec::new(),
         )
         .is_ok()
     );
@@ -1067,6 +1071,7 @@ fn test_finding_record_strict_evidence_reference_order() {
             Severity::Low,
             Confidence::Medium,
             dup_refs,
+            Vec::new(),
             Vec::new(),
         )
         .unwrap_err(),
@@ -1087,6 +1092,7 @@ fn test_finding_record_strict_evidence_reference_order() {
             Severity::Low,
             Confidence::Medium,
             desc_refs,
+            Vec::new(),
             Vec::new(),
         )
         .unwrap_err(),
@@ -1307,6 +1313,7 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1.clone(), evi1.clone()],
+        Vec::new(),
     )
     .unwrap();
 
@@ -1323,6 +1330,7 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1.clone(), evi1.clone()],
+        Vec::new(),
     )
     .unwrap();
 
@@ -1343,6 +1351,7 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1.clone()],
+        Vec::new(),
     )
     .unwrap();
 
@@ -1359,6 +1368,7 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1],
+        Vec::new(),
     )
     .unwrap();
 

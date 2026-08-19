@@ -11,6 +11,7 @@ pub mod detector;
 pub mod dns_anomaly;
 pub mod engine;
 pub mod error;
+pub mod filtering;
 pub mod periodic_beaconing;
 pub mod registry;
 
@@ -21,22 +22,25 @@ pub use config::{
 };
 pub use connection_behavior::{ConnectionPeerKey, RepeatedLowVolumeFlowDetector};
 pub use correlation::{
-    CorrelationDraft, CorrelationDraftSink, CorrelationRegistry, CorrelatorMetadata,
-    FindingCorrelator, PossibleC2MultiSignalCorrelator,
+    CorrelationDraft, CorrelationDraftSink, CorrelationRegistry, CorrelatorDescription,
+    CorrelatorMetadata, FindingCorrelator, MAX_CORRELATOR_DESCRIPTION_LENGTH,
+    PossibleC2MultiSignalCorrelator,
 };
 pub use detector::{Detector, DetectorDraftSink, DetectorMetadata, IncompleteDataPolicy};
 pub use dns_anomaly::{
     DnsLongQueryNameDetector, DnsPossibleTunnelingDetector, label_octet_diversity_ratio,
 };
 pub use engine::{
-    DetectionInput, DetectionInputCompleteness, DetectionInputLimitation, DetectionLimits,
-    DetectionLimitsBuilder, DetectionRunOutcome, DetectorExecutionRecord, DetectorExecutionStatus,
-    execute_detection, execute_detection_with_correlators,
+    CorrelatorExecutionRecord, CorrelatorExecutionStatus, DetectionInput,
+    DetectionInputCompleteness, DetectionInputLimitation, DetectionLimits, DetectionLimitsBuilder,
+    DetectionRunOutcome, DetectorExecutionRecord, DetectorExecutionStatus, execute_detection,
+    execute_detection_with_correlators,
 };
 pub use error::{
     DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
     DetectionOutputError, DetectorConfigError, DetectorExecutionError, DetectorRegistryError,
     MAX_DETECTOR_ERROR_MESSAGE_LENGTH,
 };
+pub use filtering::FindingFilter;
 pub use periodic_beaconing::PeriodicBeaconingDetector;
 pub use registry::DetectorRegistry;

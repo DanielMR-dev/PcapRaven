@@ -207,13 +207,20 @@ and implemented the post-evaluation correlation pipeline reusing existing primar
 Delivered comprehensive integration tests in `crates/pcapraven-domain/tests/finding.rs`, `crates/pcapraven-detection/tests/connection_behavior.rs`,
 and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`,
 and the `connection-behavior-detection` and `finding-correlation` skills.
-Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings remain future work.
 
 ## Phase 15 - Severity, confidence, filtering and MITRE mappings
 
-Finalize independent severity and confidence assignment, CLI filtering,
-mapping provenance, and applicable MITRE ATT&CK relationships. Verify every
-finding answers the required explanatory questions.
+Finalized independent severity (`Severity::from_str`, `info < low < medium < high < critical`) and confidence
+(`Confidence::from_str`, `low < medium < high`) assignment and ordering across all built-in primary detectors
+and correlators. Implemented the MITRE ATT&CK Enterprise Matrix (v19.2) mapping domain model in `pcapraven-domain`
+(`MitreAttackId`, `MitreTactic`, `MitreMappingRationale`, `MitreMappingProvenance`, `MitreMapping`) with strict
+technique ID validation, bounded cardinality, and provenance stamping (`T1071.004` on `dns.possible_tunneling` and
+`behavior.possible_c2_multi_signal`). Implemented the multi-criteria `FindingFilter` in `pcapraven-detection`
+and the minimal `pcapraven findings` CLI inspection subcommand in `pcapraven-cli` with `--min-severity`,
+`--min-confidence`, `--detector`, and `--mitre` filtering. Delivered comprehensive integration tests in
+`crates/pcapraven-detection/tests/filtering.rs` and `crates/pcapraven-cli/tests/cli.rs`, and documented mapping contracts
+in `docs/MITRE_ATTACK_MAPPING.md`.
+Structured reporting formats (JSON, NDJSON, CSV, table) and full `analyze` orchestration remain future work.
 
 ## Phase 16 - Table/JSON/NDJSON/CSV reporting
 

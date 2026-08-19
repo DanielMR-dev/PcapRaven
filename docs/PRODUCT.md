@@ -121,6 +121,7 @@ pcapraven --quiet <subcommand> <capture>
 | `dns` | Streams capture records through packet normalization and DNS parser, immediately emitting normalized DNS observations to stdout in tabular format. |
 | `http` | Streams capture records through packet normalization and HTTP/1.x parser, immediately emitting normalized cleartext HTTP observations to stdout in tabular format. |
 | `tls` | Streams capture records through packet normalization and TLS parser, immediately emitting normalized visible TLS handshake metadata observations to stdout in tabular format. |
+| `findings` | Streams capture records through flow reconstruction and protocol analysis, runs registered detectors and correlators, applies multi-criteria filters (`--min-severity`, `--min-confidence`, `--detector`, `--mitre`), and emits human-readable findings to stdout. |
 
 ### Implemented Exit Codes
 
@@ -131,13 +132,13 @@ pcapraven --quiet <subcommand> <capture>
 
 ### Implemented Stream Separation
 
-- `stdout`: Requested factual summary or table only. No ANSI color.
+- `stdout`: Requested factual summary, table, or findings only. No ANSI color.
 - `stderr`: Nonfatal diagnostics (budgeted to 100 lines default, suppressed summary unless `--quiet`) and fatal errors.
 
 ## Target v1 CLI Contract
 
-The expanded CLI described below is a target for later roadmap phases. Higher-level
-commands (`analyze`, `findings`) and machine-readable formats (`json`, `ndjson`, `csv`)
+The expanded CLI described below is a target for later roadmap phases. The unified
+`analyze` command and machine-readable reporting formats (`json`, `ndjson`, `csv`)
 are not yet implemented.
 
 ```text

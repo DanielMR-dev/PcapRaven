@@ -11,7 +11,8 @@ use pcapraven_domain::{
     EvidenceDescription, EvidenceDraftBuilder, EvidenceKind, EvidenceMeasurement,
     EvidenceMetricKey, EvidenceRatio, EvidenceUnit, EvidenceValue, FindingDraft, FindingRationale,
     FindingSubject, FindingSummary, FindingTitle, FindingValidationError, FlowEndReason,
-    FlowReference, ObservationFlowAssociation, ObservationReference, ProtocolKind,
+    FlowReference, MitreAttackId, MitreMapping, MitreMappingProvenance, MitreMappingRationale,
+    MitreTactic, ObservationFlowAssociation, ObservationReference, ProtocolKind,
     ProtocolObservationData, Severity,
 };
 
@@ -521,6 +522,7 @@ impl Detector for DnsLongQueryNameDetector {
                 Severity::Info,
                 Confidence::Medium,
                 vec![evidence_draft],
+                Vec::new(),
             )
             .map_err(|e| {
                 DetectorExecutionError::internal_error(format!("finding draft creation error: {e}"))
@@ -605,8 +607,8 @@ pub struct DnsPossibleTunnelingDetector {
 impl DnsPossibleTunnelingDetector {
     /// Canonical detector identifier (`dns.possible_tunneling`).
     pub const DETECTOR_ID: &'static str = "dns.possible_tunneling";
-    /// Detector version (`v1.0.1`).
-    pub const DETECTOR_VERSION: DetectorVersion = DetectorVersion::new(1, 0, 1);
+    /// Detector version (`v1.1.0`).
+    pub const DETECTOR_VERSION: DetectorVersion = DetectorVersion::new(1, 1, 0);
 
     /// Parameter key for minimum total query observations (`minimum_query_observations`).
     pub const PARAM_MINIMUM_QUERY_OBSERVATIONS: &'static str = "minimum_query_observations";
@@ -1212,6 +1214,27 @@ impl Detector for DnsPossibleTunnelingDetector {
                 DetectorExecutionError::internal_error(format!("evidence draft build error: {e}"))
             })?;
 
+            let mitre_id = MitreAttackId::try_new("T1071.004").map_err(|e| {
+                DetectorExecutionError::internal_error(format!("invalid MITRE technique ID: {e}"))
+            })?;
+            let mitre_rationale = MitreMappingRationale::try_new(
+                "The detector identified repeated DNS query observations with unusually long, high-octet-diversity names consistent with structured data transmission over DNS. This mapping describes an analytical relationship with network protocol characteristics defined in ATT&CK T1071.004, not confirmed malware or external attribution.",
+            ).map_err(|e| DetectorExecutionError::internal_error(format!("invalid MITRE rationale: {e}")))?;
+            let mitre_provenance = MitreMappingProvenance::DetectorDeclared {
+                detector_id: self.metadata().id().clone(),
+                detector_version: self.metadata().version(),
+            };
+            let mitre_mapping = MitreMapping::try_new(
+                mitre_id,
+                "Application Layer Protocol: DNS",
+                MitreTactic::CommandAndControl,
+                mitre_rationale,
+                mitre_provenance,
+            )
+            .map_err(|e| {
+                DetectorExecutionError::internal_error(format!("invalid MITRE mapping: {e}"))
+            })?;
+
             let finding_draft = FindingDraft::try_new(
                 subject,
                 title,
@@ -1220,6 +1243,7 @@ impl Detector for DnsPossibleTunnelingDetector {
                 Severity::Low,
                 Confidence::Medium,
                 vec![evidence_draft],
+                vec![mitre_mapping],
             )
             .map_err(|e| {
                 DetectorExecutionError::internal_error(format!("finding draft creation error: {e}"))

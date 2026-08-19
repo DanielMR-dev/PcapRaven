@@ -134,6 +134,22 @@ pub enum DetectorRegistryError {
     },
     /// A detector with the same DetectorId was already registered.
     DuplicateDetectorId(DetectorId),
+    /// A detector identifier is registered in both detector and correlator registries.
+    CrossRegistryDetectorIdCollision(DetectorId),
+    /// Correlator requires a primary detector that is not registered.
+    MissingRequiredPrimaryDetector {
+        /// Correlator identifier.
+        correlator_id: DetectorId,
+        /// Required primary detector identifier.
+        required_detector_id: DetectorId,
+    },
+    /// Correlator declares invalid required primary detector IDs.
+    InvalidRequiredPrimaryDetectorIds {
+        /// Correlator identifier.
+        correlator_id: DetectorId,
+        /// Description of validation failure.
+        reason: &'static str,
+    },
     /// Registered detector count exceeds registry capacity.
     RegistryCapacityExceeded {
         /// Current count.
@@ -158,6 +174,26 @@ impl fmt::Display for DetectorRegistryError {
             Self::DuplicateDetectorId(id) => {
                 write!(f, "duplicate detector registration with ID '{id}'")
             }
+            Self::CrossRegistryDetectorIdCollision(id) => {
+                write!(
+                    f,
+                    "detector identifier '{id}' is registered in both detector and correlation registries"
+                )
+            }
+            Self::MissingRequiredPrimaryDetector {
+                correlator_id,
+                required_detector_id,
+            } => write!(
+                f,
+                "correlator '{correlator_id}' requires unregistered primary detector '{required_detector_id}'"
+            ),
+            Self::InvalidRequiredPrimaryDetectorIds {
+                correlator_id,
+                reason,
+            } => write!(
+                f,
+                "correlator '{correlator_id}' declares invalid required primary detector IDs: {reason}"
+            ),
             Self::RegistryCapacityExceeded { count, max } => {
                 write!(f, "detector registry capacity exceeded ({count} > {max})")
             }
@@ -371,6 +407,38 @@ pub enum DetectionOutputError {
         /// Violation description.
         reason: &'static str,
     },
+    /// Correlator emitted a source finding reference that is invalid or does not exist in primary snapshot.
+    InvalidSourceFindingReference {
+        /// Correlator ID.
+        correlator_id: DetectorId,
+        /// Referenced finding reference.
+        finding_reference: pcapraven_domain::FindingReference,
+        /// Reason for failure.
+        reason: &'static str,
+    },
+    /// Correlator emitted an evidence reference not owned by declared source findings.
+    UnownedCorrelationEvidenceReference {
+        /// Correlator ID.
+        correlator_id: DetectorId,
+        /// Offending evidence reference.
+        evidence_reference: EvidenceReference,
+    },
+    /// Correlator emitted a subject reference not owned by declared source findings.
+    UnownedCorrelationSubjectReference {
+        /// Correlator ID.
+        correlator_id: DetectorId,
+        /// Description of subject provenance failure.
+        reason: &'static str,
+    },
+    /// Correlator source finding count violates requirements.
+    InvalidCorrelationSourceCardinality {
+        /// Correlator ID.
+        correlator_id: DetectorId,
+        /// Actual count.
+        count: usize,
+        /// Expected count.
+        expected: usize,
+    },
     /// Total output resource limit exceeded.
     OutputLimitExceeded {
         /// Resource name.
@@ -404,6 +472,36 @@ impl fmt::Display for DetectionOutputError {
             } => write!(
                 f,
                 "detector '{detector_id}' incomplete data policy violation: {reason}"
+            ),
+            Self::InvalidSourceFindingReference {
+                correlator_id,
+                finding_reference,
+                reason,
+            } => write!(
+                f,
+                "correlator '{correlator_id}' invalid source finding reference {finding_reference}: {reason}"
+            ),
+            Self::UnownedCorrelationEvidenceReference {
+                correlator_id,
+                evidence_reference,
+            } => write!(
+                f,
+                "correlator '{correlator_id}' emitted evidence {evidence_reference} not owned by declared source findings"
+            ),
+            Self::UnownedCorrelationSubjectReference {
+                correlator_id,
+                reason,
+            } => write!(
+                f,
+                "correlator '{correlator_id}' emitted subject outside source finding provenance: {reason}"
+            ),
+            Self::InvalidCorrelationSourceCardinality {
+                correlator_id,
+                count,
+                expected,
+            } => write!(
+                f,
+                "correlator '{correlator_id}' source count ({count}) does not match expected ({expected})"
             ),
             Self::OutputLimitExceeded { resource, limit } => write!(
                 f,

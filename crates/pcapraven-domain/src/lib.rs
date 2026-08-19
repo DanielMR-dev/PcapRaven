@@ -10,6 +10,7 @@ pub mod finding;
 pub mod flow;
 pub mod flow_metrics;
 pub mod http;
+pub mod mitre_attack;
 pub mod observation;
 pub mod packet;
 pub mod tls;
@@ -44,6 +45,11 @@ pub use http::{
     HttpByteString, HttpContentLengthState, HttpDiagnostic, HttpDiagnosticKind,
     HttpFramingMetadata, HttpMessageKind, HttpObservation, HttpObservationCompleteness,
     HttpRequestMetadata, HttpResponseMetadata, HttpSelectedHeaders, HttpVersion,
+};
+pub use mitre_attack::{
+    HARD_MAX_MITRE_MAPPINGS_PER_FINDING, MAX_MITRE_ATTACK_ID_LENGTH, MAX_MITRE_RATIONALE_LENGTH,
+    MAX_MITRE_TECHNIQUE_NAME_LENGTH, MITRE_ATTACK_VERSION, MitreAttackId, MitreMapping,
+    MitreMappingProvenance, MitreMappingRationale, MitreTactic,
 };
 pub use observation::{
     ObservationCompleteness, ObservationError, ObservationFlowAssociation, ObservationReference,

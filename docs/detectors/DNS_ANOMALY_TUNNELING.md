@@ -61,7 +61,7 @@ Flags reconstructed flows exhibiting repetitive query volume where queries conta
 ### 3.1 Contract
 
 - **Detector Identifier:** `dns.possible_tunneling`
-- **Detector Version:** `v1.0.1`
+- **Detector Version:** `v1.1.0`
 - **Incomplete Data Policy:** `Skip`
 - **Target Subject:** Flow reference (`FindingSubject { flow_references: [flow.reference] }`)
 - **Severity:** `Low`

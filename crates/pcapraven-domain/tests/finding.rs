@@ -78,6 +78,7 @@ fn test_finding_record_valid_primary() {
         Confidence::Medium,
         evidence_refs.clone(),
         Vec::new(),
+        Vec::new(),
     )
     .unwrap();
 
@@ -118,6 +119,7 @@ fn test_finding_record_source_finding_references_validation() {
         Confidence::Medium,
         evidence_refs.clone(),
         valid_sources.clone(),
+        Vec::new(),
     )
     .unwrap();
     assert_eq!(record.source_finding_references(), &valid_sources[..]);
@@ -136,6 +138,7 @@ fn test_finding_record_source_finding_references_validation() {
         Confidence::Medium,
         evidence_refs.clone(),
         dup_sources,
+        Vec::new(),
     )
     .unwrap_err();
     assert!(matches!(
@@ -157,6 +160,7 @@ fn test_finding_record_source_finding_references_validation() {
         Confidence::Medium,
         evidence_refs.clone(),
         ooo_sources,
+        Vec::new(),
     )
     .unwrap_err();
     assert!(matches!(
@@ -181,6 +185,7 @@ fn test_finding_record_source_finding_references_validation() {
         Confidence::Medium,
         evidence_refs,
         excess_sources,
+        Vec::new(),
     )
     .unwrap_err();
     assert!(matches!(
@@ -217,10 +222,91 @@ fn test_finding_draft_creation() {
         Severity::Low,
         Confidence::Low,
         vec![evi_draft],
+        Vec::new(),
     )
     .unwrap();
 
     assert_eq!(draft.evidence().len(), 1);
     assert_eq!(draft.severity(), Severity::Low);
     assert_eq!(draft.confidence(), Confidence::Low);
+    assert!(draft.mitre_mappings().is_empty());
+}
+
+#[test]
+fn test_severity_and_confidence_from_str_and_ordering() {
+    use std::str::FromStr;
+
+    // Severity FromStr
+    assert_eq!(Severity::from_str("info").unwrap(), Severity::Info);
+    assert_eq!(Severity::from_str("informational").unwrap(), Severity::Info);
+    assert_eq!(Severity::from_str("low").unwrap(), Severity::Low);
+    assert_eq!(Severity::from_str("medium").unwrap(), Severity::Medium);
+    assert_eq!(Severity::from_str("high").unwrap(), Severity::High);
+    assert_eq!(Severity::from_str("critical").unwrap(), Severity::Critical);
+    assert_eq!(Severity::from_str("  HIGH  ").unwrap(), Severity::High);
+    assert!(Severity::from_str("unknown").is_err());
+
+    // Severity Ordering
+    assert!(Severity::Info < Severity::Low);
+    assert!(Severity::Low < Severity::Medium);
+    assert!(Severity::Medium < Severity::High);
+    assert!(Severity::High < Severity::Critical);
+
+    // Confidence FromStr
+    assert_eq!(Confidence::from_str("low").unwrap(), Confidence::Low);
+    assert_eq!(Confidence::from_str("medium").unwrap(), Confidence::Medium);
+    assert_eq!(Confidence::from_str("high").unwrap(), Confidence::High);
+    assert_eq!(
+        Confidence::from_str("  MEDIUM  ").unwrap(),
+        Confidence::Medium
+    );
+    assert!(Confidence::from_str("critical").is_err());
+
+    // Confidence Ordering
+    assert!(Confidence::Low < Confidence::Medium);
+    assert!(Confidence::Medium < Confidence::High);
+}
+
+#[test]
+fn test_mitre_attack_id_and_mapping_validation() {
+    use pcapraven_domain::{
+        MitreAttackId, MitreMapping, MitreMappingProvenance, MitreMappingRationale, MitreTactic,
+    };
+    use std::str::FromStr;
+
+    // Valid MITRE IDs
+    let t1 = MitreAttackId::try_new("T1071").unwrap();
+    assert_eq!(t1.as_str(), "T1071");
+    assert!(!t1.is_sub_technique());
+
+    let t2 = MitreAttackId::from_str("T1071.004").unwrap();
+    assert_eq!(t2.as_str(), "T1071.004");
+    assert!(t2.is_sub_technique());
+
+    // Invalid MITRE IDs
+    assert!(MitreAttackId::try_new("").is_err());
+    assert!(MitreAttackId::try_new("1071").is_err());
+    assert!(MitreAttackId::try_new("T107").is_err());
+    assert!(MitreAttackId::try_new("T1071.04").is_err());
+    assert!(MitreAttackId::try_new("T1071.0004").is_err());
+    assert!(MitreAttackId::try_new("X1071.004").is_err());
+
+    // Valid MITRE Mapping
+    let rationale = MitreMappingRationale::try_new("DNS tunneling mapping rationale.").unwrap();
+    let prov = MitreMappingProvenance::DetectorDeclared {
+        detector_id: DetectorId::try_new("dns.possible_tunneling").unwrap(),
+        detector_version: DetectorVersion::new(1, 0, 1),
+    };
+    let mapping = MitreMapping::try_new(
+        t2,
+        "Application Layer Protocol: DNS",
+        MitreTactic::CommandAndControl,
+        rationale,
+        prov,
+    )
+    .unwrap();
+
+    assert_eq!(mapping.technique_id().as_str(), "T1071.004");
+    assert_eq!(mapping.tactic(), MitreTactic::CommandAndControl);
+    assert_eq!(mapping.tactic().tactic_id(), "TA0011");
 }
