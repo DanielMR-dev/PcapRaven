@@ -475,6 +475,105 @@ pub fn render_tls_row(
     )
 }
 
+/// Renders analytical findings to the provided writer in human-readable inspection format.
+///
+/// # Errors
+/// Returns an [`io::Error`] if writing to `w` fails.
+pub fn render_findings(
+    findings: &[&pcapraven_domain::FindingRecord],
+    w: &mut impl Write,
+) -> io::Result<()> {
+    if findings.is_empty() {
+        writeln!(w, "No findings matched the requested criteria.")?;
+        return Ok(());
+    }
+
+    writeln!(w, "Findings ({})", findings.len())?;
+    writeln!(w, "{}", "=".repeat(80))?;
+
+    for (idx, finding) in findings.iter().enumerate() {
+        if idx > 0 {
+            writeln!(w, "{}", "-".repeat(80))?;
+        }
+
+        writeln!(
+            w,
+            "[{}] {} ({}, {})",
+            finding.reference(),
+            finding.title(),
+            finding.severity(),
+            finding.confidence()
+        )?;
+        writeln!(
+            w,
+            "  Detector:     {}@{}",
+            finding.detector_id(),
+            finding.detector_version()
+        )?;
+        writeln!(w, "  Summary:      {}", finding.summary())?;
+        writeln!(w, "  Rationale:    {}", finding.rationale())?;
+
+        // Subject
+        let mut subject_parts = Vec::new();
+        let flows = finding.subject().flow_references();
+        if !flows.is_empty() {
+            let flow_strs: Vec<String> = flows.iter().map(|f| f.to_string()).collect();
+            subject_parts.push(format!("flows=[{}]", flow_strs.join(", ")));
+        }
+        let pkts = finding.subject().packet_references();
+        if !pkts.is_empty() {
+            let pkt_strs: Vec<String> = pkts
+                .iter()
+                .map(|p| format!("pkt:{}", p.capture_record_ordinal()))
+                .collect();
+            subject_parts.push(format!("packets=[{}]", pkt_strs.join(", ")));
+        }
+        let obss = finding.subject().observation_references();
+        if !obss.is_empty() {
+            let obs_strs: Vec<String> = obss.iter().map(|o| o.to_string()).collect();
+            subject_parts.push(format!("observations=[{}]", obs_strs.join(", ")));
+        }
+        writeln!(w, "  Subject:      {}", subject_parts.join("; "))?;
+
+        // Evidence References
+        let evi_strs: Vec<String> = finding
+            .evidence_references()
+            .iter()
+            .map(|e| e.to_string())
+            .collect();
+        writeln!(w, "  Evidence:     {}", evi_strs.join(", "))?;
+
+        // Source Finding References (for correlated findings)
+        if !finding.source_finding_references().is_empty() {
+            let src_strs: Vec<String> = finding
+                .source_finding_references()
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+            writeln!(w, "  Sources:      {}", src_strs.join(", "))?;
+        }
+
+        // MITRE ATT&CK Mappings
+        if !finding.mitre_mappings().is_empty() {
+            writeln!(w, "  MITRE ATT&CK:")?;
+            for m in finding.mitre_mappings() {
+                writeln!(
+                    w,
+                    "    - {} ({}) [{} ({})] via {}",
+                    m.technique_id(),
+                    m.technique_name(),
+                    m.tactic().tactic_id(),
+                    m.tactic(),
+                    m.provenance()
+                )?;
+                writeln!(w, "      Rationale: {}", m.rationale())?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

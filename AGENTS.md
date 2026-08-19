@@ -26,7 +26,7 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 14. Phase 0 product and
+The accepted repository phase for this branch is Phase 15. Phase 0 product and
 governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
 Phase 3 packet normalization work, Phase 4 flow reconstruction, Phase 5
 checked flow statistics and exact temporal metrics, Phase 6 initial
@@ -35,10 +35,11 @@ DNS protocol analysis, Phase 8 bounded HTTP/1.x protocol analysis,
 Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis,
 Phase 10 unified protocol observations and structured evidence foundation,
 Phase 11 detection engine architecture,
-Phase 12 explainable periodic beaconing detection, and
-Phase 13 explainable DNS anomaly and possible tunneling detection are complete.
-Phase 14 covers explainable repeated low-volume flow behavior detection (`RepeatedLowVolumeFlowDetector`, `behavior.repeated_low_volume_flows`) and deterministic cross-detector finding correlation (`PossibleC2MultiSignalCorrelator`, `behavior.possible_c2_multi_signal`).
-Phase 15 (MITRE ATT&CK mapping foundation) and all later capabilities remain out of scope until their roadmap gates are accepted.
+Phase 12 explainable periodic beaconing detection,
+Phase 13 explainable DNS anomaly and possible tunneling detection, and
+Phase 14 explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation are complete.
+Phase 15 covers severity/confidence finalization, MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance, finding filtering, and the minimal `findings` CLI subcommand.
+Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and all later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 

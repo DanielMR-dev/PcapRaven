@@ -57,6 +57,7 @@ EXPECTED_TEST_TARGETS = {
         "dns_anomaly",
         "connection_behavior",
         "correlation",
+        "filtering",
     },
     "pcapraven-cli": {"cli"},
 }

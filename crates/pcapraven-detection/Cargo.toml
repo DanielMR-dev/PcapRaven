@@ -1,6 +1,6 @@
 [package]
 name = "pcapraven-detection"
-description = "PcapRaven detection boundary skeleton"
+description = "Detection engine and behavioral heuristics for PcapRaven"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

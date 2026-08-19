@@ -5,13 +5,13 @@ use crate::correlation::{CorrelationDraftSink, CorrelationRegistry};
 use crate::detector::{DetectorDraftSink, IncompleteDataPolicy};
 use crate::error::{
     DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,
-    DetectionOutputError, DetectorConfigError, DetectorExecutionError,
+    DetectionOutputError, DetectorConfigError, DetectorExecutionError, DetectorRegistryError,
 };
 use crate::registry::DetectorRegistry;
 use core::fmt;
 use pcapraven_domain::{
     DetectorId, DetectorVersion, EvidenceLimitation, EvidenceRecord, EvidenceReference,
-    FindingRecord, FindingReference, FlowRecord, ProtocolObservation,
+    FindingRecord, FindingReference, FindingValidationError, FlowRecord, ProtocolObservation,
 };
 
 /// Completeness status of the domain facts provided to the detection engine.
@@ -481,6 +481,47 @@ pub struct DetectorExecutionRecord {
     pub status: DetectorExecutionStatus,
 }
 
+/// Execution status recorded for an individual correlator during a detection run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CorrelatorExecutionStatus {
+    /// Correlator executed successfully.
+    Executed,
+    /// Correlator was skipped because primary input data was partial.
+    SkippedIncompleteData,
+    /// Correlator was skipped because one or more required source detectors were disabled.
+    SkippedUnavailableSources,
+    /// Correlator evaluation failed with an execution error.
+    Failed {
+        /// Failure message.
+        reason: String,
+    },
+    /// Correlator output was rejected due to engine resource limits.
+    ResourceLimited,
+}
+
+impl fmt::Display for CorrelatorExecutionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Executed => f.write_str("Executed"),
+            Self::SkippedIncompleteData => f.write_str("SkippedIncompleteData"),
+            Self::SkippedUnavailableSources => f.write_str("SkippedUnavailableSources"),
+            Self::Failed { reason } => write!(f, "Failed({reason})"),
+            Self::ResourceLimited => f.write_str("ResourceLimited"),
+        }
+    }
+}
+
+/// Individual correlator execution record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorrelatorExecutionRecord {
+    /// Correlator identifier.
+    pub correlator_id: DetectorId,
+    /// Correlator version.
+    pub correlator_version: DetectorVersion,
+    /// Execution status.
+    pub status: CorrelatorExecutionStatus,
+}
+
 /// Deterministic outcome produced by a detection run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DetectionRunOutcome {
@@ -488,6 +529,8 @@ pub struct DetectionRunOutcome {
     pub completion: DetectionInputCompleteness,
     /// Execution status record for each registered detector.
     pub detector_executions: Vec<DetectorExecutionRecord>,
+    /// Execution status record for each registered correlator.
+    pub correlator_executions: Vec<CorrelatorExecutionRecord>,
     /// Canonical, deterministic findings.
     pub findings: Vec<FindingRecord>,
     /// Canonical, deterministic evidence records.
@@ -819,6 +862,7 @@ pub fn execute_detection(
                     let rationale = draft.rationale().clone();
                     let severity = draft.severity();
                     let confidence = draft.confidence();
+                    let mitre_mappings = draft.mitre_mappings().to_vec();
 
                     for evi_draft in draft.into_evidence() {
                         let base_evi_len = accepted_evidence
@@ -856,6 +900,7 @@ pub fn execute_detection(
                         confidence,
                         finding_evi_refs,
                         Vec::new(),
+                        mitre_mappings,
                     )
                     .map_err(DetectionOutputError::from)?;
                     temp_findings.push(finding);
@@ -876,6 +921,7 @@ pub fn execute_detection(
     let outcome = DetectionRunOutcome {
         completion: overall_completion,
         detector_executions: execution_records,
+        correlator_executions: Vec::new(),
         findings: accepted_findings,
         evidence: accepted_evidence,
         diagnostics,
@@ -886,7 +932,9 @@ pub fn execute_detection(
 
 /// Evaluates all registered detectors and correlators over normalized domain input facts.
 ///
-/// Executes primary detectors first, then runs post-evaluation finding correlators in canonical order.
+/// Preflights correlator registry and required primary detector IDs before evaluation.
+/// Executes primary detectors first, then runs post-evaluation finding correlators in canonical order
+/// over an immutable primary findings snapshot.
 /// Correlated findings reuse existing evidence records without creating new evidence records.
 pub fn execute_detection_with_correlators(
     detector_registry: &DetectorRegistry,
@@ -895,17 +943,93 @@ pub fn execute_detection_with_correlators(
     configurations: &DetectorConfigurations,
     limits: &DetectionLimits,
 ) -> Result<DetectionRunOutcome, DetectionEngineError> {
-    let mut outcome = execute_detection(detector_registry, input, configurations, limits)?;
+    // PREFLIGHT:
+    // 1. Correlator registry limits check
+    if correlator_registry.len() > CorrelationRegistry::HARD_MAX_REGISTERED_CORRELATORS {
+        return Err(DetectionEngineError::Registry(
+            DetectorRegistryError::RegistryCapacityAboveHardMaximum {
+                attempted: correlator_registry.len(),
+                max: CorrelationRegistry::HARD_MAX_REGISTERED_CORRELATORS,
+            },
+        ));
+    }
 
-    // Run post-evaluation correlators in canonical order
+    // 2. Cross-registry DetectorId collision check
+    for correlator in correlator_registry.iter() {
+        let corr_id = correlator.metadata().id();
+        if detector_registry.get(corr_id).is_some() {
+            return Err(DetectionEngineError::Registry(
+                DetectorRegistryError::CrossRegistryDetectorIdCollision(corr_id.clone()),
+            ));
+        }
+    }
+
+    // 3. Required primary detector IDs check (must be registered in detector_registry)
     for correlator in correlator_registry.iter() {
         let meta = correlator.metadata();
+        for req_id in meta.required_primary_detector_ids() {
+            if detector_registry.get(req_id).is_none() {
+                return Err(DetectionEngineError::Registry(
+                    DetectorRegistryError::MissingRequiredPrimaryDetector {
+                        correlator_id: meta.id().clone(),
+                        required_detector_id: req_id.clone(),
+                    },
+                ));
+            }
+        }
+    }
+
+    // STEP 1: Execute primary detection
+    let mut outcome = execute_detection(detector_registry, input, configurations, limits)?;
+    let primary_finding_count = outcome.findings.len();
+
+    // STEP 2: Check primary outcome completion
+    if outcome.completion == DetectionInputCompleteness::Partial {
+        for correlator in correlator_registry.iter() {
+            let meta = correlator.metadata();
+            outcome
+                .correlator_executions
+                .push(CorrelatorExecutionRecord {
+                    correlator_id: meta.id().clone(),
+                    correlator_version: meta.version(),
+                    status: CorrelatorExecutionStatus::SkippedIncompleteData,
+                });
+        }
+        return Ok(outcome);
+    }
+
+    // STEP 3: Freeze primary findings slice & execute correlators
+    let primary_findings = &outcome.findings[..primary_finding_count];
+    let default_cfg = DetectorConfig::enabled();
+    let mut correlated_findings: Vec<FindingRecord> = Vec::new();
+
+    for correlator in correlator_registry.iter() {
+        let meta = correlator.metadata();
+
+        // Check if any required primary detector was disabled by config
+        let any_required_disabled = meta.required_primary_detector_ids().iter().any(|req_id| {
+            let cfg = configurations.get(req_id).unwrap_or(&default_cfg);
+            !cfg.enabled
+        });
+
+        if any_required_disabled {
+            outcome
+                .correlator_executions
+                .push(CorrelatorExecutionRecord {
+                    correlator_id: meta.id().clone(),
+                    correlator_version: meta.version(),
+                    status: CorrelatorExecutionStatus::SkippedUnavailableSources,
+                });
+            continue;
+        }
+
+        let current_total_findings = outcome.findings.len() + correlated_findings.len();
         let remaining_findings = limits
             .max_total_findings()
-            .saturating_sub(outcome.findings.len());
+            .saturating_sub(current_total_findings);
 
         let mut sink = CorrelationDraftSink::new(remaining_findings);
-        let corr_res = correlator.correlate(&outcome.findings, &outcome.evidence, &mut sink);
+        let corr_res = correlator.correlate(primary_findings, &outcome.evidence, &mut sink);
 
         match corr_res {
             Err(DetectorExecutionError::ResourceLimitExceeded(msg)) => {
@@ -917,11 +1041,13 @@ pub fn execute_detection_with_correlators(
                         msg
                     ));
                 }
-                outcome.detector_executions.push(DetectorExecutionRecord {
-                    detector_id: meta.id().clone(),
-                    detector_version: meta.version(),
-                    status: DetectorExecutionStatus::ResourceLimited,
-                });
+                outcome
+                    .correlator_executions
+                    .push(CorrelatorExecutionRecord {
+                        correlator_id: meta.id().clone(),
+                        correlator_version: meta.version(),
+                        status: CorrelatorExecutionStatus::ResourceLimited,
+                    });
             }
             Err(DetectorExecutionError::InternalError(msg)) => {
                 outcome.completion = DetectionInputCompleteness::Partial;
@@ -932,37 +1058,200 @@ pub fn execute_detection_with_correlators(
                         msg
                     ));
                 }
-                outcome.detector_executions.push(DetectorExecutionRecord {
-                    detector_id: meta.id().clone(),
-                    detector_version: meta.version(),
-                    status: DetectorExecutionStatus::Failed { reason: msg },
-                });
+                outcome
+                    .correlator_executions
+                    .push(CorrelatorExecutionRecord {
+                        correlator_id: meta.id().clone(),
+                        correlator_version: meta.version(),
+                        status: CorrelatorExecutionStatus::Failed { reason: msg },
+                    });
             }
             Ok(()) => {
-                let drafts = sink.into_drafts();
-                let mut temp_findings = Vec::new();
+                let mut drafts = sink.into_drafts();
+                if drafts.is_empty() {
+                    outcome
+                        .correlator_executions
+                        .push(CorrelatorExecutionRecord {
+                            correlator_id: meta.id().clone(),
+                            correlator_version: meta.version(),
+                            status: CorrelatorExecutionStatus::Executed,
+                        });
+                    continue;
+                }
+
+                // Canonical draft ordering by (subject, title)
+                drafts.sort_by(|a, b| {
+                    a.subject()
+                        .cmp(b.subject())
+                        .then_with(|| a.title().cmp(b.title()))
+                });
+
+                // Duplicate identity check within sorted drafts
+                let mut has_duplicate_draft = false;
+                for window in drafts.windows(2) {
+                    if window[0].subject() == window[1].subject() {
+                        has_duplicate_draft = true;
+                        break;
+                    }
+                }
+                if has_duplicate_draft {
+                    return Err(DetectionEngineError::Output(
+                        DetectionOutputError::DuplicateFindingIdentity {
+                            detector_id: meta.id().clone(),
+                        },
+                    ));
+                }
+
+                // Duplicate identity check against already accepted findings for this correlator
+                for draft in &drafts {
+                    if outcome
+                        .findings
+                        .iter()
+                        .chain(correlated_findings.iter())
+                        .any(|f| f.detector_id() == meta.id() && f.subject() == draft.subject())
+                    {
+                        return Err(DetectionEngineError::Output(
+                            DetectionOutputError::DuplicateFindingIdentity {
+                                detector_id: meta.id().clone(),
+                            },
+                        ));
+                    }
+                }
+
+                // Budget check
+                let fits_findings = outcome
+                    .findings
+                    .len()
+                    .checked_add(correlated_findings.len())
+                    .and_then(|t| t.checked_add(drafts.len()))
+                    .is_some_and(|total| total <= limits.max_total_findings());
+
+                if !fits_findings {
+                    outcome.completion = DetectionInputCompleteness::Partial;
+                    if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
+                        outcome.diagnostics.push(format!(
+                            "output budget exceeded, rejecting output from correlator '{}'",
+                            meta.id()
+                        ));
+                    }
+                    outcome
+                        .correlator_executions
+                        .push(CorrelatorExecutionRecord {
+                            correlator_id: meta.id().clone(),
+                            correlator_version: meta.version(),
+                            status: CorrelatorExecutionStatus::ResourceLimited,
+                        });
+                    continue;
+                }
+
+                // Referential integrity & source provenance validation
+                let mut temp_findings = Vec::with_capacity(drafts.len());
 
                 for draft in drafts {
-                    // Validate referential integrity:
-                    // 1. Source finding references must exist in outcome.findings
+                    // 1. Source finding references:
+                    // Must have >= 2 sources, all resolving to frozen primary snapshot, strictly sorted, unique, prior
+                    if draft.source_finding_references().len() < 2 {
+                        return Err(DetectionEngineError::Output(
+                            DetectionOutputError::FindingValidationError(
+                                FindingValidationError::InsufficientSourceFindingReferences {
+                                    count: draft.source_finding_references().len(),
+                                    minimum: 2,
+                                },
+                            ),
+                        ));
+                    }
+
+                    let mut source_findings: Vec<&FindingRecord> =
+                        Vec::with_capacity(draft.source_finding_references().len());
                     for src_ref in draft.source_finding_references() {
-                        if !outcome.findings.iter().any(|f| f.reference() == *src_ref) {
+                        if src_ref.id() >= primary_finding_count as u64 {
                             return Err(DetectionEngineError::Output(
-                                DetectionOutputError::ReferentialIntegrityError(format!(
-                                    "correlator {} referenced unknown source finding {src_ref}",
-                                    meta.id()
-                                )),
+                                DetectionOutputError::InvalidSourceFindingReference {
+                                    correlator_id: meta.id().clone(),
+                                    finding_reference: *src_ref,
+                                    reason: "source finding reference points outside frozen primary findings slice",
+                                },
+                            ));
+                        }
+                        let src_finding = primary_findings
+                            .iter()
+                            .find(|f| f.reference() == *src_ref)
+                            .ok_or_else(|| {
+                                DetectionEngineError::Output(
+                                    DetectionOutputError::InvalidSourceFindingReference {
+                                        correlator_id: meta.id().clone(),
+                                        finding_reference: *src_ref,
+                                        reason: "source finding reference does not exist in primary findings",
+                                    },
+                                )
+                            })?;
+                        source_findings.push(src_finding);
+                    }
+
+                    // 2. Evidence provenance:
+                    // Union of source findings' evidence references
+                    let mut source_evi_union = std::collections::BTreeSet::new();
+                    for src in &source_findings {
+                        for evi in src.evidence_references() {
+                            source_evi_union.insert(*evi);
+                        }
+                    }
+
+                    for draft_evi in draft.evidence_references() {
+                        if !source_evi_union.contains(draft_evi) {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::UnownedCorrelationEvidenceReference {
+                                    correlator_id: meta.id().clone(),
+                                    evidence_reference: *draft_evi,
+                                },
                             ));
                         }
                     }
-                    // 2. Evidence references must exist in outcome.evidence
-                    for evi_ref in draft.evidence_references() {
-                        if !outcome.evidence.iter().any(|e| e.reference() == *evi_ref) {
+
+                    // 3. Subject provenance:
+                    // Union of source findings' subject entities
+                    let mut source_flow_union = std::collections::BTreeSet::new();
+                    let mut source_pkt_union = std::collections::BTreeSet::new();
+                    let mut source_obs_union = std::collections::BTreeSet::new();
+                    for src in &source_findings {
+                        for f in src.subject().flow_references() {
+                            source_flow_union.insert(*f);
+                        }
+                        for p in src.subject().packet_references() {
+                            source_pkt_union.insert(*p);
+                        }
+                        for o in src.subject().observation_references() {
+                            source_obs_union.insert(*o);
+                        }
+                    }
+
+                    for f in draft.subject().flow_references() {
+                        if !source_flow_union.contains(f) {
                             return Err(DetectionEngineError::Output(
-                                DetectionOutputError::ReferentialIntegrityError(format!(
-                                    "correlator {} referenced unknown evidence {evi_ref}",
-                                    meta.id()
-                                )),
+                                DetectionOutputError::UnownedCorrelationSubjectReference {
+                                    correlator_id: meta.id().clone(),
+                                    reason: "draft subject references flow not present in source findings",
+                                },
+                            ));
+                        }
+                    }
+                    for p in draft.subject().packet_references() {
+                        if !source_pkt_union.contains(p) {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::UnownedCorrelationSubjectReference {
+                                    correlator_id: meta.id().clone(),
+                                    reason: "draft subject references packet not present in source findings",
+                                },
+                            ));
+                        }
+                    }
+                    for o in draft.subject().observation_references() {
+                        if !source_obs_union.contains(o) {
+                            return Err(DetectionEngineError::Output(
+                                DetectionOutputError::UnownedCorrelationSubjectReference {
+                                    correlator_id: meta.id().clone(),
+                                    reason: "draft subject references observation not present in source findings",
+                                },
                             ));
                         }
                     }
@@ -970,7 +1259,8 @@ pub fn execute_detection_with_correlators(
                     let base_find_len = outcome
                         .findings
                         .len()
-                        .checked_add(temp_findings.len())
+                        .checked_add(correlated_findings.len())
+                        .and_then(|t| t.checked_add(temp_findings.len()))
                         .ok_or_else(|| DetectionEngineError::ResourceLimit {
                             resource: "finding_index_overflow",
                             capacity: limits.max_total_findings(),
@@ -990,21 +1280,25 @@ pub fn execute_detection_with_correlators(
                         draft.confidence(),
                         draft.evidence_references().to_vec(),
                         draft.source_finding_references().to_vec(),
+                        draft.mitre_mappings().to_vec(),
                     )
                     .map_err(DetectionOutputError::from)?;
 
                     temp_findings.push(finding);
                 }
 
-                outcome.findings.extend(temp_findings);
-                outcome.detector_executions.push(DetectorExecutionRecord {
-                    detector_id: meta.id().clone(),
-                    detector_version: meta.version(),
-                    status: DetectorExecutionStatus::Executed,
-                });
+                correlated_findings.extend(temp_findings);
+                outcome
+                    .correlator_executions
+                    .push(CorrelatorExecutionRecord {
+                        correlator_id: meta.id().clone(),
+                        correlator_version: meta.version(),
+                        status: CorrelatorExecutionStatus::Executed,
+                    });
             }
         }
     }
 
+    outcome.findings.extend(correlated_findings);
     Ok(outcome)
 }

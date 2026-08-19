@@ -5,6 +5,7 @@
 
 use crate::evidence::{EvidenceDraft, EvidenceReference};
 use crate::flow::FlowReference;
+use crate::mitre_attack::{HARD_MAX_MITRE_MAPPINGS_PER_FINDING, MitreAttackId, MitreMapping};
 use crate::observation::ObservationReference;
 use crate::packet::PacketReference;
 use core::fmt;
@@ -141,6 +142,13 @@ pub enum FindingValidationError {
         /// Maximum allowed count.
         max: usize,
     },
+    /// Number of evidence references in finding record exceeds limit.
+    EvidenceReferencesExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
     /// Finding contains a duplicate evidence reference.
     DuplicateEvidenceReference(EvidenceReference),
     /// Evidence references in finding must be strictly increasing.
@@ -149,6 +157,13 @@ pub enum FindingValidationError {
         previous: u64,
         /// Attempted evidence ordinal.
         attempted: u64,
+    },
+    /// Number of source finding references is below the required minimum.
+    InsufficientSourceFindingReferences {
+        /// Current count.
+        count: usize,
+        /// Minimum required count.
+        minimum: usize,
     },
     /// Number of source finding references in finding record exceeds limit.
     SourceFindingReferencesExceeded {
@@ -166,6 +181,26 @@ pub enum FindingValidationError {
         /// Attempted finding ordinal.
         attempted: u64,
     },
+    /// Number of MITRE ATT&CK mappings exceeds limit.
+    MitreMappingsExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Duplicate MITRE ATT&CK mapping on finding.
+    DuplicateMitreMapping(MitreAttackId),
+    /// MITRE ATT&CK mappings must be strictly increasing by technique ID.
+    OutOfOrderMitreMapping {
+        /// Previous technique ID.
+        previous: String,
+        /// Attempted technique ID.
+        attempted: String,
+    },
+    /// Invalid severity string.
+    InvalidSeverity(String),
+    /// Invalid confidence string.
+    InvalidConfidence(String),
 }
 
 impl fmt::Display for FindingValidationError {
@@ -267,6 +302,10 @@ impl fmt::Display for FindingValidationError {
                 f,
                 "finding evidence draft count ({count}) exceeds maximum ({max})"
             ),
+            Self::EvidenceReferencesExceeded { count, max } => write!(
+                f,
+                "finding evidence reference count ({count}) exceeds maximum ({max})"
+            ),
             Self::DuplicateEvidenceReference(e) => {
                 write!(f, "duplicate evidence reference {e} in finding")
             }
@@ -276,6 +315,10 @@ impl fmt::Display for FindingValidationError {
             } => write!(
                 f,
                 "out-of-order evidence reference in finding: attempted evi:{attempted} after evi:{previous}"
+            ),
+            Self::InsufficientSourceFindingReferences { count, minimum } => write!(
+                f,
+                "insufficient source finding references ({count} < required {minimum})"
             ),
             Self::SourceFindingReferencesExceeded { count, max } => write!(
                 f,
@@ -291,6 +334,19 @@ impl fmt::Display for FindingValidationError {
                 f,
                 "out-of-order source finding reference in finding: attempted find:{attempted} after find:{previous}"
             ),
+            Self::MitreMappingsExceeded { count, max } => write!(
+                f,
+                "finding MITRE ATT&CK mapping count ({count}) exceeds maximum ({max})"
+            ),
+            Self::DuplicateMitreMapping(t) => {
+                write!(f, "duplicate MITRE ATT&CK mapping for technique {t} on finding")
+            }
+            Self::OutOfOrderMitreMapping { previous, attempted } => write!(
+                f,
+                "out-of-order MITRE ATT&CK mapping on finding: attempted {attempted} after {previous}"
+            ),
+            Self::InvalidSeverity(s) => write!(f, "invalid severity '{s}': expected info, low, medium, high, or critical"),
+            Self::InvalidConfidence(s) => write!(f, "invalid confidence '{s}': expected low, medium, or high"),
         }
     }
 }
@@ -426,6 +482,22 @@ impl fmt::Display for Severity {
     }
 }
 
+impl core::str::FromStr for Severity {
+    type Err = FindingValidationError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let clean = s.trim().to_ascii_lowercase();
+        match clean.as_str() {
+            "info" | "informational" => Ok(Self::Info),
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "high" => Ok(Self::High),
+            "critical" => Ok(Self::Critical),
+            _ => Err(FindingValidationError::InvalidSeverity(s.to_string())),
+        }
+    }
+}
+
 /// Foundational analytical confidence level for a finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Confidence {
@@ -452,6 +524,20 @@ impl Confidence {
 impl fmt::Display for Confidence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl core::str::FromStr for Confidence {
+    type Err = FindingValidationError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let clean = s.trim().to_ascii_lowercase();
+        match clean.as_str() {
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "high" => Ok(Self::High),
+            _ => Err(FindingValidationError::InvalidConfidence(s.to_string())),
+        }
     }
 }
 
@@ -748,6 +834,7 @@ pub struct FindingDraft {
     severity: Severity,
     confidence: Confidence,
     evidence: Vec<EvidenceDraft>,
+    mitre_mappings: Vec<MitreMapping>,
 }
 
 impl FindingDraft {
@@ -757,6 +844,7 @@ impl FindingDraft {
     pub const HARD_MAX_EVIDENCE_DRAFTS: usize = 256;
 
     /// Creates a validated finding draft.
+    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         subject: FindingSubject,
         title: FindingTitle,
@@ -765,6 +853,7 @@ impl FindingDraft {
         severity: Severity,
         confidence: Confidence,
         evidence: Vec<EvidenceDraft>,
+        mitre_mappings: Vec<MitreMapping>,
     ) -> Result<Self, FindingValidationError> {
         if evidence.is_empty() {
             return Err(FindingValidationError::FindingWithoutEvidence);
@@ -775,6 +864,25 @@ impl FindingDraft {
                 max: Self::HARD_MAX_EVIDENCE_DRAFTS,
             });
         }
+        if mitre_mappings.len() > HARD_MAX_MITRE_MAPPINGS_PER_FINDING {
+            return Err(FindingValidationError::MitreMappingsExceeded {
+                count: mitre_mappings.len(),
+                max: HARD_MAX_MITRE_MAPPINGS_PER_FINDING,
+            });
+        }
+        for window in mitre_mappings.windows(2) {
+            let prev = window[0].technique_id();
+            let curr = window[1].technique_id();
+            if curr == prev {
+                return Err(FindingValidationError::DuplicateMitreMapping(curr.clone()));
+            }
+            if curr < prev {
+                return Err(FindingValidationError::OutOfOrderMitreMapping {
+                    previous: prev.to_string(),
+                    attempted: curr.to_string(),
+                });
+            }
+        }
         Ok(Self {
             subject,
             title,
@@ -783,6 +891,7 @@ impl FindingDraft {
             severity,
             confidence,
             evidence,
+            mitre_mappings,
         })
     }
 
@@ -828,6 +937,12 @@ impl FindingDraft {
         &self.evidence
     }
 
+    /// Returns the MITRE ATT&CK mappings.
+    #[must_use]
+    pub fn mitre_mappings(&self) -> &[MitreMapping] {
+        &self.mitre_mappings
+    }
+
     /// Consumes the draft, returning its evidence drafts.
     #[must_use]
     pub fn into_evidence(self) -> Vec<EvidenceDraft> {
@@ -849,6 +964,7 @@ pub struct FindingRecord {
     confidence: Confidence,
     evidence_references: Vec<EvidenceReference>,
     source_finding_references: Vec<FindingReference>,
+    mitre_mappings: Vec<MitreMapping>,
 }
 
 impl FindingRecord {
@@ -874,6 +990,7 @@ impl FindingRecord {
         confidence: Confidence,
         evidence_references: Vec<EvidenceReference>,
         source_finding_references: Vec<FindingReference>,
+        mitre_mappings: Vec<MitreMapping>,
     ) -> Result<Self, FindingValidationError> {
         if evidence_references.is_empty() {
             return Err(FindingValidationError::FindingWithoutEvidence);
@@ -918,6 +1035,27 @@ impl FindingRecord {
             }
         }
 
+        if mitre_mappings.len() > HARD_MAX_MITRE_MAPPINGS_PER_FINDING {
+            return Err(FindingValidationError::MitreMappingsExceeded {
+                count: mitre_mappings.len(),
+                max: HARD_MAX_MITRE_MAPPINGS_PER_FINDING,
+            });
+        }
+
+        for window in mitre_mappings.windows(2) {
+            let prev = window[0].technique_id();
+            let curr = window[1].technique_id();
+            if curr == prev {
+                return Err(FindingValidationError::DuplicateMitreMapping(curr.clone()));
+            }
+            if curr < prev {
+                return Err(FindingValidationError::OutOfOrderMitreMapping {
+                    previous: prev.to_string(),
+                    attempted: curr.to_string(),
+                });
+            }
+        }
+
         Ok(Self {
             reference,
             detector_id,
@@ -930,6 +1068,7 @@ impl FindingRecord {
             confidence,
             evidence_references,
             source_finding_references,
+            mitre_mappings,
         })
     }
 
@@ -997,5 +1136,11 @@ impl FindingRecord {
     #[must_use]
     pub fn source_finding_references(&self) -> &[FindingReference] {
         &self.source_finding_references
+    }
+
+    /// Returns the ordered slice of MITRE ATT&CK mappings.
+    #[must_use]
+    pub fn mitre_mappings(&self) -> &[MitreMapping] {
+        &self.mitre_mappings
     }
 }

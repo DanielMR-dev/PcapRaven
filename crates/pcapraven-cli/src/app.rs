@@ -1,9 +1,21 @@
 //! CLI application orchestration for validation, flow, DNS, and HTTP inspection.
 
-use crate::args::{CliArgs, DnsArgs, FlowsArgs, HttpArgs, Subcommand, TlsArgs, ValidateArgs};
+use crate::args::{
+    CliArgs, DnsArgs, FindingsArgs, FlowsArgs, HttpArgs, Subcommand, TlsArgs, ValidateArgs,
+};
 use crate::diagnostics::{DEFAULT_DIAGNOSTIC_BUDGET, DiagnosticEmitter};
 use crate::output;
-use pcapraven_domain::{FlowRecord, FlowTemporalUnavailableReason};
+use pcapraven_detection::{
+    CorrelationRegistry, DetectionInput, DetectionInputCompleteness, DetectionInputLimitation,
+    DetectionLimits, DetectorConfigurations, DetectorRegistry, DnsLongQueryNameDetector,
+    DnsPossibleTunnelingDetector, FindingFilter, PeriodicBeaconingDetector,
+    PossibleC2MultiSignalCorrelator, RepeatedLowVolumeFlowDetector,
+    execute_detection_with_correlators,
+};
+use pcapraven_domain::{
+    FlowRecord, FlowTemporalUnavailableReason, ObservationFlowAssociation, ObservationReference,
+    ProtocolKind, ProtocolObservation, ProtocolObservationCollection, ProtocolObservationData,
+};
 use pcapraven_flows::{FlowDisposition, FlowReconstructionConfig, FlowReconstructor};
 use pcapraven_pcap::{CaptureCompletion, CaptureReader, ReaderLimits};
 use pcapraven_protocols::{
@@ -146,6 +158,7 @@ pub fn run(args: CliArgs) -> ExitCode {
         Subcommand::Dns(d_args) => run_dns(d_args, args.quiet),
         Subcommand::Http(h_args) => run_http(h_args, args.quiet),
         Subcommand::Tls(t_args) => run_tls(t_args, args.quiet),
+        Subcommand::Findings(f_args) => run_findings(f_args, args.quiet),
     };
     ExitCode::from(status_code)
 }
@@ -940,6 +953,344 @@ fn run_tls(args: TlsArgs, quiet: bool) -> u8 {
     }
 
     if had_stream_error || had_partial_tls || !outcome.is_complete() {
+        3
+    } else {
+        0
+    }
+}
+
+fn run_findings(args: FindingsArgs, quiet: bool) -> u8 {
+    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
+
+    let reader_limits = if let Some(max_rec) = args.max_records {
+        let max_usize = match usize::try_from(max_rec) {
+            Ok(v) => v,
+            Err(_) => {
+                return emit_config_error("max-records value exceeds memory addressable bounds");
+            }
+        };
+        match ReaderLimits::builder().maximum_records(max_usize).build() {
+            Ok(l) => l,
+            Err(e) => {
+                return emit_config_error(&format!("invalid reader limits: {e}"));
+            }
+        }
+    } else {
+        ReaderLimits::default()
+    };
+
+    let file = match File::open(&args.capture_path) {
+        Ok(f) => f,
+        Err(e) => {
+            return emit_fatal_error(&format!("failed to open capture file: {e}"));
+        }
+    };
+
+    let mut reader = match CaptureReader::new(file, reader_limits) {
+        Ok(r) => r,
+        Err(e) => {
+            return emit_fatal_error(&format!("failed to initialize capture reader: {e}"));
+        }
+    };
+
+    let norm_limits = NormalizationLimits::default();
+    let dns_limits = DnsLimits::default();
+    let http_limits = HttpLimits::default();
+    let tls_limits = TlsLimits::default();
+
+    let flow_config = FlowReconstructionConfig::default();
+    let mut flow_reconstructor = match FlowReconstructor::new(flow_config) {
+        Ok(fr) => fr,
+        Err(e) => {
+            return emit_config_error(&format!("failed to initialize flow reconstructor: {e}"));
+        }
+    };
+
+    let mut obs_collection = match ProtocolObservationCollection::new(
+        ProtocolObservationCollection::DEFAULT_MAX_OBSERVATIONS,
+    ) {
+        Ok(c) => c,
+        Err(e) => {
+            return emit_fatal_error(&format!("failed to initialize observation collection: {e}"));
+        }
+    };
+
+    let mut all_flows = Vec::new();
+    let mut had_stream_error = false;
+    let mut had_partial_data = false;
+    let mut total_records_processed: u64 = 0;
+
+    loop {
+        let record_opt = match reader.next_record() {
+            Ok(opt) => opt,
+            Err(e) => {
+                had_stream_error = true;
+                if diag_emitter
+                    .emit_diagnostic(&format!("capture reader stream error: {e}"))
+                    .is_err()
+                {
+                    return 1;
+                }
+                break;
+            }
+        };
+
+        let record = match record_opt {
+            Some(r) => r,
+            None => break,
+        };
+        total_records_processed = total_records_processed.saturating_add(1);
+
+        let norm_input = record.as_normalization_input();
+        let norm_outcome = normalize_packet(&norm_input, &norm_limits);
+        for d in &norm_outcome.diagnostics {
+            if diag_emitter
+                .emit_diagnostic(&format!(
+                    "normalization diagnostic on packet {}: {}",
+                    record.ordinal, d.message
+                ))
+                .is_err()
+            {
+                return 1;
+            }
+        }
+
+        let flow_step = match flow_reconstructor.observe(&norm_outcome.packet) {
+            Ok(s) => s,
+            Err(e) => {
+                had_stream_error = true;
+                if diag_emitter
+                    .emit_diagnostic(&format!(
+                        "flow reconstruction error on packet {}: {e}",
+                        record.ordinal
+                    ))
+                    .is_err()
+                {
+                    return 1;
+                }
+                break;
+            }
+        };
+
+        all_flows.extend(flow_step.closed_flows);
+
+        let flow_association = match flow_step.disposition {
+            FlowDisposition::Associated(assoc) => {
+                ObservationFlowAssociation::from_flow_packet_association(
+                    &norm_outcome.packet.reference,
+                    &assoc,
+                )
+                .unwrap_or(ObservationFlowAssociation::Unassociated)
+            }
+            FlowDisposition::Excluded(reason) => ObservationFlowAssociation::Excluded(reason),
+        };
+
+        let dns_outcome = parse_dns_packet(&norm_outcome.packet, &dns_limits);
+        for d in &dns_outcome.diagnostics {
+            if diag_emitter
+                .emit_diagnostic(&format!(
+                    "DNS diagnostic on packet {}: {}",
+                    record.ordinal, d.message
+                ))
+                .is_err()
+            {
+                return 1;
+            }
+        }
+        for (idx, obs) in dns_outcome.observations.into_iter().enumerate() {
+            if !obs.completeness.is_complete() {
+                had_partial_data = true;
+            }
+            let obs_ref = ObservationReference::new(record.ordinal, ProtocolKind::Dns, idx as u32);
+            if let Ok(protocol_obs) = ProtocolObservation::try_new(
+                obs_ref,
+                flow_association,
+                ProtocolObservationData::Dns(obs),
+            ) {
+                if let Err(e) = obs_collection.push(protocol_obs) {
+                    if diag_emitter
+                        .emit_diagnostic(&format!("observation collection error: {e}"))
+                        .is_err()
+                    {
+                        return 1;
+                    }
+                }
+            }
+        }
+
+        let http_outcome = parse_http_packet(&norm_outcome.packet, &http_limits);
+        for d in &http_outcome.diagnostics {
+            if diag_emitter
+                .emit_diagnostic(&format!(
+                    "HTTP diagnostic on packet {}: {}",
+                    record.ordinal, d.message
+                ))
+                .is_err()
+            {
+                return 1;
+            }
+        }
+        for (idx, obs) in http_outcome.observations.into_iter().enumerate() {
+            if !obs.completeness.is_complete() {
+                had_partial_data = true;
+            }
+            let obs_ref = ObservationReference::new(record.ordinal, ProtocolKind::Http, idx as u32);
+            if let Ok(protocol_obs) = ProtocolObservation::try_new(
+                obs_ref,
+                flow_association,
+                ProtocolObservationData::Http(obs),
+            ) {
+                if let Err(e) = obs_collection.push(protocol_obs) {
+                    if diag_emitter
+                        .emit_diagnostic(&format!("observation collection error: {e}"))
+                        .is_err()
+                    {
+                        return 1;
+                    }
+                }
+            }
+        }
+
+        let tls_outcome = parse_tls_packet(&norm_outcome.packet, &tls_limits);
+        for d in &tls_outcome.diagnostics {
+            if diag_emitter
+                .emit_diagnostic(&format!(
+                    "TLS diagnostic on packet {}: {}",
+                    record.ordinal, d.message
+                ))
+                .is_err()
+            {
+                return 1;
+            }
+        }
+        for (idx, obs) in tls_outcome.observations.into_iter().enumerate() {
+            if !obs.completeness.is_complete() {
+                had_partial_data = true;
+            }
+            let obs_ref = ObservationReference::new(record.ordinal, ProtocolKind::Tls, idx as u32);
+            if let Ok(protocol_obs) = ProtocolObservation::try_new(
+                obs_ref,
+                flow_association,
+                ProtocolObservationData::Tls(obs),
+            ) {
+                if let Err(e) = obs_collection.push(protocol_obs) {
+                    if diag_emitter
+                        .emit_diagnostic(&format!("observation collection error: {e}"))
+                        .is_err()
+                    {
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let remaining_flows = if had_stream_error {
+        flow_reconstructor.finish_partial()
+    } else {
+        flow_reconstructor.finish()
+    };
+    all_flows.extend(remaining_flows);
+
+    let outcome = reader.into_outcome();
+    for diag in &outcome.diagnostics {
+        if diag_emitter.emit_capture_diagnostic(diag).is_err() {
+            return 1;
+        }
+    }
+    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
+        return 1;
+    }
+
+    let mut detector_registry =
+        match DetectorRegistry::new(DetectorRegistry::DEFAULT_MAX_REGISTERED_DETECTORS) {
+            Ok(r) => r,
+            Err(e) => {
+                return emit_fatal_error(&format!("failed to initialize detector registry: {e}"));
+            }
+        };
+
+    if let Err(e) = detector_registry.register(Box::new(PeriodicBeaconingDetector::new())) {
+        return emit_fatal_error(&format!(
+            "failed to register periodic beaconing detector: {e}"
+        ));
+    }
+    if let Err(e) = detector_registry.register(Box::new(DnsLongQueryNameDetector::new())) {
+        return emit_fatal_error(&format!(
+            "failed to register DNS long query name detector: {e}"
+        ));
+    }
+    if let Err(e) = detector_registry.register(Box::new(DnsPossibleTunnelingDetector::new())) {
+        return emit_fatal_error(&format!(
+            "failed to register DNS possible tunneling detector: {e}"
+        ));
+    }
+    if let Err(e) = detector_registry.register(Box::new(RepeatedLowVolumeFlowDetector::new())) {
+        return emit_fatal_error(&format!(
+            "failed to register repeated low-volume flow detector: {e}"
+        ));
+    }
+
+    let mut correlation_registry = CorrelationRegistry::empty();
+
+    if let Err(e) = correlation_registry.register(Box::new(PossibleC2MultiSignalCorrelator::new()))
+    {
+        return emit_fatal_error(&format!("failed to register possible C2 correlator: {e}"));
+    }
+
+    let mut limitations = Vec::new();
+    if had_stream_error || had_partial_data || !outcome.is_complete() {
+        limitations.push(DetectionInputLimitation::CaptureTruncated);
+    }
+
+    let completeness = if limitations.is_empty() {
+        DetectionInputCompleteness::Complete
+    } else {
+        DetectionInputCompleteness::Partial
+    };
+
+    let detection_input = match DetectionInput::try_new(
+        &all_flows,
+        obs_collection.observations(),
+        completeness,
+        &limitations,
+    ) {
+        Ok(i) => i,
+        Err(e) => {
+            return emit_fatal_error(&format!("failed to build detection input: {e}"));
+        }
+    };
+
+    let detection_limits = DetectionLimits::default();
+    let detection_configs = DetectorConfigurations::default();
+
+    let detection_outcome = match execute_detection_with_correlators(
+        &detector_registry,
+        &correlation_registry,
+        &detection_input,
+        &detection_configs,
+        &detection_limits,
+    ) {
+        Ok(o) => o,
+        Err(e) => {
+            return emit_fatal_error(&format!("detection execution failed: {e}"));
+        }
+    };
+
+    let filter = FindingFilter::new()
+        .with_min_severity(args.min_severity)
+        .with_min_confidence(args.min_confidence)
+        .with_detector_id(args.detector_id)
+        .with_mitre_attack_id(args.mitre_id);
+
+    let filtered_findings = filter.filter_findings(&detection_outcome.findings);
+
+    let mut stdout = io::stdout().lock();
+    if let Err(e) = output::render_findings(&filtered_findings, &mut stdout) {
+        return emit_fatal_error(&format!("failed to render findings: {e}"));
+    }
+
+    if had_stream_error || had_partial_data || !outcome.is_complete() {
         3
     } else {
         0

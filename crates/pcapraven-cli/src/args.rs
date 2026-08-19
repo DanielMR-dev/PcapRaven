@@ -1,6 +1,7 @@
 //! Command-line argument parsing and configuration types.
 
 use clap::{Arg, ArgAction, Command};
+use pcapraven_domain::{Confidence, DetectorId, MitreAttackId, Severity};
 use std::path::PathBuf;
 
 /// Parsed top-level command-line configuration.
@@ -25,6 +26,8 @@ pub enum Subcommand {
     Http(HttpArgs),
     /// Inspect visible TLS 1.2 / TLS 1.3 handshake metadata.
     Tls(TlsArgs),
+    /// Inspect analytical security findings with filtering.
+    Findings(FindingsArgs),
 }
 
 /// Arguments for `pcapraven validate`.
@@ -78,6 +81,23 @@ pub struct FlowsArgs {
     pub tcp_idle_timeout: Option<u32>,
     /// UDP flow idle timeout in seconds.
     pub udp_idle_timeout: Option<u32>,
+}
+
+/// Arguments for `pcapraven findings`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FindingsArgs {
+    /// Path to the local capture file.
+    pub capture_path: PathBuf,
+    /// Maximum capture records to process.
+    pub max_records: Option<u64>,
+    /// Minimum severity filter.
+    pub min_severity: Option<Severity>,
+    /// Minimum confidence filter.
+    pub min_confidence: Option<Confidence>,
+    /// Filter by specific detector identifier.
+    pub detector_id: Option<DetectorId>,
+    /// Filter by MITRE ATT&CK technique identifier.
+    pub mitre_id: Option<MitreAttackId>,
 }
 
 /// Builds the clap [`Command`] definition.
@@ -214,6 +234,52 @@ pub fn build_cli() -> Command {
                         .help("Maximum capture records to process"),
                 ),
         )
+        .subcommand(
+            Command::new("findings")
+                .about("Inspect analytical security findings with severity, confidence, and MITRE filtering.")
+                .arg(
+                    Arg::new("capture")
+                        .value_name("CAPTURE")
+                        .required(true)
+                        .index(1)
+                        .help("Path to the capture file"),
+                )
+                .arg(
+                    Arg::new("max-records")
+                        .long("max-records")
+                        .value_name("N")
+                        .value_parser(clap::value_parser!(u64))
+                        .help("Maximum capture records to process"),
+                )
+                .arg(
+                    Arg::new("min-severity")
+                        .long("min-severity")
+                        .value_name("SEVERITY")
+                        .value_parser(clap::builder::NonEmptyStringValueParser::new())
+                        .help("Minimum severity threshold (info, low, medium, high, critical)"),
+                )
+                .arg(
+                    Arg::new("min-confidence")
+                        .long("min-confidence")
+                        .value_name("CONFIDENCE")
+                        .value_parser(clap::builder::NonEmptyStringValueParser::new())
+                        .help("Minimum confidence threshold (low, medium, high)"),
+                )
+                .arg(
+                    Arg::new("detector")
+                        .long("detector")
+                        .value_name("ID")
+                        .value_parser(clap::builder::NonEmptyStringValueParser::new())
+                        .help("Filter by detector identifier (e.g. dns.possible_tunneling)"),
+                )
+                .arg(
+                    Arg::new("mitre")
+                        .long("mitre")
+                        .value_name("TECHNIQUE_ID")
+                        .value_parser(clap::builder::NonEmptyStringValueParser::new())
+                        .help("Filter by MITRE ATT&CK technique ID (e.g. T1071.004)"),
+                ),
+        )
 }
 
 /// Parses command-line arguments into [`CliArgs`].
@@ -285,6 +351,65 @@ where
             Subcommand::Tls(TlsArgs {
                 capture_path: PathBuf::from(capture_str),
                 max_records,
+            })
+        }
+        Some(("findings", sub_m)) => {
+            let capture_str = sub_m
+                .get_one::<String>("capture")
+                .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::MissingRequiredArgument))?;
+            let max_records = sub_m.get_one::<u64>("max-records").copied();
+
+            let min_severity = if let Some(s) = sub_m.get_one::<String>("min-severity") {
+                Some(s.parse::<Severity>().map_err(|e| {
+                    clap::Error::raw(
+                        clap::error::ErrorKind::ValueValidation,
+                        format!("Invalid --min-severity '{s}': {e}\n"),
+                    )
+                })?)
+            } else {
+                None
+            };
+
+            let min_confidence = if let Some(s) = sub_m.get_one::<String>("min-confidence") {
+                Some(s.parse::<Confidence>().map_err(|e| {
+                    clap::Error::raw(
+                        clap::error::ErrorKind::ValueValidation,
+                        format!("Invalid --min-confidence '{s}': {e}\n"),
+                    )
+                })?)
+            } else {
+                None
+            };
+
+            let detector_id = if let Some(s) = sub_m.get_one::<String>("detector") {
+                Some(DetectorId::try_new(s).map_err(|e| {
+                    clap::Error::raw(
+                        clap::error::ErrorKind::ValueValidation,
+                        format!("Invalid --detector '{s}': {e}\n"),
+                    )
+                })?)
+            } else {
+                None
+            };
+
+            let mitre_id = if let Some(s) = sub_m.get_one::<String>("mitre") {
+                Some(MitreAttackId::try_new(s).map_err(|e| {
+                    clap::Error::raw(
+                        clap::error::ErrorKind::ValueValidation,
+                        format!("Invalid --mitre '{s}': {e}\n"),
+                    )
+                })?)
+            } else {
+                None
+            };
+
+            Subcommand::Findings(FindingsArgs {
+                capture_path: PathBuf::from(capture_str),
+                max_records,
+                min_severity,
+                min_confidence,
+                detector_id,
+                mitre_id,
             })
         }
         _ => {

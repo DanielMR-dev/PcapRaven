@@ -189,8 +189,20 @@ fn test_help_command() {
     assert!(stdout.contains("dns"));
     assert!(stdout.contains("http"));
     assert!(stdout.contains("tls"));
-    assert!(!stdout.contains("  findings"));
+    assert!(stdout.contains("findings"));
     assert!(!stdout.contains("  analyze"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_findings_help_subcommand() {
+    let (code, stdout, stderr) = run_cli(&["findings", "--help"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("Inspect analytical security findings"));
+    assert!(stdout.contains("--min-severity"));
+    assert!(stdout.contains("--min-confidence"));
+    assert!(stdout.contains("--detector"));
+    assert!(stdout.contains("--mitre"));
     assert!(stderr.is_empty());
 }
 
@@ -1001,4 +1013,73 @@ fn test_tls_cli_malformed_partial_exit_3() {
     assert_eq!(code, 3);
     assert!(stdout.contains("PKT"));
     assert!(stderr.contains("duplicate extension"));
+}
+
+#[test]
+fn test_findings_cli_empty_pcap() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("findings_empty.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&["findings", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("No findings matched the requested criteria."));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_findings_cli_nonexistent_file_exit_1() {
+    let (code, stdout, stderr) = run_cli(&["findings", "/nonexistent/path/capture.pcap"]);
+    assert_eq!(code, 1);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("failed to open capture file"));
+}
+
+#[test]
+fn test_findings_cli_invalid_filter_args_exit_2() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("findings_filter_err.pcap", &pcap_bytes);
+
+    let (code, _, stderr) = run_cli(&[
+        "findings",
+        "--min-severity",
+        "invalid_sev",
+        &temp.path_str(),
+    ]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("Invalid --min-severity"));
+
+    let (code, _, stderr) = run_cli(&[
+        "findings",
+        "--min-confidence",
+        "super_high",
+        &temp.path_str(),
+    ]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("Invalid --min-confidence"));
+
+    let (code, _, stderr) = run_cli(&["findings", "--mitre", "invalid_id", &temp.path_str()]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("Invalid --mitre"));
+}
+
+#[test]
+fn test_findings_cli_with_filters_on_clean_pcap() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("findings_clean.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&[
+        "findings",
+        "--min-severity",
+        "low",
+        "--min-confidence",
+        "medium",
+        "--detector",
+        "dns.possible_tunneling",
+        "--mitre",
+        "T1071.004",
+        &temp.path_str(),
+    ]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("No findings matched the requested criteria."));
+    assert!(stderr.is_empty());
 }

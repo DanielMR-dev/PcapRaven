@@ -15,9 +15,10 @@ handshake metadata analysis with normalized TLS observations and TLS CLI inspect
 Phase 10 unified protocol observations and structured evidence foundation,
 Phase 11 detection engine architecture,
 Phase 12 explainable periodic beaconing detection,
-Phase 13 explainable DNS anomaly and possible tunneling detection, and
-Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation are complete.
-Phase 15 (MITRE ATT&CK mappings) and later analysis capabilities remain future work.
+Phase 13 explainable DNS anomaly and possible tunneling detection,
+Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation, and
+Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection are complete.
+Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and later analysis capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -45,6 +46,7 @@ Phase 15 (MITRE ATT&CK mappings) and later analysis capabilities remain future w
 | `docs/detectors/PERIODIC_BEACONING.md` | Specification and statistical contract for the periodic beaconing detector. |
 | `docs/detectors/DNS_ANOMALY_TUNNELING.md` | Specification and analytical contract for DNS anomaly and possible tunneling detectors. |
 | `docs/detectors/CONNECTION_C2_BEHAVIOR.md` | Specification and analytical contract for connection behavior detector and cross-detector finding correlators. |
+| `docs/MITRE_ATTACK_MAPPING.md` | Specification and analytical mapping provenance for MITRE ATT&CK Enterprise Matrix v19.2 relationships. |
 | `.opencode/agents/orchestrator.md` | Primary agent that delegates implementation and review. |
 | `.opencode/agents/developer.md` | Phase-scoped implementation subagent. |
 | `.opencode/agents/reviewer.md` | Source-read-only review subagent with bounded non-mutating verification. |
@@ -68,6 +70,7 @@ Phase 15 (MITRE ATT&CK mappings) and later analysis capabilities remain future w
 | `crates/pcapraven-domain/src/dns.rs` | Normalized DNS observation model, question, RR, EDNS metadata, and diagnostic types. |
 | `crates/pcapraven-domain/src/evidence.rs` | Structured evidence records, exact rational `EvidenceRatio`, measurements, and schema anchors. |
 | `crates/pcapraven-domain/src/finding.rs` | Finding domain models, detector identifiers, detector versions, severity, confidence, subjects, and records. |
+| `crates/pcapraven-domain/src/mitre_attack.rs` | MITRE ATT&CK Enterprise Matrix v19.2 technique, tactic, rationale, provenance, and mapping models. |
 | `crates/pcapraven-domain/src/http.rs` | Normalized HTTP/1.x observation model, request/response metadata, selected headers, sensitive flags, and diagnostic types. |
 | `crates/pcapraven-domain/src/observation.rs` | Unified protocol observations, explicit flow associations, completeness states, and bounded collections. |
 | `crates/pcapraven-domain/src/tls.rs` | Normalized TLS 1.2 / TLS 1.3 handshake observation model, Hello metadata, extension metadata, and diagnostic types. |
@@ -113,12 +116,14 @@ Phase 15 (MITRE ATT&CK mappings) and later analysis capabilities remain future w
 | `crates/pcapraven-detection/src/detector.rs` | Pure Detector trait, detector metadata, and incomplete data policies. |
 | `crates/pcapraven-detection/src/engine.rs` | Detection engine execution pipeline, borrowed domain input, preflight validation, and canonical assignment. |
 | `crates/pcapraven-detection/src/error.rs` | Structured error models for detector config, registry, evaluation, and engine output. |
+| `crates/pcapraven-detection/src/filtering.rs` | Finding filtering model and multi-criteria evaluation across severity, confidence, detector, and MITRE. |
 | `crates/pcapraven-detection/src/periodic_beaconing.rs` | Explainable periodic beaconing detector over exact directional flow temporal metrics. |
 | `crates/pcapraven-detection/src/dns_anomaly.rs` | Explainable DNS anomaly and possible tunneling detectors over normalized DNS observations. |
 | `crates/pcapraven-detection/src/registry.rs` | Deterministic bounded registry for active compiled detectors. |
 | `crates/pcapraven-detection/tests/connection_behavior.rs` | Integration tests for explainable repeated low-volume flow behavior detector. |
 | `crates/pcapraven-detection/tests/correlation.rs` | Integration tests for cross-detector finding correlation and multi-signal C2 heuristics. |
 | `crates/pcapraven-detection/tests/engine.rs` | Integration tests for detection engine, registry ordering, preflight config, and deterministic finding generation. |
+| `crates/pcapraven-detection/tests/filtering.rs` | Integration tests for multi-criteria finding filtering. |
 | `crates/pcapraven-detection/tests/periodic_beaconing.rs` | Integration tests for explainable periodic beaconing detector, exact rational thresholds, and directional analysis. |
 | `crates/pcapraven-detection/tests/dns_anomaly.rs` | Integration tests for DNS anomaly and possible tunneling detectors. |
 | `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
