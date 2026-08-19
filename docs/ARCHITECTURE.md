@@ -9,16 +9,17 @@ temporal metrics, Phase 6 initial functional CLI with streaming capture and
 flow inspection, Phase 7 bounded DNS protocol analysis, Phase 8 bounded HTTP/1.x
 protocol analysis, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake
 metadata analysis, Phase 10 unified protocol observations and structured evidence
-foundation, Phase 11 detection engine architecture, and Phase 12 explainable periodic beaconing
-detection are complete.
+foundation, Phase 11 detection engine architecture, Phase 12 explainable periodic beaconing
+detection, Phase 13 explainable DNS anomaly and possible tunneling detection, and
+Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation are complete.
 `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation,
 evidence, and finding models, statistics, and exact temporal metrics,
 `pcapraven-pcap` provides capture ingestion, `pcapraven-protocols` provides packet normalization,
 DNS parsing, HTTP/1.x parsing, and TLS handshake parsing, `pcapraven-flows` provides stateful
 flow reconstruction, traffic statistics, and exact rational temporal metrics,
 `pcapraven-detection` provides detection engine execution pipeline, detector registry,
-parameter configuration, and explainable behavioral detectors, and `pcapraven-cli` provides the functional CLI.
-Phase 14 (connection/C2-like behavioral heuristics), further threat detection heuristics, and reporting remain future work.
+correlation pipeline, parameter configuration, and explainable behavioral detectors and correlators, and `pcapraven-cli` provides the functional CLI.
+Phase 15 (MITRE ATT&CK mappings), further threat detection heuristics, and reporting remain future work.
 
 ## Architectural Principles
 
@@ -356,6 +357,25 @@ over exact directional flow temporal metrics:
   ($(\text{max} - \text{min}) / \mu \le 25\%$).
 - **Structured Evidence:** Emits factual `TemporalMetric` evidence drafts with strict metric keys and threshold comparisons.
 - **Cautious Interpretation:** Formulates explainable findings without asserting confirmed malware or C2.
+
+## Phase 13 Explainable DNS Anomaly and Possible Tunneling Detection Boundary
+
+`pcapraven-detection` implements explainable DNS anomaly and possible tunneling detection (`DnsLongQueryNameDetector`, `dns.long_query_name`, `DnsPossibleTunnelingDetector`, `dns.possible_tunneling`) over normalized DNS observations:
+
+- **Exact Diversity Metric:** Computes `label_octet_diversity_ratio` via fixed `[bool; 256]` bitmap memory without floats or entropy approximations.
+- **Canonical Query Filtering:** Enforces strict query validation (`completeness.is_complete() && message_kind == DnsMessageKind::Query && flags.qr == false`).
+- **Causally Coherent Evidence:** Threshold measurements derive strictly from matching questions and qualifying labels.
+- **$O(\log F)$ Binary Search:** Binary search over sorted flow records in `DetectionInput::flows()`.
+
+## Phase 14 Explainable Connection Behavior and Cross-Detector Correlation Boundary
+
+`pcapraven-detection` implements explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation:
+
+- **Canonical Peer Grouping:** `ConnectionPeerKey` groups flows by transport and port-agnostic peer IP pair (`peer_a <= peer_b`), bounded by `maximum_tracked_peers`.
+- **Flow Qualification & Exclusions:** Excludes flows with `AnalysisStopped`, `same_endpoint > 0`, `packet_count == 0`, and flows exceeding byte/packet caps.
+- **Factual Traffic Evidence:** Emits `EvidenceKind::FlowMeasurement` with 5 ordered measurements (`flow_count`, `maximum_flow_bytes`, `maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`).
+- **Finding Correlator Pipeline:** `execute_detection_with_correlators` executes registered correlators post-primary-evaluation, reusing primary `EvidenceReference`s and recording $\ge 2$ `source_finding_references`.
+- **Multi-Signal C2 Correlator:** `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`) matches co-occurring periodic beaconing and possible DNS tunneling on the same flow without allocating new evidence.
 
 ## Crate Responsibilities
 

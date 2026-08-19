@@ -18,8 +18,9 @@ observation models in `pcapraven-domain`. Phase 10 implements unified protocol o
 and the structured evidence foundation (`EvidenceRecord`, `EvidenceRatio`, `EvidenceMeasurement`, `SchemaVersion`)
 in `pcapraven-domain`. Phase 11 implements the detection engine architecture, deterministic registry,
 preflight validation, and execution pipeline in `pcapraven-detection`. Phase 12 implements explainable
-periodic beaconing detection, and Phase 13 implements explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`. Threat findings for later phases (Phase 14+)
-and cross-protocol correlation remain future work.
+periodic beaconing detection, Phase 13 implements explainable DNS anomaly and possible tunneling detection, and
+Phase 14 implements explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`.
+MITRE ATT&CK mappings (Phase 15) and structured reporting (Phase 16) remain future work.
 
 ## Modeling Rules
 
@@ -242,7 +243,7 @@ Phase 11 establishes the finding domain model in `pcapraven-domain`:
 - `FindingSummary`: Bounded (up to 512 UTF-8 bytes), terminal-safe concise summary (rejects control characters and empty text).
 - `FindingRationale`: Bounded (up to 2,048 UTF-8 bytes), terminal-safe explanatory rationale explaining why the detector matched (rejects control characters and empty text).
 - `FindingDraft`: Unassigned finding draft emitted by a detector into an engine-controlled bounded sink during evaluation, containing subject, title, summary, rationale, severity, confidence, and supporting evidence drafts (with detector ID, version, and references assigned strictly by the engine).
-- `FindingRecord`: Canonical, immutable finding record constructed by the detection engine, linking an assigned finding reference, detector metadata, validated subject, title, summary, rationale, severity, confidence, and engine-assigned evidence references.
+- `FindingRecord`: Canonical, immutable finding record constructed by the detection engine, linking an assigned finding reference, detector metadata, validated subject, title, summary, rationale, severity, confidence, engine-assigned evidence references, and optional source finding references (`source_finding_references`) for correlated findings.
 - `Severity`: Foundational severity classification (`Info`, `Low`, `Medium`, `High`, `Critical`).
 - `Confidence`: Analytical confidence rating (`Low`, `Medium`, `High`), strictly separated from severity.
 

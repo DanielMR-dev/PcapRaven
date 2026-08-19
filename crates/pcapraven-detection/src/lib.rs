@@ -5,6 +5,8 @@
 //! identity assignment without floating-point numbers or raw packet payload copies.
 
 pub mod config;
+pub mod connection_behavior;
+pub mod correlation;
 pub mod detector;
 pub mod dns_anomaly;
 pub mod engine;
@@ -17,6 +19,11 @@ pub use config::{
     DetectorParameterValue, DetectorParameters, DetectorParametersBuilder,
     MAX_PARAMETER_KEY_LENGTH,
 };
+pub use connection_behavior::{ConnectionPeerKey, RepeatedLowVolumeFlowDetector};
+pub use correlation::{
+    CorrelationDraft, CorrelationDraftSink, CorrelationRegistry, CorrelatorMetadata,
+    FindingCorrelator, PossibleC2MultiSignalCorrelator,
+};
 pub use detector::{Detector, DetectorDraftSink, DetectorMetadata, IncompleteDataPolicy};
 pub use dns_anomaly::{
     DnsLongQueryNameDetector, DnsPossibleTunnelingDetector, label_octet_diversity_ratio,
@@ -24,7 +31,7 @@ pub use dns_anomaly::{
 pub use engine::{
     DetectionInput, DetectionInputCompleteness, DetectionInputLimitation, DetectionLimits,
     DetectionLimitsBuilder, DetectionRunOutcome, DetectorExecutionRecord, DetectorExecutionStatus,
-    execute_detection,
+    execute_detection, execute_detection_with_correlators,
 };
 pub use error::{
     DetectionEngineError, DetectionInputError, DetectionLimitsValidationError,

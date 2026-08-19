@@ -150,6 +150,22 @@ pub enum FindingValidationError {
         /// Attempted evidence ordinal.
         attempted: u64,
     },
+    /// Number of source finding references in finding record exceeds limit.
+    SourceFindingReferencesExceeded {
+        /// Current count.
+        count: usize,
+        /// Maximum allowed count.
+        max: usize,
+    },
+    /// Duplicate source finding reference in finding record.
+    DuplicateSourceFindingReference(FindingReference),
+    /// Source finding references in finding record must be strictly increasing.
+    OutOfOrderSourceFindingReference {
+        /// Previous finding ordinal.
+        previous: u64,
+        /// Attempted finding ordinal.
+        attempted: u64,
+    },
 }
 
 impl fmt::Display for FindingValidationError {
@@ -260,6 +276,20 @@ impl fmt::Display for FindingValidationError {
             } => write!(
                 f,
                 "out-of-order evidence reference in finding: attempted evi:{attempted} after evi:{previous}"
+            ),
+            Self::SourceFindingReferencesExceeded { count, max } => write!(
+                f,
+                "finding source finding reference count ({count}) exceeds maximum ({max})"
+            ),
+            Self::DuplicateSourceFindingReference(fr) => {
+                write!(f, "duplicate source finding reference {fr} in finding")
+            }
+            Self::OutOfOrderSourceFindingReference {
+                previous,
+                attempted,
+            } => write!(
+                f,
+                "out-of-order source finding reference in finding: attempted find:{attempted} after find:{previous}"
             ),
         }
     }
@@ -818,12 +848,19 @@ pub struct FindingRecord {
     severity: Severity,
     confidence: Confidence,
     evidence_references: Vec<EvidenceReference>,
+    source_finding_references: Vec<FindingReference>,
 }
 
 impl FindingRecord {
+    /// Default maximum source finding references per finding (64).
+    pub const DEFAULT_MAX_SOURCE_FINDING_REFERENCES: usize = 64;
+    /// Hard maximum source finding references per finding (256).
+    pub const HARD_MAX_SOURCE_FINDING_REFERENCES: usize = 256;
+
     /// Creates a new canonical finding record.
     ///
-    /// Validates that evidence references are non-empty and strictly increasing.
+    /// Validates that evidence references are non-empty and strictly increasing,
+    /// and that source finding references (if present) are bounded and strictly increasing.
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         reference: FindingReference,
@@ -836,6 +873,7 @@ impl FindingRecord {
         severity: Severity,
         confidence: Confidence,
         evidence_references: Vec<EvidenceReference>,
+        source_finding_references: Vec<FindingReference>,
     ) -> Result<Self, FindingValidationError> {
         if evidence_references.is_empty() {
             return Err(FindingValidationError::FindingWithoutEvidence);
@@ -857,6 +895,29 @@ impl FindingRecord {
             }
         }
 
+        if source_finding_references.len() > Self::HARD_MAX_SOURCE_FINDING_REFERENCES {
+            return Err(FindingValidationError::SourceFindingReferencesExceeded {
+                count: source_finding_references.len(),
+                max: Self::HARD_MAX_SOURCE_FINDING_REFERENCES,
+            });
+        }
+
+        for window in source_finding_references.windows(2) {
+            let prev = window[0].id();
+            let curr = window[1].id();
+            if curr == prev {
+                return Err(FindingValidationError::DuplicateSourceFindingReference(
+                    window[1],
+                ));
+            }
+            if curr < prev {
+                return Err(FindingValidationError::OutOfOrderSourceFindingReference {
+                    previous: prev,
+                    attempted: curr,
+                });
+            }
+        }
+
         Ok(Self {
             reference,
             detector_id,
@@ -868,6 +929,7 @@ impl FindingRecord {
             severity,
             confidence,
             evidence_references,
+            source_finding_references,
         })
     }
 
@@ -929,5 +991,11 @@ impl FindingRecord {
     #[must_use]
     pub fn evidence_references(&self) -> &[EvidenceReference] {
         &self.evidence_references
+    }
+
+    /// Returns the ordered slice of source finding references for correlated findings.
+    #[must_use]
+    pub fn source_finding_references(&self) -> &[FindingReference] {
+        &self.source_finding_references
     }
 }

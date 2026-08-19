@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, and Phase 12
-are complete. Phase 12 contributions implemented explainable periodic beaconing detection over exact directional flow temporal metrics.
-Do not add DNS analysis heuristics, TLS heuristics, or formal reporting
-until their respective roadmap phases begin. Phase 13 (DNS anomaly and possible tunneling heuristics) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, and Phase 14
+are complete. Phase 14 contributions implemented explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation.
+Do not add MITRE ATT&CK mappings, TLS heuristics, or formal reporting
+until their respective roadmap phases begin. Phase 15 (severity, confidence, filtering, and MITRE mappings) is next.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -49,9 +49,9 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 12 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, detection engine, periodic beaconing, and CLI
+Phase 13 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, and CLI
 integration tests, baseline quality commands, fuzz-target builds, and architecture checker
-described in [Testing](docs/TESTING.md#phase-12-quality-gates). The pinned development
+described in [Testing](docs/TESTING.md#phase-13-quality-gates). The pinned development
 toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
 the CLI orchestrates streaming execution and human inspection output.
 
