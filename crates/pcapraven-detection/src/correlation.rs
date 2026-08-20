@@ -9,8 +9,9 @@ use core::fmt;
 use pcapraven_domain::{
     Confidence, DetectorId, DetectorVersion, EvidenceRecord, EvidenceReference, FindingRationale,
     FindingRecord, FindingReference, FindingSubject, FindingSummary, FindingTitle,
-    FindingValidationError, FlowReference, HARD_MAX_MITRE_MAPPINGS_PER_FINDING, MitreAttackId,
-    MitreMapping, MitreMappingProvenance, MitreMappingRationale, MitreTactic, Severity,
+    FindingValidationError, FlowReference, HARD_MAX_MITRE_MAPPINGS_PER_FINDING,
+    MitreAttackCatalogVersion, MitreAttackDomain, MitreAttackId, MitreAttackObjectVersion,
+    MitreAttackRelationship, MitreMappingDeclaration, MitreMappingRationale, MitreTactic, Severity,
 };
 use std::collections::BTreeMap;
 
@@ -68,6 +69,7 @@ pub struct CorrelatorMetadata {
     version: DetectorVersion,
     description: CorrelatorDescription,
     required_primary_detector_ids: Vec<DetectorId>,
+    mitre_mapping_declarations: Vec<MitreMappingDeclaration>,
 }
 
 impl CorrelatorMetadata {
@@ -80,6 +82,7 @@ impl CorrelatorMetadata {
         version: DetectorVersion,
         description: CorrelatorDescription,
         required_primary_detector_ids: Vec<DetectorId>,
+        mitre_mapping_declarations: Vec<MitreMappingDeclaration>,
     ) -> Result<Self, DetectorRegistryError> {
         if required_primary_detector_ids.len() > Self::HARD_MAX_REQUIRED_PRIMARY_DETECTOR_IDS {
             return Err(DetectorRegistryError::InvalidRequiredPrimaryDetectorIds {
@@ -106,11 +109,36 @@ impl CorrelatorMetadata {
             }
         }
 
+        if mitre_mapping_declarations.len() > HARD_MAX_MITRE_MAPPINGS_PER_FINDING {
+            return Err(DetectorRegistryError::InvalidMitreMappingDeclarations {
+                component_id: id,
+                reason: "MITRE ATT&CK mapping declarations count exceeds maximum limit",
+            });
+        }
+
+        for window in mitre_mapping_declarations.windows(2) {
+            let prev = window[0].technique_id();
+            let curr = window[1].technique_id();
+            if curr == prev {
+                return Err(DetectorRegistryError::InvalidMitreMappingDeclarations {
+                    component_id: id,
+                    reason: "duplicate MITRE ATT&CK mapping declaration technique ID",
+                });
+            }
+            if curr < prev {
+                return Err(DetectorRegistryError::InvalidMitreMappingDeclarations {
+                    component_id: id,
+                    reason: "MITRE ATT&CK mapping declarations must be strictly sorted by technique ID",
+                });
+            }
+        }
+
         Ok(Self {
             id,
             version,
             description,
             required_primary_detector_ids,
+            mitre_mapping_declarations,
         })
     }
 
@@ -137,6 +165,12 @@ impl CorrelatorMetadata {
     pub fn required_primary_detector_ids(&self) -> &[DetectorId] {
         &self.required_primary_detector_ids
     }
+
+    /// Returns the slice of declared MITRE mapping declarations.
+    #[must_use]
+    pub fn mitre_mapping_declarations(&self) -> &[MitreMappingDeclaration] {
+        &self.mitre_mapping_declarations
+    }
 }
 
 /// Draft finding emitted by a correlator referencing primary findings and existing evidence.
@@ -150,7 +184,6 @@ pub struct CorrelationDraft {
     confidence: Confidence,
     evidence_references: Vec<EvidenceReference>,
     source_finding_references: Vec<FindingReference>,
-    mitre_mappings: Vec<MitreMapping>,
 }
 
 impl CorrelationDraft {
@@ -172,7 +205,6 @@ impl CorrelationDraft {
         confidence: Confidence,
         evidence_references: Vec<EvidenceReference>,
         source_finding_references: Vec<FindingReference>,
-        mitre_mappings: Vec<MitreMapping>,
     ) -> Result<Self, FindingValidationError> {
         if evidence_references.is_empty() {
             return Err(FindingValidationError::FindingWithoutEvidence);
@@ -232,27 +264,6 @@ impl CorrelationDraft {
             }
         }
 
-        if mitre_mappings.len() > HARD_MAX_MITRE_MAPPINGS_PER_FINDING {
-            return Err(FindingValidationError::MitreMappingsExceeded {
-                count: mitre_mappings.len(),
-                max: HARD_MAX_MITRE_MAPPINGS_PER_FINDING,
-            });
-        }
-
-        for window in mitre_mappings.windows(2) {
-            let prev = window[0].technique_id();
-            let curr = window[1].technique_id();
-            if curr == prev {
-                return Err(FindingValidationError::DuplicateMitreMapping(curr.clone()));
-            }
-            if curr < prev {
-                return Err(FindingValidationError::OutOfOrderMitreMapping {
-                    previous: prev.to_string(),
-                    attempted: curr.to_string(),
-                });
-            }
-        }
-
         Ok(Self {
             subject,
             title,
@@ -262,7 +273,6 @@ impl CorrelationDraft {
             confidence,
             evidence_references,
             source_finding_references,
-            mitre_mappings,
         })
     }
 
@@ -312,12 +322,6 @@ impl CorrelationDraft {
     #[must_use]
     pub fn source_finding_references(&self) -> &[FindingReference] {
         &self.source_finding_references
-    }
-
-    /// Returns the ordered slice of MITRE ATT&CK mappings.
-    #[must_use]
-    pub fn mitre_mappings(&self) -> &[MitreMapping] {
-        &self.mitre_mappings
     }
 }
 
@@ -499,8 +503,8 @@ impl Default for PossibleC2MultiSignalCorrelator {
 impl PossibleC2MultiSignalCorrelator {
     /// Stable namespaced correlator identifier.
     pub const CORRELATOR_ID: &'static str = "behavior.possible_c2_multi_signal";
-    /// Correlator logic version for Phase 15 mapping semantics.
-    pub const CORRELATOR_VERSION: DetectorVersion = DetectorVersion::new(1, 1, 0);
+    /// Correlator logic version for Phase 15.1 mapping semantics.
+    pub const CORRELATOR_VERSION: DetectorVersion = DetectorVersion::new(1, 1, 1);
 
     /// Creates a new possible C2 multi-signal correlator.
     #[must_use]
@@ -542,11 +546,41 @@ impl PossibleC2MultiSignalCorrelator {
         required_primary_detector_ids.sort();
         required_primary_detector_ids.dedup();
 
+        let mitre_id = MitreAttackId::try_new("T1071.004").map_err(|_| {
+            DetectorRegistryError::InvalidMitreMappingDeclarations {
+                component_id: id.clone(),
+                reason: "invalid MITRE technique ID",
+            }
+        })?;
+        let mitre_rationale = MitreMappingRationale::try_new(
+            "The correlator matched co-occurring periodic beaconing and possible DNS tunneling heuristics on the same flow, increasing investigative relevance for command-and-control channel analysis. This mapping reflects heuristic alignment with ATT&CK T1071.004 without asserting confirmed adversary presence.",
+        ).map_err(|_| {
+            DetectorRegistryError::InvalidMitreMappingDeclarations {
+                component_id: id.clone(),
+                reason: "invalid MITRE mapping rationale",
+            }
+        })?;
+        let mitre_decl = MitreMappingDeclaration::try_new(
+            MitreAttackDomain::Enterprise,
+            MitreAttackCatalogVersion::new(19, 2),
+            mitre_id,
+            "Application Layer Protocol: DNS",
+            MitreAttackObjectVersion::new(1, 4),
+            MitreTactic::CommandAndControl,
+            MitreAttackRelationship::Analytical,
+            mitre_rationale,
+        )
+        .map_err(|_| DetectorRegistryError::InvalidMitreMappingDeclarations {
+            component_id: id.clone(),
+            reason: "failed to construct MITRE mapping declaration",
+        })?;
+
         let metadata = CorrelatorMetadata::try_new(
             id,
             Self::CORRELATOR_VERSION,
             description,
             required_primary_detector_ids,
+            vec![mitre_decl],
         )?;
         Ok(Self { metadata })
     }
@@ -614,27 +648,6 @@ impl FindingCorrelator for PossibleC2MultiSignalCorrelator {
                 )
                 .map_err(|e| DetectorExecutionError::internal_error(format!("rationale error: {e}")))?;
 
-                let mitre_id = MitreAttackId::try_new("T1071.004").map_err(|e| {
-                    DetectorExecutionError::internal_error(format!("mitre id error: {e}"))
-                })?;
-                let mitre_rationale = MitreMappingRationale::try_new(
-                    "The correlator matched co-occurring periodic beaconing and possible DNS tunneling heuristics on the same flow, increasing investigative relevance for command-and-control channel analysis. This mapping reflects heuristic alignment with ATT&CK T1071.004 without asserting confirmed adversary presence.",
-                ).map_err(|e| DetectorExecutionError::internal_error(format!("mitre rationale error: {e}")))?;
-                let mitre_provenance = MitreMappingProvenance::CorrelatorDeclared {
-                    correlator_id: self.metadata().id().clone(),
-                    correlator_version: self.metadata().version(),
-                };
-                let mitre_mapping = MitreMapping::try_new(
-                    mitre_id,
-                    "Application Layer Protocol: DNS",
-                    MitreTactic::CommandAndControl,
-                    mitre_rationale,
-                    mitre_provenance,
-                )
-                .map_err(|e| {
-                    DetectorExecutionError::internal_error(format!("mitre mapping error: {e}"))
-                })?;
-
                 let draft = CorrelationDraft::try_new(
                     subject,
                     title,
@@ -644,7 +657,6 @@ impl FindingCorrelator for PossibleC2MultiSignalCorrelator {
                     Confidence::Medium,
                     evidence_refs,
                     source_findings,
-                    vec![mitre_mapping],
                 )
                 .map_err(|e| {
                     DetectorExecutionError::internal_error(format!("correlation draft error: {e}"))

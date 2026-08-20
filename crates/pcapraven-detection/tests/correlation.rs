@@ -663,7 +663,8 @@ fn test_correlator_metadata_validation() {
             id.clone(),
             version,
             desc.clone(),
-            vec![req1.clone(), req2.clone()]
+            vec![req1.clone(), req2.clone()],
+            Vec::new(),
         )
         .is_ok()
     );
@@ -674,7 +675,8 @@ fn test_correlator_metadata_validation() {
             id.clone(),
             version,
             desc.clone(),
-            vec![req2.clone(), req1.clone()]
+            vec![req2.clone(), req1.clone()],
+            Vec::new(),
         )
         .is_err()
     );
@@ -685,7 +687,8 @@ fn test_correlator_metadata_validation() {
             id.clone(),
             version,
             desc.clone(),
-            vec![req1.clone(), req1.clone()]
+            vec![req1.clone(), req1.clone()],
+            Vec::new(),
         )
         .is_err()
     );
@@ -719,7 +722,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             vec![evi1, evi2],
             vec![find1, find2],
-            Vec::new(),
         )
         .is_ok()
     );
@@ -735,7 +737,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             Vec::new(),
             vec![find1, find2],
-            Vec::new(),
         )
         .is_err()
     );
@@ -751,7 +752,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             vec![evi1],
             vec![find1],
-            Vec::new(),
         )
         .is_err()
     );
@@ -767,7 +767,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             vec![evi1, evi1],
             vec![find1, find2],
-            Vec::new(),
         )
         .is_err()
     );
@@ -783,7 +782,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             vec![evi2, evi1],
             vec![find1, find2],
-            Vec::new(),
         )
         .is_err()
     );
@@ -799,7 +797,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             vec![evi1],
             vec![find1, find1],
-            Vec::new(),
         )
         .is_err()
     );
@@ -815,7 +812,6 @@ fn test_correlation_draft_validation() {
             Confidence::Medium,
             vec![evi1],
             vec![find2, find1],
-            Vec::new(),
         )
         .is_err()
     );
@@ -933,7 +929,6 @@ impl FindingCorrelator for MockProvenanceCorrelator {
                     Confidence::Medium,
                     vec![b.evidence_references()[0]],
                     vec![FindingReference::new(998), FindingReference::new(999)],
-                    Vec::new(),
                 )
                 .unwrap();
                 output.push(draft)?;
@@ -948,7 +943,6 @@ impl FindingCorrelator for MockProvenanceCorrelator {
                     Confidence::Medium,
                     vec![EvidenceReference::new(999)],
                     vec![b.reference(), t.reference()],
-                    Vec::new(),
                 )
                 .unwrap();
                 output.push(draft)?;
@@ -966,7 +960,6 @@ impl FindingCorrelator for MockProvenanceCorrelator {
                     Confidence::Medium,
                     vec![b.evidence_references()[0]],
                     vec![b.reference(), t.reference()],
-                    Vec::new(),
                 )
                 .unwrap();
                 output.push(draft)?;
@@ -981,7 +974,6 @@ impl FindingCorrelator for MockProvenanceCorrelator {
                     Confidence::Medium,
                     vec![b.evidence_references()[0]],
                     vec![b.reference(), t.reference()],
-                    Vec::new(),
                 )
                 .unwrap();
                 let draft2 = CorrelationDraft::try_new(
@@ -993,7 +985,6 @@ impl FindingCorrelator for MockProvenanceCorrelator {
                     Confidence::Medium,
                     vec![b.evidence_references()[0]],
                     vec![b.reference(), t.reference()],
-                    Vec::new(),
                 )
                 .unwrap();
                 output.push(draft1)?;
@@ -1013,7 +1004,8 @@ fn create_mock_provenance_correlator(
     let desc = CorrelatorDescription::try_new("Mock provenance test correlator").unwrap();
     let req1 = DetectorId::try_new("behavior.periodic_beaconing").unwrap();
     let req2 = DetectorId::try_new("dns.possible_tunneling").unwrap();
-    let meta = CorrelatorMetadata::try_new(id, version, desc, vec![req1, req2]).unwrap();
+    let meta =
+        CorrelatorMetadata::try_new(id, version, desc, vec![req1, req2], Vec::new()).unwrap();
     MockProvenanceCorrelator { meta, mode }
 }
 
@@ -1059,17 +1051,19 @@ fn test_provenance_violation_bad_source_finding_ref_rejected() {
         )))
         .unwrap();
 
-    let err = execute_detection_with_correlators(
+    let outcome = execute_detection_with_correlators(
         &detector_registry,
         &correlator_registry,
         &input,
         &DetectorConfigurations::default(),
         &DetectionLimits::default(),
     )
-    .unwrap_err();
+    .unwrap();
+    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
+    assert_eq!(outcome.correlator_executions.len(), 1);
     assert!(matches!(
-        err,
-        DetectionEngineError::Output(DetectionOutputError::InvalidSourceFindingReference { .. })
+        outcome.correlator_executions[0].status,
+        CorrelatorExecutionStatus::Failed { .. }
     ));
 }
 
@@ -1115,19 +1109,19 @@ fn test_provenance_violation_unowned_evidence_ref_rejected() {
         )))
         .unwrap();
 
-    let err = execute_detection_with_correlators(
+    let outcome = execute_detection_with_correlators(
         &detector_registry,
         &correlator_registry,
         &input,
         &DetectorConfigurations::default(),
         &DetectionLimits::default(),
     )
-    .unwrap_err();
+    .unwrap();
+    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
+    assert_eq!(outcome.correlator_executions.len(), 1);
     assert!(matches!(
-        err,
-        DetectionEngineError::Output(
-            DetectionOutputError::UnownedCorrelationEvidenceReference { .. }
-        )
+        outcome.correlator_executions[0].status,
+        CorrelatorExecutionStatus::Failed { .. }
     ));
 }
 
@@ -1173,19 +1167,19 @@ fn test_provenance_violation_unowned_subject_ref_rejected() {
         )))
         .unwrap();
 
-    let err = execute_detection_with_correlators(
+    let outcome = execute_detection_with_correlators(
         &detector_registry,
         &correlator_registry,
         &input,
         &DetectorConfigurations::default(),
         &DetectionLimits::default(),
     )
-    .unwrap_err();
+    .unwrap();
+    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
+    assert_eq!(outcome.correlator_executions.len(), 1);
     assert!(matches!(
-        err,
-        DetectionEngineError::Output(
-            DetectionOutputError::UnownedCorrelationSubjectReference { .. }
-        )
+        outcome.correlator_executions[0].status,
+        CorrelatorExecutionStatus::Failed { .. }
     ));
 }
 
@@ -1231,17 +1225,19 @@ fn test_correlator_duplicate_identity_rejected() {
         )))
         .unwrap();
 
-    let err = execute_detection_with_correlators(
+    let outcome = execute_detection_with_correlators(
         &detector_registry,
         &correlator_registry,
         &input,
         &DetectorConfigurations::default(),
         &DetectionLimits::default(),
     )
-    .unwrap_err();
+    .unwrap();
+    assert_eq!(outcome.completion, DetectionInputCompleteness::Partial);
+    assert_eq!(outcome.correlator_executions.len(), 1);
     assert!(matches!(
-        err,
-        DetectionEngineError::Output(DetectionOutputError::DuplicateFindingIdentity { .. })
+        outcome.correlator_executions[0].status,
+        CorrelatorExecutionStatus::Failed { .. }
     ));
 }
 

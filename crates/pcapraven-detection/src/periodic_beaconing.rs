@@ -637,7 +637,6 @@ impl Detector for PeriodicBeaconingDetector {
                 Severity::Low,
                 Confidence::Medium,
                 directional_evidence,
-                Vec::new(),
             )
             .map_err(|e| {
                 DetectorExecutionError::internal_error(format!("invalid finding draft: {e}"))

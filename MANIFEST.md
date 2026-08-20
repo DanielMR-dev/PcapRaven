@@ -16,9 +16,10 @@ Phase 10 unified protocol observations and structured evidence foundation,
 Phase 11 detection engine architecture,
 Phase 12 explainable periodic beaconing detection,
 Phase 13 explainable DNS anomaly and possible tunneling detection,
-Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation, and
-Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection are complete.
-Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and later analysis capabilities remain future work.
+Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation,
+Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection, and
+Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command are complete.
+Phase 17 (fixture corpus + golden/integration/E2E tests) and later capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -40,8 +41,9 @@ Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and la
 | `docs/ARCHITECTURE.md` | Workspace, crate boundaries, dependency direction, errors, logging, and unsafe Rust. |
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
+| `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `docs/detectors/PERIODIC_BEACONING.md` | Specification and statistical contract for the periodic beaconing detector. |
 | `docs/detectors/DNS_ANOMALY_TUNNELING.md` | Specification and analytical contract for DNS anomaly and possible tunneling detectors. |
@@ -56,12 +58,15 @@ Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and la
 | `.agents/skills/dns-detection/SKILL.md` | Reusable DNS anomaly and possible tunneling detection procedure. |
 | `.agents/skills/dns-protocol-analysis/SKILL.md` | Reusable DNS wire parser, candidate classification, and observation extraction procedure. |
 | `.agents/skills/finding-correlation/SKILL.md` | Reusable cross-detector finding correlation procedure. |
+| `.agents/skills/finding-filtering/SKILL.md` | Reusable explainable finding filtering procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
 | `.agents/skills/http-protocol-analysis/SKILL.md` | Reusable HTTP/1.x header parser, candidate classification, sensitive header masking, and observation extraction procedure. |
+| `.agents/skills/mitre-attack-mapping/SKILL.md` | Reusable MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance and validation procedure. |
 | `.agents/skills/observation-evidence-model/SKILL.md` | Reusable unified protocol observation and structured evidence procedure. |
 | `.agents/skills/periodic-beaconing/SKILL.md` | Reusable explainable periodic beaconing detection procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
+| `.agents/skills/reporting/SKILL.md` | Reusable multi-format reporting, schema serialization, sanitization, and output file procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
 | `.agents/skills/secure-parser-review/SKILL.md` | Reusable hostile-input parser review procedure. |
 | `.agents/skills/tls-protocol-analysis/SKILL.md` | Reusable TLS 1.2 / TLS 1.3 handshake parser, candidate classification, privacy non-retention, and observation extraction procedure. |
@@ -126,15 +131,30 @@ Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and la
 | `crates/pcapraven-detection/tests/filtering.rs` | Integration tests for multi-criteria finding filtering. |
 | `crates/pcapraven-detection/tests/periodic_beaconing.rs` | Integration tests for explainable periodic beaconing detector, exact rational thresholds, and directional analysis. |
 | `crates/pcapraven-detection/tests/dns_anomaly.rs` | Integration tests for DNS anomaly and possible tunneling detectors. |
-| `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest. |
-| `crates/pcapraven-reporting/src/lib.rs` | Reporting Phase 1 documentation skeleton. |
+| `crates/pcapraven-reporting/Cargo.toml` | Reporting library package manifest with audited `serde`, `serde_json`, and `csv` dependencies. |
+| `crates/pcapraven-reporting/src/lib.rs` | Reporting library entry point, format dispatchers, and public exports. |
+| `crates/pcapraven-reporting/src/format.rs` | Report format enum, report kind enum, and error definitions. |
+| `crates/pcapraven-reporting/src/csv_escape.rs` | Formula injection defense and CSV cell sanitizer. |
+| `crates/pcapraven-reporting/src/dto/mod.rs` | Serializable Data Transfer Object root and module declarations. |
+| `crates/pcapraven-reporting/src/dto/validation.rs` | DTO models for capture validation reports. |
+| `crates/pcapraven-reporting/src/dto/flow.rs` | DTO models for network flow reports. |
+| `crates/pcapraven-reporting/src/dto/dns.rs` | DTO models for DNS observation reports. |
+| `crates/pcapraven-reporting/src/dto/http.rs` | DTO models for HTTP observation reports. |
+| `crates/pcapraven-reporting/src/dto/tls.rs` | DTO models for TLS observation reports. |
+| `crates/pcapraven-reporting/src/dto/finding.rs` | DTO models for analytical findings and evidence reports. |
+| `crates/pcapraven-reporting/src/dto/analysis.rs` | DTO models for unified forensic analysis reports. |
+| `crates/pcapraven-reporting/src/table/mod.rs` | Deterministic ASCII table and terminal card formatters. |
+| `crates/pcapraven-reporting/src/json/mod.rs` | Deterministic pretty-printed JSON serialization engine. |
+| `crates/pcapraven-reporting/src/ndjson/mod.rs` | Deterministic newline-delimited JSON streaming serializer. |
+| `crates/pcapraven-reporting/src/csv/mod.rs` | Deterministic 2D tabular CSV serializer with formula injection sanitization. |
+| `crates/pcapraven-reporting/tests/reporting.rs` | Integration, schema anchor, format projection, CSV formula defense, and property tests for reporting. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
 | `crates/pcapraven-cli/src/main.rs` | Functional CLI binary entry point and exit-code mapping. |
-| `crates/pcapraven-cli/src/args.rs` | Command-line argument parsing and configuration types. |
-| `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, DNS inspection, HTTP inspection, and TLS inspection. |
-| `crates/pcapraven-cli/src/output.rs` | Factual human inspection output rendering for stdout. |
+| `crates/pcapraven-cli/src/analysis.rs` | Shared capture analysis pipeline and detection engine orchestration. |
+| `crates/pcapraven-cli/src/args.rs` | Command-line argument parsing, format options, output file options, and subcommand definitions. |
+| `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, DNS, HTTP, TLS, findings, and unified analysis inspection. |
 | `crates/pcapraven-cli/src/diagnostics.rs` | Bounded diagnostic emission and suppression tracking. |
-| `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI. |
+| `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI across subcommands, formats, and safe output writing. |
 | `fuzz/Cargo.toml` | Excluded independent cargo-fuzz project manifest with separately audited fuzz-only dependency. |
 | `fuzz/Cargo.lock` | Cargo-generated lockfile for the excluded fuzz project. |
 | `fuzz/fuzz_targets/fuzz_pcap_reader.rs` | Stable-name libFuzzer target using only the public bounded reader API. |
@@ -145,7 +165,7 @@ Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and la
 | `fuzz/fuzz_targets/fuzz_tls_parser.rs` | Stable-name libFuzzer target for bounded TLS 1.2 / TLS 1.3 wire parsing. |
 
 The former duplicate skill copies are intentionally absent. Future capture
-fixtures, threat detection heuristics, correlation, reporters, and advanced CLI commands
+fixtures, threat detection heuristics, and advanced CLI commands
 are not current inventory and may be added only by their owning roadmap phases.
 The excluded `fuzz/` project is tracked repository inventory but is not one of the
 seven main workspace packages.

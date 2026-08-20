@@ -213,14 +213,17 @@ and the `connection-behavior-detection` and `finding-correlation` skills.
 Finalized independent severity (`Severity::from_str`, `info < low < medium < high < critical`) and confidence
 (`Confidence::from_str`, `low < medium < high`) assignment and ordering across all built-in primary detectors
 and correlators. Implemented the MITRE ATT&CK Enterprise Matrix (v19.2) mapping domain model in `pcapraven-domain`
-(`MitreAttackId`, `MitreTactic`, `MitreMappingRationale`, `MitreMappingProvenance`, `MitreMapping`) with strict
-technique ID validation, bounded cardinality, and provenance stamping (`T1071.004` on `dns.possible_tunneling` and
-`behavior.possible_c2_multi_signal`). Implemented the multi-criteria `FindingFilter` in `pcapraven-detection`
-and the minimal `pcapraven findings` CLI inspection subcommand in `pcapraven-cli` with `--min-severity`,
-`--min-confidence`, `--detector`, and `--mitre` filtering. Delivered comprehensive integration tests in
+(`MitreAttackId`, `MitreTactic`, `MitreAttackDomain::Enterprise`, `MitreAttackCatalogVersion`, `MitreAttackObjectVersion`,
+`MitreAttackRelationship::Analytical`, `MitreMappingRationale`, `MitreMappingDeclaration`, `MitreMappingProvenance`, `MitreMapping`)
+with strict technique ID validation, bounded cardinality, metadata declarations, and engine provenance stamping (`T1071.004` on
+`dns.possible_tunneling` and `behavior.possible_c2_multi_signal`). Implemented the multi-criteria `FindingFilter` and transactional
+correlator error handling in `pcapraven-detection`, extracted the shared analysis pipeline in `crates/pcapraven-cli/src/analysis.rs`,
+and delivered the minimal `pcapraven findings` CLI inspection subcommand in `pcapraven-cli` with `--min-severity`,
+`--min-confidence`, `--detector`, `--mitre`, and resource options (`--max-flows`, `--max-flow-instances`, `--max-observations`,
+`--tcp-idle-timeout`, `--udp-idle-timeout`). Delivered comprehensive integration tests in
 `crates/pcapraven-detection/tests/filtering.rs` and `crates/pcapraven-cli/tests/cli.rs`, and documented mapping contracts
 in `docs/MITRE_ATTACK_MAPPING.md`.
-Structured reporting formats (JSON, NDJSON, CSV, table) and full `analyze` orchestration remain future work.
+Structured reporting formats (JSON, NDJSON, CSV, table) and full `analyze` orchestration (Phase 16) are the active implementation target.
 
 ## Phase 16 - Table/JSON/NDJSON/CSV reporting
 

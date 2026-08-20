@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the Phase 12 Cargo package roles and audited dependency topology."""
+"""Check the Phase 15/16 Cargo package roles and audited dependency topology."""
 
 from __future__ import annotations
 
@@ -59,6 +59,7 @@ EXPECTED_TEST_TARGETS = {
         "correlation",
         "filtering",
     },
+    "pcapraven-reporting": {"reporting"},
     "pcapraven-cli": {"cli"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
@@ -92,6 +93,32 @@ EXPECTED_EXTERNAL = {
         },
     },
     "pcapraven-flows": {
+        "proptest": {
+            "req": "=1.11.0",
+            "kind": "dev",
+            "features": ["std"],
+            "uses_default_features": False,
+        },
+    },
+    "pcapraven-reporting": {
+        "serde": {
+            "req": "=1.0.219",
+            "kind": None,
+            "features": ["alloc", "derive"],
+            "uses_default_features": False,
+        },
+        "serde_json": {
+            "req": "=1.0.140",
+            "kind": None,
+            "features": ["alloc"],
+            "uses_default_features": False,
+        },
+        "csv": {
+            "req": "=1.3.1",
+            "kind": None,
+            "features": [],
+            "uses_default_features": False,
+        },
         "proptest": {
             "req": "=1.11.0",
             "kind": "dev",

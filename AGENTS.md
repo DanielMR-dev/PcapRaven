@@ -26,20 +26,24 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 15. Phase 0 product and
-governance work, Phase 1 workspace/tooling work, Phase 2 capture reader work,
-Phase 3 packet normalization work, Phase 4 flow reconstruction, Phase 5
-checked flow statistics and exact temporal metrics, Phase 6 initial
-functional CLI with streaming capture and flow inspection, Phase 7
-DNS protocol analysis, Phase 8 bounded HTTP/1.x protocol analysis,
-Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake metadata analysis,
-Phase 10 unified protocol observations and structured evidence foundation,
-Phase 11 detection engine architecture,
-Phase 12 explainable periodic beaconing detection,
-Phase 13 explainable DNS anomaly and possible tunneling detection, and
-Phase 14 explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation are complete.
-Phase 15 covers severity/confidence finalization, MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance, finding filtering, and the minimal `findings` CLI subcommand.
-Phase 16 (reporters: table, JSON, NDJSON, CSV, and `analyze` CLI command) and all later capabilities remain out of scope until their roadmap gates are accepted.
+The accepted repository phase for this branch is Phase 16 (with Phase 15.1
+hardening complete). Phase 0 product and governance work, Phase 1
+workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
+normalization work, Phase 4 flow reconstruction, Phase 5 checked flow
+statistics and exact temporal metrics, Phase 6 initial functional CLI with
+streaming capture and flow inspection, Phase 7 DNS protocol analysis, Phase 8
+bounded HTTP/1.x protocol analysis, Phase 9 bounded visible TLS 1.2 / TLS 1.3
+handshake metadata analysis, Phase 10 unified protocol observations and
+structured evidence foundation, Phase 11 detection engine architecture, Phase 12
+explainable periodic beaconing detection, Phase 13 explainable DNS anomaly and
+possible tunneling detection, Phase 14 explainable repeated low-volume flow
+behavior detection and deterministic cross-detector finding correlation, and
+Phase 15/15.1 severity and confidence finalization, MITRE ATT&CK Enterprise
+Matrix v19.2 mapping provenance, finding filtering, shared analysis assembly, and
+findings CLI inspection are complete.
+Phase 16 covers deterministic reporting architecture (Table, JSON, NDJSON, CSV),
+safe output file creation, and the unified `analyze` CLI subcommand.
+Phase 17 and later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 
@@ -73,17 +77,16 @@ prohibited workspace, source, fixture, CI, parser, flow, protocol, detection,
 reporting, and CLI implementation; it is complete and remains the boundary for
 historical Phase 0 work.
 
-Phase 12 retains Rust Edition 2024, resolver 3, and the exact seven-package main
+Phase 16 retains Rust Edition 2024, resolver 3, and the exact seven-package main
 workspace graph in `docs/ARCHITECTURE.md`. Capture-container behavior is owned
 by `pcapraven-pcap`, domain packet, flow, statistics, temporal, DNS, HTTP, TLS,
-observation, evidence, and finding representations by `pcapraven-domain`, protocol normalization,
+observation, evidence, finding, and MITRE representations by `pcapraven-domain`, protocol normalization,
 DNS parsing, HTTP parsing, and TLS handshake parsing by `pcapraven-protocols`,
 flow reconstruction, checked traffic statistics, and exact temporal metrics by
 `pcapraven-flows`, detection engine architecture, registry, configuration, and execution
-pipeline and periodic beaconing detection (`PeriodicBeaconingDetector`, `behavior.periodic_beaconing`)
-by `pcapraven-detection`, and functional CLI orchestration for `validate`, `flows`, `dns`, `http`, and `tls`
-by `pcapraven-cli`; `pcapraven-reporting` remains a skeleton. The workspace lint policy
-forbids project `unsafe` code by default.
+pipeline and detection heuristics by `pcapraven-detection`, deterministic reporting
+architecture by `pcapraven-reporting`, and functional CLI orchestration by `pcapraven-cli`.
+The workspace lint policy forbids project `unsafe` code by default.
 The declared MSRV is Rust 1.85; the pinned development toolchain is separate.
 Any future dependency must undergo the version, feature, MSRV, license,
 maintenance, transitive-footprint, and unsafe usage review required by the
@@ -187,6 +190,8 @@ for detection engine architecture, use `detection-engine`; for periodic beaconin
 use `periodic-beaconing`; for DNS anomaly and tunneling detection, use `dns-detection`;
 for connection behavior detection, use `connection-behavior-detection`;
 for finding correlation, use `finding-correlation`;
+for MITRE mapping, use `mitre-attack-mapping`;
+for finding filtering, use `finding-filtering`;
 for CLI orchestration, use `cli-contract`.
 Inspect every changed or created file, verify referenced paths, and confirm the
 repository contains no out-of-phase artifacts.

@@ -143,32 +143,29 @@ within a detector are strictly rejected. Global findings are ordered by register
 
 ## MITRE ATT&CK Mappings
 
-A mapping includes a valid technique or sub-technique identifier, name, and a
-short explanation of why the observed behavior is relevant. It describes an
-analytical relationship, not attribution or confirmation that the technique
-occurred. Mapping versions or knowledge-base context must be recorded when the
-schema is finalized so mappings can be audited over time.
+Mappings are governed by [the MITRE ATT&CK mapping specification](MITRE_ATTACK_MAPPING.md).
+A mapping attaches a valid technique or sub-technique identifier (e.g. `T1071.004`), name, object version, tactic,
+relationship (`Analytical`), and rationale. Mappings are declared by detectors or correlators and stamped with
+immutable provenance (`MitreMappingProvenance`) during finding record construction. The catalog version is pinned to
+MITRE ATT&CK Enterprise Matrix v19.2.
 
 ## Target Detector Families
 
-The initial detector families are:
+The built-in detector families are:
 
 - **Periodic Beaconing Heuristics:** Implemented in Phase 12 (`behavior.periodic_beaconing`, `docs/detectors/PERIODIC_BEACONING.md`).
-- **DNS Anomaly and Possible Tunneling Heuristics:** Target for Phase 13 over normalized DNS observations and flows.
-- **Connection and C2-Like Behavioral Heuristics:** Target for Phase 14 over normalized communication patterns.
+- **DNS Anomaly and Possible Tunneling Heuristics:** Implemented in Phase 13 (`dns.long_query_name`, `dns.possible_tunneling`, `docs/detectors/DNS_ANOMALY_TUNNELING.md`).
+- **Connection and C2-Like Behavioral Heuristics:** Implemented in Phase 14 (`behavior.repeated_low_volume_flows`, `behavior.possible_c2_multi_signal`, `docs/detectors/CONNECTION_C2_BEHAVIOR.md`).
 
-Each detector requires its own specification, tests, threshold rationale, and false-positive analysis before release.
+Each detector has its own specification, tests, threshold rationale, and false-positive analysis.
 
 ## Filtering
 
-Severity and confidence filtering occurs over emitted findings using the two
-independent orderings above. Filtering changes presentation/result selection,
-not the detector's assigned values or evidence. Reports should retain enough
-metadata to make active filters visible.
+Severity, confidence, detector identifier, and MITRE technique filtering occurs over emitted findings using deterministic
+predicate conjunction (`FindingFilter`). Filtering changes presentation/result selection, not the detector's assigned values
+or evidence. CLI inspection (`pcapraven findings`) supports `--min-severity`, `--min-confidence`, `--detector`, and `--mitre`.
 
 ## Validation Expectations
 
-Future detector tests must cover matches, non-matches, threshold boundaries,
-insufficient samples, incomplete captures, deterministic identity/order,
-deduplication, and calibrated language. Golden tests should ensure every
-finding answers all eight required questions.
+Detector tests cover matches, non-matches, threshold boundaries, insufficient samples, incomplete captures, deterministic
+identity/order, referential integrity, deduplication, and calibrated language. Every finding answers all eight required questions.

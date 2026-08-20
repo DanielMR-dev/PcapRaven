@@ -47,9 +47,11 @@ pub use http::{
     HttpRequestMetadata, HttpResponseMetadata, HttpSelectedHeaders, HttpVersion,
 };
 pub use mitre_attack::{
-    HARD_MAX_MITRE_MAPPINGS_PER_FINDING, MAX_MITRE_ATTACK_ID_LENGTH, MAX_MITRE_RATIONALE_LENGTH,
-    MAX_MITRE_TECHNIQUE_NAME_LENGTH, MITRE_ATTACK_VERSION, MitreAttackId, MitreMapping,
-    MitreMappingProvenance, MitreMappingRationale, MitreTactic,
+    CANONICAL_MITRE_CATALOG_VERSION, HARD_MAX_MITRE_MAPPINGS_PER_FINDING,
+    MAX_MITRE_ATTACK_ID_LENGTH, MAX_MITRE_RATIONALE_LENGTH, MAX_MITRE_TECHNIQUE_NAME_LENGTH,
+    MITRE_ATTACK_VERSION, MitreAttackCatalogVersion, MitreAttackDomain, MitreAttackId,
+    MitreAttackObjectVersion, MitreAttackRelationship, MitreAttackValidationError, MitreMapping,
+    MitreMappingDeclaration, MitreMappingProvenance, MitreMappingRationale, MitreTactic,
 };
 pub use observation::{
     ObservationCompleteness, ObservationError, ObservationFlowAssociation, ObservationReference,

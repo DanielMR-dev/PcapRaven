@@ -242,12 +242,13 @@ Phase 11 establishes the finding domain model in `pcapraven-domain`:
 - `FindingTitle`: Bounded (up to 128 UTF-8 bytes), terminal-safe concise finding title (rejects control characters and empty text).
 - `FindingSummary`: Bounded (up to 512 UTF-8 bytes), terminal-safe concise summary (rejects control characters and empty text).
 - `FindingRationale`: Bounded (up to 2,048 UTF-8 bytes), terminal-safe explanatory rationale explaining why the detector matched (rejects control characters and empty text).
-- `FindingDraft`: Unassigned finding draft emitted by a detector into an engine-controlled bounded sink during evaluation, containing subject, title, summary, rationale, severity, confidence, and supporting evidence drafts (with detector ID, version, and references assigned strictly by the engine).
-- `FindingRecord`: Canonical, immutable finding record constructed by the detection engine, linking an assigned finding reference, detector metadata, validated subject, title, summary, rationale, severity, confidence, engine-assigned evidence references, and optional source finding references (`source_finding_references`) for correlated findings.
+- `FindingDraft`: Unassigned finding draft emitted by a detector into an engine-controlled bounded sink during evaluation, containing subject, title, summary, rationale, severity, confidence, and supporting evidence drafts (with detector ID, version, and references assigned strictly by the engine; MITRE mappings are declared statically on detector metadata, not in drafts).
+- `FindingRecord`: Canonical, immutable finding record constructed by the detection engine, linking an assigned finding reference, detector metadata, validated subject, title, summary, rationale, severity, confidence, engine-assigned evidence references, optional source finding references (`source_finding_references`) for correlated findings, and engine-stamped canonical MITRE ATT&CK mappings (`mitre_mappings`).
 - `Severity`: Foundational severity classification (`Info`, `Low`, `Medium`, `High`, `Critical`).
 - `Confidence`: Analytical confidence rating (`Low`, `Medium`, `High`), strictly separated from severity.
+- `MitreMappingDeclaration` and `MitreMapping`: Typed mapping models defining technique ID, technique name, technique version (`MitreAttackObjectVersion`), tactic (`MitreTactic`), relationship (`MitreAttackRelationship::Analytical`), catalog version (`MitreAttackCatalogVersion::V19_2`), domain (`MitreAttackDomain::Enterprise`), rationale (`MitreMappingRationale`), and provenance (`MitreMappingProvenance`).
 
-Canonical semantics are defined in [Detection Model](DETECTION_MODEL.md).
+Canonical semantics are defined in [Detection Model](DETECTION_MODEL.md) and [MITRE ATT&CK Mapping](MITRE_ATTACK_MAPPING.md).
 
 ## Diagnostic Model
 

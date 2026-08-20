@@ -404,6 +404,26 @@ Phase 14 validation confirms:
 - **Multi-Signal C2 Correlator:** `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, v1.0.0, severity `Medium`, confidence `Medium`) correlates `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
 - **Comprehensive Integration Tests:** Unit and integration tests in `crates/pcapraven-detection/tests/connection_behavior.rs` and `crates/pcapraven-detection/tests/correlation.rs` verify all match rules, thresholds, flow exclusions, incomplete data handling, parameter validation, multi-signal matching, partial signal rejections, and capacity bounds.
 
+## Phase 15 Severity, Confidence, MITRE ATT&CK Mapping Provenance, and Findings CLI Validation (completed)
+
+Phase 15 validation and Phase 15.1 hardening confirm:
+
+- **Severity and Confidence Finalization:** Independent ordering (`info < low < medium < high < critical` and `low < medium < high`) across built-in detectors and correlators.
+- **MITRE ATT&CK Enterprise Matrix v19.2 Provenance:** Full domain mapping model with explicit validation, immutable declarations, and engine provenance stamping (`T1071.004`).
+- **Multi-Criteria Finding Filtering:** Multi-criteria evaluation in `pcapraven-detection::filtering::FindingFilter` supporting minimum severity, minimum confidence, detector ID, and MITRE ATT&CK technique filtering.
+- **Minimal Findings CLI Inspection:** Minimal `pcapraven findings` CLI subcommand with exact filtering arguments and resource limit boundaries.
+
+## Phase 16 Deterministic Reporting Architecture, Safe Output Files, and Unified Analysis Validation (completed)
+
+Phase 16 validation confirms:
+
+- **Dedicated Reporting Crate (`pcapraven-reporting`):** Pure serialization and presentation layer with full DTO schemas, maintaining `pcapraven-domain` independence without `serde`.
+- **Deterministic Multi-Format Serialization:** Clean formatting across `table`, `json`, `ndjson`, and `csv` with `"schema_version": "v1.0"` root anchors.
+- **CSV Formula Injection Sanitization:** Cell sanitization via `sanitize_csv_cell` ensuring any untrusted string starting with `=`, `+`, `-`, `@`, `\t`, `\r`, or `\n` is prefixed with `'`.
+- **CSV Analyze Rejection Contract:** Rejection of `pcapraven analyze --format csv` with Exit Code 2, preventing ambiguous flat projections of multi-layer hierarchical analysis data.
+- **Safe Output Files (`--output`):** Enforces `create_new(true)` atomic file creation, exiting with code 2 on collisions and keeping stdout clean.
+- **Unified Forensic Analysis CLI (`pcapraven analyze`):** Complete multi-layer analysis orchestrating capture metadata, flows, DNS, HTTP, TLS, analytical findings, and causal evidence.
+
 ## Dependency Audits
 
 ### `pcap-parser = 0.17.0` (Phase 2)
@@ -424,9 +444,16 @@ or network behavior.
 
 `pcapraven-flows` introduces zero third-party production dependencies.
 
-### `pcapraven-detection` (Phase 11, Phase 12, Phase 13, Phase 14)
+### `pcapraven-detection` (Phase 11, Phase 12, Phase 13, Phase 14, Phase 15)
 
 `pcapraven-detection` introduces zero third-party production dependencies (pure safe Rust and `std`).
+
+### `serde = "1.0"`, `serde_json = "1.0"`, `csv = "1.3"` (Phase 16)
+
+The production reporting dependencies in `pcapraven-reporting` are exact `serde = "1.0"`,
+`serde_json = "1.0"`, and `csv = "1.3"`, licensed MIT/Apache-2.0. They are restricted strictly
+to the `pcapraven-reporting` presentation crate. `pcapraven-domain` remains pure `std` without
+any serialization dependencies. No telemetry or network behavior. Zero project `unsafe` code.
 
 ### `clap = "=4.6.4"` (Phase 6)
 
@@ -460,9 +487,9 @@ runtime.
   purity.
 - Tests may not hide panics or accept broad output merely to tolerate defects.
 
-## Phase 14 Quality Gates
+## Phase 16 Quality Gates
 
-The full workspace verification commands for Phase 14 are:
+The full workspace verification commands for Phase 16 are:
 
 ```text
 # 1. Format check
@@ -474,11 +501,11 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 # 3. Full workspace tests
 cargo test --workspace --all-features --locked
 
-# 4. CLI end-to-end integration tests
-cargo test -p pcapraven-cli --locked
+# 4. Reporting unit, integration, schema anchor, and property tests
+cargo test -p pcapraven-reporting --locked
 
-# 5. Detection engine, periodic beaconing, DNS anomaly, connection behavior, and correlation integration tests
-cargo test -p pcapraven-detection --locked
+# 5. CLI end-to-end integration tests
+cargo test -p pcapraven-cli --locked
 
 # 6. Documentation build
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked

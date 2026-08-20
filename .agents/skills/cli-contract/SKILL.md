@@ -19,10 +19,10 @@ the `pcapraven-cli` orchestration boundary and command-line interface.
 ## Invariants and Rules
 
 ### 1. Implemented Commands
-- `pcapraven validate <capture>`, `pcapraven flows <capture>`, `pcapraven dns <capture>`, `pcapraven http <capture>`, and `pcapraven tls <capture>` are implemented.
+- `pcapraven validate <capture>`, `pcapraven flows <capture>`, `pcapraven dns <capture>`, `pcapraven http <capture>`, `pcapraven tls <capture>`, `pcapraven findings <capture>`, and `pcapraven analyze <capture>` are implemented.
+- Multi-format output (`--format <table|json|ndjson|csv>`) and safe file output (`--output <PATH>`) are supported across subcommands.
+- `pcapraven analyze --format csv` is unsupported and rejected with exit code 2.
 - `pcapraven --help` and `pcapraven --version` are fully functional.
-- Future subcommands (`analyze`, `findings`) must NEVER be implemented
-  or advertised in runtime help.
 
 ### 2. Argument and Limits Validation
 - Local capture paths only. No URLs, S3, cloud storage, stdin, glob expansion, or live capture.

@@ -150,6 +150,13 @@ pub enum DetectorRegistryError {
         /// Description of validation failure.
         reason: &'static str,
     },
+    /// Component declares invalid MITRE ATT&CK mapping declarations.
+    InvalidMitreMappingDeclarations {
+        /// Component identifier.
+        component_id: DetectorId,
+        /// Description of validation failure.
+        reason: &'static str,
+    },
     /// Registered detector count exceeds registry capacity.
     RegistryCapacityExceeded {
         /// Current count.
@@ -193,6 +200,13 @@ impl fmt::Display for DetectorRegistryError {
             } => write!(
                 f,
                 "correlator '{correlator_id}' declares invalid required primary detector IDs: {reason}"
+            ),
+            Self::InvalidMitreMappingDeclarations {
+                component_id,
+                reason,
+            } => write!(
+                f,
+                "component '{component_id}' declares invalid MITRE ATT&CK mapping declarations: {reason}"
             ),
             Self::RegistryCapacityExceeded { count, max } => {
                 write!(f, "detector registry capacity exceeded ({count} > {max})")
@@ -400,6 +414,8 @@ pub enum DetectionOutputError {
     FindingValidationError(FindingValidationError),
     /// Domain validation error on evidence structure.
     EvidenceValidationError(EvidenceValidationError),
+    /// Domain validation error on MITRE structure.
+    MitreAttackValidationError(pcapraven_domain::MitreAttackValidationError),
     /// Detector with AllowWithLimitations emitted finding without limitation evidence on partial input.
     IncompleteDataPolicyViolation {
         /// Detector ID.
@@ -466,6 +482,9 @@ impl fmt::Display for DetectionOutputError {
             }
             Self::FindingValidationError(err) => write!(f, "finding validation error: {err}"),
             Self::EvidenceValidationError(err) => write!(f, "evidence validation error: {err}"),
+            Self::MitreAttackValidationError(err) => {
+                write!(f, "MITRE ATT&CK validation error: {err}")
+            }
             Self::IncompleteDataPolicyViolation {
                 detector_id,
                 reason,
@@ -522,6 +541,12 @@ impl From<FindingValidationError> for DetectionOutputError {
 impl From<EvidenceValidationError> for DetectionOutputError {
     fn from(err: EvidenceValidationError) -> Self {
         Self::EvidenceValidationError(err)
+    }
+}
+
+impl From<pcapraven_domain::MitreAttackValidationError> for DetectionOutputError {
+    fn from(err: pcapraven_domain::MitreAttackValidationError) -> Self {
+        Self::MitreAttackValidationError(err)
     }
 }
 

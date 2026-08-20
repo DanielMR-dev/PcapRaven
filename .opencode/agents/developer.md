@@ -67,6 +67,10 @@ You are the senior Rust developer for PcapRaven.
 - `detection-engine` skill for detection engine architecture, detector registration, configuration, and finding generation.
 - `periodic-beaconing` skill for explainable periodic beaconing detection over exact directional flow temporal metrics.
 - `dns-detection` skill for explainable DNS anomaly and possible tunneling detection over normalized DNS observations.
+- `connection-behavior-detection` skill for explainable repeated low-volume flow behavior detection.
+- `finding-correlation` skill for explainable cross-detector finding correlation.
+- `mitre-attack-mapping` skill for MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance, validation, and explainability.
+- `finding-filtering` skill for explainable finding filtering by severity, confidence, detector identifier, and MITRE technique.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `phase-validation` skill for phase verification checklists.
 

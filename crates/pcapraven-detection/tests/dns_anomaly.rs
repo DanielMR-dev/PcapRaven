@@ -1387,7 +1387,7 @@ fn test_dns_detector_versions() {
     );
     assert_eq!(
         DnsPossibleTunnelingDetector::DETECTOR_VERSION,
-        pcapraven_domain::DetectorVersion::new(1, 1, 0)
+        pcapraven_domain::DetectorVersion::new(1, 1, 1)
     );
 
     let d_long = DnsLongQueryNameDetector::new();
@@ -1399,7 +1399,7 @@ fn test_dns_detector_versions() {
     let d_tunnel = DnsPossibleTunnelingDetector::new();
     assert_eq!(
         d_tunnel.metadata().version(),
-        pcapraven_domain::DetectorVersion::new(1, 1, 0)
+        pcapraven_domain::DetectorVersion::new(1, 1, 1)
     );
 }
 

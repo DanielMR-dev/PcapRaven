@@ -11,7 +11,8 @@ use crate::registry::DetectorRegistry;
 use core::fmt;
 use pcapraven_domain::{
     DetectorId, DetectorVersion, EvidenceLimitation, EvidenceRecord, EvidenceReference,
-    FindingRecord, FindingReference, FindingValidationError, FlowRecord, ProtocolObservation,
+    FindingRecord, FindingReference, FindingValidationError, FlowRecord, MitreMapping,
+    MitreMappingProvenance, ProtocolObservation,
 };
 
 /// Completeness status of the domain facts provided to the detection engine.
@@ -862,7 +863,19 @@ pub fn execute_detection(
                     let rationale = draft.rationale().clone();
                     let severity = draft.severity();
                     let confidence = draft.confidence();
-                    let mitre_mappings = draft.mitre_mappings().to_vec();
+                    let mitre_mappings: Vec<MitreMapping> = meta
+                        .mitre_mapping_declarations()
+                        .iter()
+                        .map(|decl| {
+                            MitreMapping::from_declaration(
+                                decl,
+                                MitreMappingProvenance::DetectorDeclared {
+                                    detector_id: meta.id().clone(),
+                                    detector_version: meta.version(),
+                                },
+                            )
+                        })
+                        .collect();
 
                     for evi_draft in draft.into_evidence() {
                         let base_evi_len = accepted_evidence
@@ -872,7 +885,12 @@ pub fn execute_detection(
                                 resource: "evidence_index_overflow",
                                 capacity: limits.max_total_evidence_records(),
                             })?;
-                        let next_evi_idx = base_evi_len as u64;
+                        let next_evi_idx = u64::try_from(base_evi_len).map_err(|_| {
+                            DetectionEngineError::ResourceLimit {
+                                resource: "evidence_index_overflow",
+                                capacity: limits.max_total_evidence_records(),
+                            }
+                        })?;
                         let evi_ref = EvidenceReference::new(next_evi_idx);
                         let record = EvidenceRecord::from_draft(evi_ref, evi_draft);
                         temp_evidence.push(record);
@@ -886,7 +904,12 @@ pub fn execute_detection(
                             resource: "finding_index_overflow",
                             capacity: limits.max_total_findings(),
                         })?;
-                    let next_find_idx = base_find_len as u64;
+                    let next_find_idx = u64::try_from(base_find_len).map_err(|_| {
+                        DetectionEngineError::ResourceLimit {
+                            resource: "finding_index_overflow",
+                            capacity: limits.max_total_findings(),
+                        }
+                    })?;
                     let finding_ref = FindingReference::new(next_find_idx);
                     let finding = FindingRecord::try_new(
                         finding_ref,
@@ -1023,7 +1046,30 @@ pub fn execute_detection_with_correlators(
             continue;
         }
 
-        let current_total_findings = outcome.findings.len() + correlated_findings.len();
+        let current_total_findings = match outcome
+            .findings
+            .len()
+            .checked_add(correlated_findings.len())
+        {
+            Some(t) => t,
+            None => {
+                outcome.completion = DetectionInputCompleteness::Partial;
+                if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
+                    outcome.diagnostics.push(format!(
+                        "correlator '{}' total findings overflow",
+                        meta.id()
+                    ));
+                }
+                outcome
+                    .correlator_executions
+                    .push(CorrelatorExecutionRecord {
+                        correlator_id: meta.id().clone(),
+                        correlator_version: meta.version(),
+                        status: CorrelatorExecutionStatus::ResourceLimited,
+                    });
+                continue;
+            }
+        };
         let remaining_findings = limits
             .max_total_findings()
             .saturating_sub(current_total_findings);
@@ -1031,14 +1077,322 @@ pub fn execute_detection_with_correlators(
         let mut sink = CorrelationDraftSink::new(remaining_findings);
         let corr_res = correlator.correlate(primary_findings, &outcome.evidence, &mut sink);
 
-        match corr_res {
-            Err(DetectorExecutionError::ResourceLimitExceeded(msg)) => {
+        let process_res: Result<Vec<FindingRecord>, DetectionOutputError> = match corr_res {
+            Err(DetectorExecutionError::ResourceLimitExceeded(_msg)) => {
+                Err(DetectionOutputError::OutputLimitExceeded {
+                    resource: "correlation_drafts",
+                    limit: limits.max_total_findings(),
+                })
+            }
+            Err(DetectorExecutionError::InternalError(msg)) => {
+                Err(DetectionOutputError::ReferentialIntegrityError(msg))
+            }
+            Ok(()) => {
+                let mut drafts = sink.into_drafts();
+                if drafts.is_empty() {
+                    Ok(Vec::new())
+                } else {
+                    // Canonical draft ordering by (subject, title)
+                    drafts.sort_by(|a, b| {
+                        a.subject()
+                            .cmp(b.subject())
+                            .then_with(|| a.title().cmp(b.title()))
+                    });
+
+                    // Duplicate identity check within sorted drafts
+                    let mut has_duplicate_draft = false;
+                    for window in drafts.windows(2) {
+                        if window[0].subject() == window[1].subject() {
+                            has_duplicate_draft = true;
+                            break;
+                        }
+                    }
+                    if has_duplicate_draft {
+                        Err(DetectionOutputError::DuplicateFindingIdentity {
+                            detector_id: meta.id().clone(),
+                        })
+                    } else {
+                        // Duplicate identity check against already accepted findings for this correlator
+                        let mut duplicate_with_accepted = false;
+                        for draft in &drafts {
+                            if outcome
+                                .findings
+                                .iter()
+                                .chain(correlated_findings.iter())
+                                .any(|f| {
+                                    f.detector_id() == meta.id() && f.subject() == draft.subject()
+                                })
+                            {
+                                duplicate_with_accepted = true;
+                                break;
+                            }
+                        }
+
+                        if duplicate_with_accepted {
+                            Err(DetectionOutputError::DuplicateFindingIdentity {
+                                detector_id: meta.id().clone(),
+                            })
+                        } else {
+                            // Budget check
+                            let fits_findings = outcome
+                                .findings
+                                .len()
+                                .checked_add(correlated_findings.len())
+                                .and_then(|t| t.checked_add(drafts.len()))
+                                .is_some_and(|total| total <= limits.max_total_findings());
+
+                            if !fits_findings {
+                                Err(DetectionOutputError::OutputLimitExceeded {
+                                    resource: "total_findings",
+                                    limit: limits.max_total_findings(),
+                                })
+                            } else {
+                                let mut temp_findings = Vec::with_capacity(drafts.len());
+                                let mut error = None;
+
+                                for draft in drafts {
+                                    // 1. Source finding references:
+                                    // Must have >= 2 sources, all resolving to frozen primary snapshot, strictly sorted, unique
+                                    if draft.source_finding_references().len() < 2 {
+                                        error = Some(DetectionOutputError::FindingValidationError(
+                                            FindingValidationError::InsufficientSourceFindingReferences {
+                                                count: draft.source_finding_references().len(),
+                                                minimum: 2,
+                                            },
+                                        ));
+                                        break;
+                                    }
+
+                                    let mut source_findings: Vec<&FindingRecord> =
+                                        Vec::with_capacity(draft.source_finding_references().len());
+                                    for src_ref in draft.source_finding_references() {
+                                        let index = match usize::try_from(src_ref.id()) {
+                                            Ok(idx) => idx,
+                                            Err(_) => {
+                                                error = Some(
+                                                    DetectionOutputError::InvalidSourceFindingReference {
+                                                        correlator_id: meta.id().clone(),
+                                                        finding_reference: *src_ref,
+                                                        reason: "source finding reference id exceeds usize bounds",
+                                                    },
+                                                );
+                                                break;
+                                            }
+                                        };
+                                        let src_finding = match primary_findings.get(index) {
+                                            Some(f) => f,
+                                            None => {
+                                                error = Some(
+                                                    DetectionOutputError::InvalidSourceFindingReference {
+                                                        correlator_id: meta.id().clone(),
+                                                        finding_reference: *src_ref,
+                                                        reason: "source finding reference does not exist in primary findings snapshot",
+                                                    },
+                                                );
+                                                break;
+                                            }
+                                        };
+                                        if src_finding.reference() != *src_ref {
+                                            error = Some(
+                                                DetectionOutputError::InvalidSourceFindingReference {
+                                                    correlator_id: meta.id().clone(),
+                                                    finding_reference: *src_ref,
+                                                    reason: "source finding reference ordinal mismatch",
+                                                },
+                                            );
+                                            break;
+                                        }
+                                        source_findings.push(src_finding);
+                                    }
+
+                                    if error.is_some() {
+                                        break;
+                                    }
+
+                                    // 2. Evidence provenance:
+                                    // Union of source findings' evidence references
+                                    let mut source_evi_union = std::collections::BTreeSet::new();
+                                    for src in &source_findings {
+                                        for evi in src.evidence_references() {
+                                            source_evi_union.insert(*evi);
+                                        }
+                                    }
+
+                                    let mut unowned_evi = None;
+                                    for draft_evi in draft.evidence_references() {
+                                        if !source_evi_union.contains(draft_evi) {
+                                            unowned_evi = Some(*draft_evi);
+                                            break;
+                                        }
+                                    }
+                                    if let Some(evi_ref) = unowned_evi {
+                                        error = Some(
+                                            DetectionOutputError::UnownedCorrelationEvidenceReference {
+                                                correlator_id: meta.id().clone(),
+                                                evidence_reference: evi_ref,
+                                            },
+                                        );
+                                        break;
+                                    }
+
+                                    // 3. Subject provenance:
+                                    // Union of source findings' subject entities
+                                    let mut source_flow_union = std::collections::BTreeSet::new();
+                                    let mut source_pkt_union = std::collections::BTreeSet::new();
+                                    let mut source_obs_union = std::collections::BTreeSet::new();
+                                    for src in &source_findings {
+                                        for f in src.subject().flow_references() {
+                                            source_flow_union.insert(*f);
+                                        }
+                                        for p in src.subject().packet_references() {
+                                            source_pkt_union.insert(*p);
+                                        }
+                                        for o in src.subject().observation_references() {
+                                            source_obs_union.insert(*o);
+                                        }
+                                    }
+
+                                    if draft
+                                        .subject()
+                                        .flow_references()
+                                        .iter()
+                                        .any(|f| !source_flow_union.contains(f))
+                                    {
+                                        error = Some(
+                                            DetectionOutputError::UnownedCorrelationSubjectReference {
+                                                correlator_id: meta.id().clone(),
+                                                reason: "draft subject references flow not present in source findings",
+                                            },
+                                        );
+                                        break;
+                                    }
+                                    if draft
+                                        .subject()
+                                        .packet_references()
+                                        .iter()
+                                        .any(|p| !source_pkt_union.contains(p))
+                                    {
+                                        error = Some(
+                                            DetectionOutputError::UnownedCorrelationSubjectReference {
+                                                correlator_id: meta.id().clone(),
+                                                reason: "draft subject references packet not present in source findings",
+                                            },
+                                        );
+                                        break;
+                                    }
+                                    if draft
+                                        .subject()
+                                        .observation_references()
+                                        .iter()
+                                        .any(|o| !source_obs_union.contains(o))
+                                    {
+                                        error = Some(
+                                            DetectionOutputError::UnownedCorrelationSubjectReference {
+                                                correlator_id: meta.id().clone(),
+                                                reason: "draft subject references observation not present in source findings",
+                                            },
+                                        );
+                                        break;
+                                    }
+
+                                    let mitre_mappings: Vec<MitreMapping> = meta
+                                        .mitre_mapping_declarations()
+                                        .iter()
+                                        .map(|decl| {
+                                            MitreMapping::from_declaration(
+                                                decl,
+                                                MitreMappingProvenance::CorrelatorDeclared {
+                                                    correlator_id: meta.id().clone(),
+                                                    correlator_version: meta.version(),
+                                                },
+                                            )
+                                        })
+                                        .collect();
+
+                                    let base_find_len = match outcome
+                                        .findings
+                                        .len()
+                                        .checked_add(correlated_findings.len())
+                                        .and_then(|t| t.checked_add(temp_findings.len()))
+                                    {
+                                        Some(l) => l,
+                                        None => {
+                                            error =
+                                                Some(DetectionOutputError::OutputLimitExceeded {
+                                                    resource: "finding_index_overflow",
+                                                    limit: limits.max_total_findings(),
+                                                });
+                                            break;
+                                        }
+                                    };
+                                    let next_find_idx = match u64::try_from(base_find_len) {
+                                        Ok(idx) => idx,
+                                        Err(_) => {
+                                            error =
+                                                Some(DetectionOutputError::OutputLimitExceeded {
+                                                    resource: "finding_index_overflow",
+                                                    limit: limits.max_total_findings(),
+                                                });
+                                            break;
+                                        }
+                                    };
+                                    let finding_ref = FindingReference::new(next_find_idx);
+
+                                    let finding = match FindingRecord::try_new(
+                                        finding_ref,
+                                        meta.id().clone(),
+                                        meta.version(),
+                                        draft.subject().clone(),
+                                        draft.title().clone(),
+                                        draft.summary().clone(),
+                                        draft.rationale().clone(),
+                                        draft.severity(),
+                                        draft.confidence(),
+                                        draft.evidence_references().to_vec(),
+                                        draft.source_finding_references().to_vec(),
+                                        mitre_mappings,
+                                    ) {
+                                        Ok(f) => f,
+                                        Err(e) => {
+                                            error = Some(
+                                                DetectionOutputError::FindingValidationError(e),
+                                            );
+                                            break;
+                                        }
+                                    };
+
+                                    temp_findings.push(finding);
+                                }
+
+                                if let Some(e) = error {
+                                    Err(e)
+                                } else {
+                                    Ok(temp_findings)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        match process_res {
+            Ok(new_findings) => {
+                correlated_findings.extend(new_findings);
+                outcome
+                    .correlator_executions
+                    .push(CorrelatorExecutionRecord {
+                        correlator_id: meta.id().clone(),
+                        correlator_version: meta.version(),
+                        status: CorrelatorExecutionStatus::Executed,
+                    });
+            }
+            Err(DetectionOutputError::OutputLimitExceeded { resource, limit }) => {
                 outcome.completion = DetectionInputCompleteness::Partial;
                 if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
                     outcome.diagnostics.push(format!(
-                        "correlator {} resource limit exceeded: {}",
-                        meta.id(),
-                        msg
+                        "output budget exceeded ({resource} >= {limit}), rejecting output from correlator '{}'",
+                        meta.id()
                     ));
                 }
                 outcome
@@ -1049,13 +1403,12 @@ pub fn execute_detection_with_correlators(
                         status: CorrelatorExecutionStatus::ResourceLimited,
                     });
             }
-            Err(DetectorExecutionError::InternalError(msg)) => {
+            Err(err) => {
                 outcome.completion = DetectionInputCompleteness::Partial;
                 if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
                     outcome.diagnostics.push(format!(
-                        "correlator {} internal error: {}",
-                        meta.id(),
-                        msg
+                        "correlator '{}' failed validation: {err}",
+                        meta.id()
                     ));
                 }
                 outcome
@@ -1063,237 +1416,9 @@ pub fn execute_detection_with_correlators(
                     .push(CorrelatorExecutionRecord {
                         correlator_id: meta.id().clone(),
                         correlator_version: meta.version(),
-                        status: CorrelatorExecutionStatus::Failed { reason: msg },
-                    });
-            }
-            Ok(()) => {
-                let mut drafts = sink.into_drafts();
-                if drafts.is_empty() {
-                    outcome
-                        .correlator_executions
-                        .push(CorrelatorExecutionRecord {
-                            correlator_id: meta.id().clone(),
-                            correlator_version: meta.version(),
-                            status: CorrelatorExecutionStatus::Executed,
-                        });
-                    continue;
-                }
-
-                // Canonical draft ordering by (subject, title)
-                drafts.sort_by(|a, b| {
-                    a.subject()
-                        .cmp(b.subject())
-                        .then_with(|| a.title().cmp(b.title()))
-                });
-
-                // Duplicate identity check within sorted drafts
-                let mut has_duplicate_draft = false;
-                for window in drafts.windows(2) {
-                    if window[0].subject() == window[1].subject() {
-                        has_duplicate_draft = true;
-                        break;
-                    }
-                }
-                if has_duplicate_draft {
-                    return Err(DetectionEngineError::Output(
-                        DetectionOutputError::DuplicateFindingIdentity {
-                            detector_id: meta.id().clone(),
+                        status: CorrelatorExecutionStatus::Failed {
+                            reason: err.to_string(),
                         },
-                    ));
-                }
-
-                // Duplicate identity check against already accepted findings for this correlator
-                for draft in &drafts {
-                    if outcome
-                        .findings
-                        .iter()
-                        .chain(correlated_findings.iter())
-                        .any(|f| f.detector_id() == meta.id() && f.subject() == draft.subject())
-                    {
-                        return Err(DetectionEngineError::Output(
-                            DetectionOutputError::DuplicateFindingIdentity {
-                                detector_id: meta.id().clone(),
-                            },
-                        ));
-                    }
-                }
-
-                // Budget check
-                let fits_findings = outcome
-                    .findings
-                    .len()
-                    .checked_add(correlated_findings.len())
-                    .and_then(|t| t.checked_add(drafts.len()))
-                    .is_some_and(|total| total <= limits.max_total_findings());
-
-                if !fits_findings {
-                    outcome.completion = DetectionInputCompleteness::Partial;
-                    if outcome.diagnostics.len() < limits.max_execution_diagnostics() {
-                        outcome.diagnostics.push(format!(
-                            "output budget exceeded, rejecting output from correlator '{}'",
-                            meta.id()
-                        ));
-                    }
-                    outcome
-                        .correlator_executions
-                        .push(CorrelatorExecutionRecord {
-                            correlator_id: meta.id().clone(),
-                            correlator_version: meta.version(),
-                            status: CorrelatorExecutionStatus::ResourceLimited,
-                        });
-                    continue;
-                }
-
-                // Referential integrity & source provenance validation
-                let mut temp_findings = Vec::with_capacity(drafts.len());
-
-                for draft in drafts {
-                    // 1. Source finding references:
-                    // Must have >= 2 sources, all resolving to frozen primary snapshot, strictly sorted, unique, prior
-                    if draft.source_finding_references().len() < 2 {
-                        return Err(DetectionEngineError::Output(
-                            DetectionOutputError::FindingValidationError(
-                                FindingValidationError::InsufficientSourceFindingReferences {
-                                    count: draft.source_finding_references().len(),
-                                    minimum: 2,
-                                },
-                            ),
-                        ));
-                    }
-
-                    let mut source_findings: Vec<&FindingRecord> =
-                        Vec::with_capacity(draft.source_finding_references().len());
-                    for src_ref in draft.source_finding_references() {
-                        if src_ref.id() >= primary_finding_count as u64 {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::InvalidSourceFindingReference {
-                                    correlator_id: meta.id().clone(),
-                                    finding_reference: *src_ref,
-                                    reason: "source finding reference points outside frozen primary findings slice",
-                                },
-                            ));
-                        }
-                        let src_finding = primary_findings
-                            .iter()
-                            .find(|f| f.reference() == *src_ref)
-                            .ok_or_else(|| {
-                                DetectionEngineError::Output(
-                                    DetectionOutputError::InvalidSourceFindingReference {
-                                        correlator_id: meta.id().clone(),
-                                        finding_reference: *src_ref,
-                                        reason: "source finding reference does not exist in primary findings",
-                                    },
-                                )
-                            })?;
-                        source_findings.push(src_finding);
-                    }
-
-                    // 2. Evidence provenance:
-                    // Union of source findings' evidence references
-                    let mut source_evi_union = std::collections::BTreeSet::new();
-                    for src in &source_findings {
-                        for evi in src.evidence_references() {
-                            source_evi_union.insert(*evi);
-                        }
-                    }
-
-                    for draft_evi in draft.evidence_references() {
-                        if !source_evi_union.contains(draft_evi) {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::UnownedCorrelationEvidenceReference {
-                                    correlator_id: meta.id().clone(),
-                                    evidence_reference: *draft_evi,
-                                },
-                            ));
-                        }
-                    }
-
-                    // 3. Subject provenance:
-                    // Union of source findings' subject entities
-                    let mut source_flow_union = std::collections::BTreeSet::new();
-                    let mut source_pkt_union = std::collections::BTreeSet::new();
-                    let mut source_obs_union = std::collections::BTreeSet::new();
-                    for src in &source_findings {
-                        for f in src.subject().flow_references() {
-                            source_flow_union.insert(*f);
-                        }
-                        for p in src.subject().packet_references() {
-                            source_pkt_union.insert(*p);
-                        }
-                        for o in src.subject().observation_references() {
-                            source_obs_union.insert(*o);
-                        }
-                    }
-
-                    for f in draft.subject().flow_references() {
-                        if !source_flow_union.contains(f) {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::UnownedCorrelationSubjectReference {
-                                    correlator_id: meta.id().clone(),
-                                    reason: "draft subject references flow not present in source findings",
-                                },
-                            ));
-                        }
-                    }
-                    for p in draft.subject().packet_references() {
-                        if !source_pkt_union.contains(p) {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::UnownedCorrelationSubjectReference {
-                                    correlator_id: meta.id().clone(),
-                                    reason: "draft subject references packet not present in source findings",
-                                },
-                            ));
-                        }
-                    }
-                    for o in draft.subject().observation_references() {
-                        if !source_obs_union.contains(o) {
-                            return Err(DetectionEngineError::Output(
-                                DetectionOutputError::UnownedCorrelationSubjectReference {
-                                    correlator_id: meta.id().clone(),
-                                    reason: "draft subject references observation not present in source findings",
-                                },
-                            ));
-                        }
-                    }
-
-                    let base_find_len = outcome
-                        .findings
-                        .len()
-                        .checked_add(correlated_findings.len())
-                        .and_then(|t| t.checked_add(temp_findings.len()))
-                        .ok_or_else(|| DetectionEngineError::ResourceLimit {
-                            resource: "finding_index_overflow",
-                            capacity: limits.max_total_findings(),
-                        })?;
-                    let next_find_idx = base_find_len as u64;
-                    let finding_ref = FindingReference::new(next_find_idx);
-
-                    let finding = FindingRecord::try_new(
-                        finding_ref,
-                        meta.id().clone(),
-                        meta.version(),
-                        draft.subject().clone(),
-                        draft.title().clone(),
-                        draft.summary().clone(),
-                        draft.rationale().clone(),
-                        draft.severity(),
-                        draft.confidence(),
-                        draft.evidence_references().to_vec(),
-                        draft.source_finding_references().to_vec(),
-                        draft.mitre_mappings().to_vec(),
-                    )
-                    .map_err(DetectionOutputError::from)?;
-
-                    temp_findings.push(finding);
-                }
-
-                correlated_findings.extend(temp_findings);
-                outcome
-                    .correlator_executions
-                    .push(CorrelatorExecutionRecord {
-                        correlator_id: meta.id().clone(),
-                        correlator_version: meta.version(),
-                        status: CorrelatorExecutionStatus::Executed,
                     });
             }
         }

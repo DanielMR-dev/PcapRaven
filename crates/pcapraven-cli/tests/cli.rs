@@ -190,7 +190,7 @@ fn test_help_command() {
     assert!(stdout.contains("http"));
     assert!(stdout.contains("tls"));
     assert!(stdout.contains("findings"));
-    assert!(!stdout.contains("  analyze"));
+    assert!(stdout.contains("analyze"));
     assert!(stderr.is_empty());
 }
 
@@ -1082,4 +1082,189 @@ fn test_findings_cli_with_filters_on_clean_pcap() {
     assert_eq!(code, 0);
     assert!(stdout.contains("No findings matched the requested criteria."));
     assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_findings_cli_resource_flags() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("findings_resources.pcap", &pcap_bytes);
+
+    let (code, stdout, stderr) = run_cli(&[
+        "findings",
+        "--max-records",
+        "100",
+        "--max-flows",
+        "50",
+        "--max-flow-instances",
+        "100",
+        "--max-observations",
+        "200",
+        "--tcp-idle-timeout",
+        "120",
+        "--udp-idle-timeout",
+        "30",
+        &temp.path_str(),
+    ]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("No findings matched the requested criteria."));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn test_findings_cli_truncated_capture_exit_3() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    // Incomplete packet header (truncated 8 bytes of packet header)
+    pcap_bytes.extend_from_slice(&[1, 2, 3, 4]);
+    let temp = TempCaptureFile::new("findings_truncated.pcap", &pcap_bytes);
+
+    let (code, _, stderr) = run_cli(&["findings", &temp.path_str()]);
+    assert_eq!(code, 3);
+    assert!(stderr.contains("capture reader stream error") || stderr.contains("incomplete"));
+}
+
+#[test]
+fn test_cli_format_json_all_subcommands() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("format_json.pcap", &pcap_bytes);
+
+    for subcmd in &[
+        "validate", "flows", "dns", "http", "tls", "findings", "analyze",
+    ] {
+        let (code, stdout, stderr) = run_cli(&[subcmd, "--format", "json", &temp.path_str()]);
+        assert_eq!(code, 0, "subcommand {subcmd} failed with exit code {code}");
+        assert!(stderr.is_empty(), "stderr not empty for {subcmd}: {stderr}");
+        assert!(
+            stdout.contains("\"schema_version\": \"v1.0\""),
+            "schema_version missing in {subcmd} json: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn test_cli_format_ndjson_all_subcommands() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("format_ndjson.pcap", &pcap_bytes);
+
+    for subcmd in &[
+        "validate", "flows", "dns", "http", "tls", "findings", "analyze",
+    ] {
+        let (code, stdout, stderr) = run_cli(&[subcmd, "--format", "ndjson", &temp.path_str()]);
+        assert_eq!(code, 0, "subcommand {subcmd} failed with exit code {code}");
+        assert!(stderr.is_empty(), "stderr not empty for {subcmd}: {stderr}");
+        assert!(
+            stdout.contains("\"schema_version\":\"v1.0\""),
+            "schema_version missing in {subcmd} ndjson: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn test_cli_format_csv_and_analyze_rejection() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp = TempCaptureFile::new("format_csv.pcap", &pcap_bytes);
+
+    // CSV supported commands
+    for subcmd in &["validate", "flows", "dns", "http", "tls", "findings"] {
+        let (code, stdout, stderr) = run_cli(&[subcmd, "--format", "csv", &temp.path_str()]);
+        assert_eq!(code, 0, "subcommand {subcmd} failed with exit code {code}");
+        assert!(stderr.is_empty(), "stderr not empty for {subcmd}: {stderr}");
+        assert!(!stdout.is_empty(), "csv stdout is empty for {subcmd}");
+    }
+
+    // CSV unsupported on analyze -> MUST exit with code 2 (usage/config error)
+    let (code, stdout, stderr) = run_cli(&["analyze", "--format", "csv", &temp.path_str()]);
+    assert_eq!(code, 2);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("cannot be represented as a single flat CSV table"));
+}
+
+#[test]
+fn test_cli_safe_output_file_creation() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp_pcap = TempCaptureFile::new("output_source.pcap", &pcap_bytes);
+    let out_path =
+        std::env::temp_dir().join(format!("pcapraven_out_test_{}.json", std::process::id()));
+    let _ = std::fs::remove_file(&out_path);
+
+    let (code, stdout, stderr) = run_cli(&[
+        "analyze",
+        "--format",
+        "json",
+        "--output",
+        out_path.to_str().unwrap(),
+        &temp_pcap.path_str(),
+    ]);
+
+    assert_eq!(code, 0);
+    assert!(
+        stdout.is_empty(),
+        "stdout must be empty when --output is specified"
+    );
+    assert!(stderr.is_empty(), "stderr should be empty on success");
+
+    let file_contents = std::fs::read_to_string(&out_path).unwrap();
+    assert!(file_contents.contains("\"schema_version\": \"v1.0\""));
+    assert!(file_contents.contains("\"kind\": \"analysis\""));
+
+    let _ = std::fs::remove_file(&out_path);
+}
+
+#[test]
+fn test_cli_safe_output_file_collision_fails_exit_2() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp_pcap = TempCaptureFile::new("collision_source.pcap", &pcap_bytes);
+    let out_path = std::env::temp_dir().join(format!(
+        "pcapraven_collision_test_{}.json",
+        std::process::id()
+    ));
+    std::fs::write(&out_path, b"already exists").unwrap();
+
+    let (code, stdout, stderr) = run_cli(&[
+        "analyze",
+        "--format",
+        "json",
+        "--output",
+        out_path.to_str().unwrap(),
+        &temp_pcap.path_str(),
+    ]);
+
+    assert_eq!(code, 2, "must exit with code 2 on existing output file");
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("output file already exists"));
+
+    // Verify existing file was NOT overwritten
+    let contents = std::fs::read_to_string(&out_path).unwrap();
+    assert_eq!(contents, "already exists");
+
+    let _ = std::fs::remove_file(&out_path);
+}
+
+#[test]
+fn test_cli_analyze_table_and_filtering() {
+    let mut pcap_bytes = make_pcap_header(65535, 1);
+    let req_payload = b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    let pkt = make_http_request_tcp_frame(
+        [192, 168, 1, 100],
+        [93, 184, 216, 34],
+        54321,
+        80,
+        req_payload,
+    );
+    pcap_bytes.extend_from_slice(&make_pcap_packet(100, 0, &pkt));
+    let temp = TempCaptureFile::new("analyze_full.pcap", &pcap_bytes);
+
+    // Default table format on analyze
+    let (code, stdout, stderr) = run_cli(&["analyze", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stderr.is_empty());
+    assert!(stdout.contains("=== PCAPRAVEN ANALYSIS REPORT ==="));
+    assert!(stdout.contains("Capture Summary:"));
+    assert!(stdout.contains("Reconstructed Flows"));
+    assert!(stdout.contains("Analytical Findings"));
+
+    // Filter by high severity on clean pcap
+    let (code, stdout, stderr) = run_cli(&["analyze", "--min-severity", "high", &temp.path_str()]);
+    assert_eq!(code, 0);
+    assert!(stderr.is_empty());
+    assert!(stdout.contains("No findings matched the requested criteria."));
 }

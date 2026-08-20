@@ -118,7 +118,6 @@ impl Detector for OneFindingStubDetector {
             Severity::Low,
             Confidence::High,
             vec![evi],
-            Vec::new(),
         )
         .unwrap();
 
@@ -223,7 +222,6 @@ impl Detector for MultiFindingStubDetector {
                 Severity::Low,
                 Confidence::Medium,
                 evidence,
-                Vec::new(),
             )
             .unwrap();
 
@@ -391,7 +389,6 @@ impl Detector for IncompleteInputStubDetector {
             Severity::Medium,
             Confidence::Low,
             vec![evi],
-            Vec::new(),
         )
         .unwrap();
 
@@ -1313,7 +1310,6 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1.clone(), evi1.clone()],
-        Vec::new(),
     )
     .unwrap();
 
@@ -1330,7 +1326,6 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1.clone(), evi1.clone()],
-        Vec::new(),
     )
     .unwrap();
 
@@ -1351,7 +1346,6 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1.clone()],
-        Vec::new(),
     )
     .unwrap();
 
@@ -1368,7 +1362,6 @@ fn test_detector_draft_sink_capacity_enforcement() {
         Severity::Low,
         Confidence::Medium,
         vec![evi1],
-        Vec::new(),
     )
     .unwrap();
 
