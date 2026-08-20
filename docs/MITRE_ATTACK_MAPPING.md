@@ -19,13 +19,23 @@ In accordance with PcapRaven's core governance and detection model (`docs/DETECT
 
 MITRE ATT&CK structures are defined in `pcapraven-domain::mitre_attack` as strongly validated, immutable types:
 
-### 2.1 `MitreAttackId`
+### 2.1 `MitreAttackCatalogVersion` and `MitreAttackObjectVersion`
+
+- `MitreAttackCatalogVersion`: Canonical knowledge base version, pinned to `19.2` (`MitreAttackCatalogVersion::V19_2`).
+- `MitreAttackObjectVersion`: Specific technique version within the matrix, e.g. `1.4` (`MitreAttackObjectVersion::V1_4`).
+
+### 2.2 `MitreAttackDomain` and `MitreAttackRelationship`
+
+- `MitreAttackDomain::Enterprise`: Strictly bounded to the Enterprise Matrix.
+- `MitreAttackRelationship::Analytical`: Explicit declaration that mappings represent heuristic analytical alignment, not confirmed attribution.
+
+### 2.3 `MitreAttackId`
 
 A validated technique or sub-technique identifier:
 - **Format:** `T{4 digits}` (e.g., `T1071`) or `T{4 digits}.{3 digits}` (e.g., `T1071.004`).
-- **Validation:** Enforces strict prefix and numeric formatting without external regex or STIX dependencies.
+- **Validation:** Enforces strict prefix and numeric formatting without external regex or STIX dependencies. Leading and trailing whitespace is rejected (`trim()` is prohibited).
 
-### 2.2 `MitreTactic`
+### 2.4 `MitreTactic`
 
 Enterprise tactics defined with canonical identifiers:
 - `InitialAccess` (`TA0001`)
@@ -43,21 +53,15 @@ Enterprise tactics defined with canonical identifiers:
 - `ResourceDevelopment` (`TA0042`)
 - `Reconnaissance` (`TA0043`)
 
-### 2.3 `MitreMappingProvenance`
+### 2.5 `MitreMappingDeclaration` and `MitreMapping`
 
-Stamps the exact originating component that declared the mapping:
-- `DetectorDeclared`: Declared by a primary heuristic detector (`detector_id`, `detector_version`).
-- `CorrelatorDeclared`: Declared by a post-evaluation finding correlator (`correlator_id`, `correlator_version`).
-- `CuratedFinding`: Assigned during offline investigation or curation.
+- `MitreMappingDeclaration`: Declared statically on detector metadata (`DetectorMetadata`) and correlator metadata (`CorrelatorMetadata`). Captures domain, catalog version, technique ID, technique name, technique version, tactic, relationship, and mapping rationale.
+- `MitreMapping`: Engine-stamped mapping on final accepted `FindingRecord`s, combining a `MitreMappingDeclaration` with immutable provenance:
+  - `DetectorDeclared { detector_id, detector_version }`: Stamped for findings emitted by primary heuristic detectors.
+  - `CorrelatorDeclared { correlator_id, correlator_version }`: Stamped for findings emitted by post-evaluation finding correlators.
+  - `CuratedFinding`: Assigned during offline investigation or curation.
 
-### 2.4 `MitreMapping`
-
-Complete mapping record encapsulating:
-- `technique_id`: [`MitreAttackId`]
-- `technique_name`: Static name string (e.g., `"Application Layer Protocol: DNS"`)
-- `tactic`: [`MitreTactic`]
-- `rationale`: [`MitreMappingRationale`] explaining the analytical connection
-- `provenance`: [`MitreMappingProvenance`]
+`FindingDraft` and `CorrelationDraft` do **not** carry `MitreMapping`s; provenance and stamping are owned solely by the detection engine.
 
 ---
 
@@ -67,15 +71,15 @@ Complete mapping record encapsulating:
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `behavior.periodic_beaconing` | Primary Detector | `v1.0.1` | *(None)* | — | — | Generic periodicity alone is insufficient for confident protocol technique mapping. |
 | `dns.long_query_name` | Primary Detector | `v1.0.1` | *(None)* | — | — | Individual long query names frequently occur in legitimate CDN and security lookups. |
-| `dns.possible_tunneling` | Primary Detector | `v1.1.0` | `T1071.004` | Application Layer Protocol: DNS | Command and Control (`TA0011`) | Repeated high-diversity, long-name DNS queries within a flow match DNS data encoding/tunneling patterns. |
+| `dns.possible_tunneling` | Primary Detector | `v1.1.1` | `T1071.004` | Application Layer Protocol: DNS | Command and Control (`TA0011`) | Repeated high-diversity, long-name DNS queries within a flow match DNS data encoding/tunneling patterns. |
 | `behavior.repeated_low_volume_flows` | Primary Detector | `v1.0.1` | *(None)* | — | — | Low-volume repeated connections occur widely across benign operating system and background telemetry. |
-| `behavior.possible_c2_multi_signal` | Correlator | `v1.1.0` | `T1071.004` | Application Layer Protocol: DNS | Command and Control (`TA0011`) | Cross-detector correlation of periodic timing with DNS tunneling patterns strongly aligns with DNS-based C2 communication channels. |
+| `behavior.possible_c2_multi_signal` | Correlator | `v1.1.1` | `T1071.004` | Application Layer Protocol: DNS | Command and Control (`TA0011`) | Cross-detector correlation of periodic timing with DNS tunneling patterns strongly aligns with DNS-based C2 communication channels. |
 
 ---
 
 ## 4. Ordering, Validation, and Invariants
 
-1. **Deterministic Ordering:** Mappings attached to a finding are validated for strictly ascending technique ID order and absence of duplicates.
-2. **Bounds Enforcement:** A maximum of 8 MITRE mappings may be attached to a single finding record.
-3. **Immutable Engine Output:** MITRE mappings are attached at draft creation and preserved immutably throughout engine execution, correlation, and filtering.
+1. **Deterministic Ordering:** Declarations and stamped mappings attached to a finding are validated for strictly ascending technique ID order and absence of duplicates.
+2. **Bounds Enforcement:** A maximum of 8 MITRE mappings may be attached to a single finding record. Technique names are capped at 128 bytes and rationales at 1,024 bytes with control character prohibition.
+3. **Engine-Owned Provenance:** The detection engine validates declarations and stamps `MitreMapping` with exact provenance during finding acceptance.
 4. **Filtering:** The `pcapraven findings` CLI supports filtering by MITRE technique ID via `--mitre <TECHNIQUE_ID>` (e.g., `--mitre T1071.004`).

@@ -34,9 +34,13 @@ fn make_test_finding(
         };
         mitre_mappings.push(
             MitreMapping::try_new(
+                pcapraven_domain::MitreAttackDomain::Enterprise,
+                pcapraven_domain::MitreAttackCatalogVersion::new(19, 2),
                 mitre_id,
                 "Test Technique",
+                pcapraven_domain::MitreAttackObjectVersion::new(1, 4),
                 MitreTactic::CommandAndControl,
+                pcapraven_domain::MitreAttackRelationship::Analytical,
                 rationale,
                 prov,
             )

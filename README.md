@@ -20,27 +20,35 @@ exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspe
 **Phase 11: Detection engine architecture**,
 **Phase 12: Explainable periodic beaconing detection over exact flow temporal metrics**,
 **Phase 13: Explainable DNS anomaly and possible tunneling detection**,
-and **Phase 14: Explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation**
+**Phase 14: Explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation**,
+**Phase 15: Severity, confidence, finding filtering, and MITRE ATT&CK mapping provenance**,
+and **Phase 16: Deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI**
 are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
-- `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, and finding domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
+- `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
 - `pcapraven-protocols` provides bounded packet normalization, bounded DNS wire-format parsing, bounded HTTP/1.x message header parsing, and bounded TLS 1.2 / TLS 1.3 handshake metadata parsing.
 - `pcapraven-flows` provides stateful bidirectional flow reconstruction, checked traffic statistics accumulation, and exact rational temporal metric calculations.
-- `pcapraven-detection` provides the detection engine execution pipeline, deterministic detector registry, correlation pipeline, preflight parameter validation, explainable behavioral detectors including `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`), `DnsLongQueryNameDetector` (`dns.long_query_name`), `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`), `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`), and finding correlators including `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`).
-- `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, HTTP inspection, and TLS inspection.
+- `pcapraven-detection` provides the detection engine execution pipeline, deterministic detector registry, correlation pipeline, preflight parameter validation, explainable behavioral detectors including `PeriodicBeaconingDetector` (`behavior.periodic_beaconing`), `DnsLongQueryNameDetector` (`dns.long_query_name`), `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`), `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`), finding correlators including `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`), and multi-criteria `FindingFilter`.
+- `pcapraven-reporting` provides deterministic multi-format serialization (`table`, `json`, `ndjson`, `csv`), CSV formula injection defense, and schema version anchors.
+- `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, HTTP inspection, TLS inspection, findings inspection, and unified forensic analysis (`analyze`) with multi-format output and safe file creation.
 
-### Implemented CLI Commands (Phase 14)
+### Implemented CLI Commands (Phase 16)
 
 ```text
+# Unified forensic capture analysis across metadata, flows, observations, and findings:
+pcapraven analyze <capture.pcap>
+pcapraven analyze --format json --output report.json <capture.pcap>
+
 # Validate capture container integrity and factual metadata:
 pcapraven validate <capture.pcap>
+pcapraven validate --format json <capture.pcap>
 
 # Inspect reconstructed network flows and factual traffic statistics:
-pcapraven flows <capture.pcap>
+pcapraven flows --format csv <capture.pcap>
 
 # Inspect normalized DNS observations:
-pcapraven dns <capture.pcap>
+pcapraven dns --format ndjson <capture.pcap>
 
 # Inspect cleartext HTTP/1.x message headers:
 pcapraven http <capture.pcap>
@@ -48,15 +56,18 @@ pcapraven http <capture.pcap>
 # Inspect visible TLS 1.2 / TLS 1.3 handshake metadata:
 pcapraven tls <capture.pcap>
 
-# Global flags and help:
+# Inspect analytical security findings with filtering:
+pcapraven findings --min-severity low --min-confidence medium --detector dns.possible_tunneling --mitre T1071.004 <capture.pcap>
+
+# Global flags, formats, and help:
 pcapraven --help
 pcapraven --version
-pcapraven --quiet tls <capture.pcap>
+pcapraven --format <table|json|ndjson|csv> <subcommand> <capture.pcap>
+pcapraven --output <report.json> <subcommand> <capture.pcap>
+pcapraven --quiet analyze <capture.pcap>
 ```
 
-Higher-level commands (`analyze`, `findings`), additional detection heuristics, correlation,
-and structured reporting (JSON/CSV) remain targets for later roadmap phases and are
-not currently available.
+Fixture corpus generation and golden/end-to-end integration tests (Phase 17) are the next roadmap phase.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.

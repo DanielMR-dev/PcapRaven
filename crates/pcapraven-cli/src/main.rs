@@ -1,9 +1,9 @@
 //! PcapRaven command-line interface entry point.
 
+mod analysis;
 mod app;
 mod args;
 mod diagnostics;
-mod output;
 
 use std::process::ExitCode;
 

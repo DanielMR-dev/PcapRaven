@@ -4,7 +4,10 @@ use pcapraven_domain::{
     Confidence, DetectorId, DetectorVersion, EvidenceDescription, EvidenceDraftBuilder,
     EvidenceKind, EvidenceReference, FindingDraft, FindingRationale, FindingRecord,
     FindingReference, FindingSubject, FindingSummary, FindingTitle, FindingValidationError,
-    FlowReference, ObservationReference, PacketReference, ProtocolKind, Severity,
+    FlowReference, MitreAttackCatalogVersion, MitreAttackDomain, MitreAttackId,
+    MitreAttackObjectVersion, MitreAttackRelationship, MitreMapping, MitreMappingDeclaration,
+    MitreMappingProvenance, MitreMappingRationale, MitreTactic, ObservationReference,
+    PacketReference, ProtocolKind, Severity,
 };
 
 fn sample_packet(ordinal: u64) -> PacketReference {
@@ -222,14 +225,12 @@ fn test_finding_draft_creation() {
         Severity::Low,
         Confidence::Low,
         vec![evi_draft],
-        Vec::new(),
     )
     .unwrap();
 
     assert_eq!(draft.evidence().len(), 1);
     assert_eq!(draft.severity(), Severity::Low);
     assert_eq!(draft.confidence(), Confidence::Low);
-    assert!(draft.mitre_mappings().is_empty());
 }
 
 #[test]
@@ -269,9 +270,6 @@ fn test_severity_and_confidence_from_str_and_ordering() {
 
 #[test]
 fn test_mitre_attack_id_and_mapping_validation() {
-    use pcapraven_domain::{
-        MitreAttackId, MitreMapping, MitreMappingProvenance, MitreMappingRationale, MitreTactic,
-    };
     use std::str::FromStr;
 
     // Valid MITRE IDs
@@ -283,30 +281,55 @@ fn test_mitre_attack_id_and_mapping_validation() {
     assert_eq!(t2.as_str(), "T1071.004");
     assert!(t2.is_sub_technique());
 
-    // Invalid MITRE IDs
+    // Invalid MITRE IDs (no trim, strict formats)
     assert!(MitreAttackId::try_new("").is_err());
     assert!(MitreAttackId::try_new("1071").is_err());
     assert!(MitreAttackId::try_new("T107").is_err());
     assert!(MitreAttackId::try_new("T1071.04").is_err());
     assert!(MitreAttackId::try_new("T1071.0004").is_err());
     assert!(MitreAttackId::try_new("X1071.004").is_err());
+    assert!(MitreAttackId::try_new(" T1071.004").is_err());
+    assert!(MitreAttackId::try_new("T1071.004 ").is_err());
+    assert!(MitreAttackId::try_new("\tT1071.004").is_err());
+    assert!(MitreAttackId::try_new("t1071.004").is_err());
+    assert!(MitreAttackId::try_new("T1071.4").is_err());
+    assert!(MitreAttackId::try_new("T10710").is_err());
 
-    // Valid MITRE Mapping
+    // Valid MITRE Declaration
     let rationale = MitreMappingRationale::try_new("DNS tunneling mapping rationale.").unwrap();
-    let prov = MitreMappingProvenance::DetectorDeclared {
-        detector_id: DetectorId::try_new("dns.possible_tunneling").unwrap(),
-        detector_version: DetectorVersion::new(1, 0, 1),
-    };
-    let mapping = MitreMapping::try_new(
-        t2,
+    let decl = MitreMappingDeclaration::try_new(
+        MitreAttackDomain::Enterprise,
+        MitreAttackCatalogVersion::new(19, 2),
+        t2.clone(),
         "Application Layer Protocol: DNS",
+        MitreAttackObjectVersion::new(1, 4),
         MitreTactic::CommandAndControl,
+        MitreAttackRelationship::Analytical,
         rationale,
-        prov,
     )
     .unwrap();
+
+    assert_eq!(decl.domain(), MitreAttackDomain::Enterprise);
+    assert_eq!(decl.catalog_version().to_string(), "19.2");
+    assert_eq!(decl.technique_id().as_str(), "T1071.004");
+    assert_eq!(decl.technique_name(), "Application Layer Protocol: DNS");
+    assert_eq!(decl.technique_version().to_string(), "1.4");
+    assert_eq!(decl.tactic(), MitreTactic::CommandAndControl);
+    assert_eq!(decl.tactic().tactic_id(), "TA0011");
+    assert_eq!(decl.relationship(), MitreAttackRelationship::Analytical);
+
+    // Stamped Mapping with Provenance
+    let prov = MitreMappingProvenance::DetectorDeclared {
+        detector_id: DetectorId::try_new("dns.possible_tunneling").unwrap(),
+        detector_version: DetectorVersion::new(1, 1, 1),
+    };
+    let mapping = MitreMapping::from_declaration(&decl, prov);
 
     assert_eq!(mapping.technique_id().as_str(), "T1071.004");
     assert_eq!(mapping.tactic(), MitreTactic::CommandAndControl);
     assert_eq!(mapping.tactic().tactic_id(), "TA0011");
+    assert_eq!(mapping.catalog_version().to_string(), "19.2");
+    assert_eq!(mapping.technique_version().to_string(), "1.4");
+    assert_eq!(mapping.domain(), MitreAttackDomain::Enterprise);
+    assert_eq!(mapping.relationship(), MitreAttackRelationship::Analytical);
 }

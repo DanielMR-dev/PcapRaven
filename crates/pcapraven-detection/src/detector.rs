@@ -2,9 +2,12 @@
 
 use crate::config::DetectorParameters;
 use crate::engine::DetectionInput;
-use crate::error::{DetectorConfigError, DetectorExecutionError};
+use crate::error::{DetectorConfigError, DetectorExecutionError, DetectorRegistryError};
 use core::fmt;
-use pcapraven_domain::{DetectorId, DetectorVersion, FindingDraft, FindingSummary, FindingTitle};
+use pcapraven_domain::{
+    DetectorId, DetectorVersion, FindingDraft, FindingSummary, FindingTitle,
+    HARD_MAX_MITRE_MAPPINGS_PER_FINDING, MitreMappingDeclaration,
+};
 
 /// Policy declared by a detector regarding execution over incomplete/partial traffic analysis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -40,10 +43,54 @@ pub struct DetectorMetadata {
     title: FindingTitle,
     purpose: FindingSummary,
     incomplete_data_policy: IncompleteDataPolicy,
+    mitre_mapping_declarations: Vec<MitreMappingDeclaration>,
 }
 
 impl DetectorMetadata {
-    /// Creates new detector metadata.
+    /// Creates and validates new detector metadata.
+    pub fn try_new(
+        id: DetectorId,
+        version: DetectorVersion,
+        title: FindingTitle,
+        purpose: FindingSummary,
+        incomplete_data_policy: IncompleteDataPolicy,
+        mitre_mapping_declarations: Vec<MitreMappingDeclaration>,
+    ) -> Result<Self, DetectorRegistryError> {
+        if mitre_mapping_declarations.len() > HARD_MAX_MITRE_MAPPINGS_PER_FINDING {
+            return Err(DetectorRegistryError::InvalidMitreMappingDeclarations {
+                component_id: id,
+                reason: "MITRE ATT&CK mapping declarations count exceeds maximum limit",
+            });
+        }
+
+        for window in mitre_mapping_declarations.windows(2) {
+            let prev = window[0].technique_id();
+            let curr = window[1].technique_id();
+            if curr == prev {
+                return Err(DetectorRegistryError::InvalidMitreMappingDeclarations {
+                    component_id: id,
+                    reason: "duplicate MITRE ATT&CK mapping declaration technique ID",
+                });
+            }
+            if curr < prev {
+                return Err(DetectorRegistryError::InvalidMitreMappingDeclarations {
+                    component_id: id,
+                    reason: "MITRE ATT&CK mapping declarations must be strictly sorted by technique ID",
+                });
+            }
+        }
+
+        Ok(Self {
+            id,
+            version,
+            title,
+            purpose,
+            incomplete_data_policy,
+            mitre_mapping_declarations,
+        })
+    }
+
+    /// Creates new detector metadata without MITRE mapping declarations.
     #[must_use]
     pub const fn new(
         id: DetectorId,
@@ -58,6 +105,7 @@ impl DetectorMetadata {
             title,
             purpose,
             incomplete_data_policy,
+            mitre_mapping_declarations: Vec::new(),
         }
     }
 
@@ -89,6 +137,12 @@ impl DetectorMetadata {
     #[must_use]
     pub const fn incomplete_data_policy(&self) -> IncompleteDataPolicy {
         self.incomplete_data_policy
+    }
+
+    /// Returns the slice of declared MITRE mapping declarations.
+    #[must_use]
+    pub fn mitre_mapping_declarations(&self) -> &[MitreMappingDeclaration] {
+        &self.mitre_mapping_declarations
     }
 }
 

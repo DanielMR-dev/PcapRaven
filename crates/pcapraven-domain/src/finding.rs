@@ -834,7 +834,6 @@ pub struct FindingDraft {
     severity: Severity,
     confidence: Confidence,
     evidence: Vec<EvidenceDraft>,
-    mitre_mappings: Vec<MitreMapping>,
 }
 
 impl FindingDraft {
@@ -844,7 +843,6 @@ impl FindingDraft {
     pub const HARD_MAX_EVIDENCE_DRAFTS: usize = 256;
 
     /// Creates a validated finding draft.
-    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         subject: FindingSubject,
         title: FindingTitle,
@@ -853,7 +851,6 @@ impl FindingDraft {
         severity: Severity,
         confidence: Confidence,
         evidence: Vec<EvidenceDraft>,
-        mitre_mappings: Vec<MitreMapping>,
     ) -> Result<Self, FindingValidationError> {
         if evidence.is_empty() {
             return Err(FindingValidationError::FindingWithoutEvidence);
@@ -864,25 +861,6 @@ impl FindingDraft {
                 max: Self::HARD_MAX_EVIDENCE_DRAFTS,
             });
         }
-        if mitre_mappings.len() > HARD_MAX_MITRE_MAPPINGS_PER_FINDING {
-            return Err(FindingValidationError::MitreMappingsExceeded {
-                count: mitre_mappings.len(),
-                max: HARD_MAX_MITRE_MAPPINGS_PER_FINDING,
-            });
-        }
-        for window in mitre_mappings.windows(2) {
-            let prev = window[0].technique_id();
-            let curr = window[1].technique_id();
-            if curr == prev {
-                return Err(FindingValidationError::DuplicateMitreMapping(curr.clone()));
-            }
-            if curr < prev {
-                return Err(FindingValidationError::OutOfOrderMitreMapping {
-                    previous: prev.to_string(),
-                    attempted: curr.to_string(),
-                });
-            }
-        }
         Ok(Self {
             subject,
             title,
@@ -891,7 +869,6 @@ impl FindingDraft {
             severity,
             confidence,
             evidence,
-            mitre_mappings,
         })
     }
 
@@ -935,12 +912,6 @@ impl FindingDraft {
     #[must_use]
     pub fn evidence(&self) -> &[EvidenceDraft] {
         &self.evidence
-    }
-
-    /// Returns the MITRE ATT&CK mappings.
-    #[must_use]
-    pub fn mitre_mappings(&self) -> &[MitreMapping] {
-        &self.mitre_mappings
     }
 
     /// Consumes the draft, returning its evidence drafts.

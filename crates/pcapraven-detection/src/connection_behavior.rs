@@ -680,7 +680,6 @@ impl Detector for RepeatedLowVolumeFlowDetector {
                 Severity::Low,
                 Confidence::Medium,
                 vec![evidence_draft],
-                Vec::new(),
             )
             .map_err(|e| {
                 DetectorExecutionError::internal_error(format!("finding draft creation error: {e}"))
