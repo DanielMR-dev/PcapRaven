@@ -77,13 +77,13 @@ pub fn render_validation_table(
     if let Some(ref res) = metadata.timestamp_resolution {
         writeln!(w, "{:<14}{}", "TimestampRes", res)?;
     }
-    if let Some(sections) = metadata.section_count {
+    if let Some(sections) = &metadata.section_count {
         writeln!(w, "{:<14}{}", "Sections", sections)?;
     }
     if let (Some(total_ifaces), Some(usable), Some(unusable)) = (
-        metadata.interface_count,
-        metadata.usable_interfaces,
-        metadata.unusable_interfaces,
+        &metadata.interface_count,
+        &metadata.usable_interfaces,
+        &metadata.unusable_interfaces,
     ) {
         writeln!(
             w,
@@ -542,7 +542,7 @@ pub fn render_findings_table(
 pub fn render_analysis_table(
     metadata: &ValidationMetadataDto,
     summary: &crate::dto::analysis::AnalysisSummaryDto,
-    completion: &ValidationCompletionDto,
+    completion: &crate::dto::analysis::ReportCompletionDto,
     flows: &[FlowRecord],
     findings: &[&pcapraven_domain::FindingRecord],
     w: &mut impl Write,
@@ -552,6 +552,13 @@ pub fn render_analysis_table(
     writeln!(w, "Capture Summary:")?;
     writeln!(w, "  Format:             {}", metadata.format)?;
     writeln!(w, "  Completion:         {}", completion.status)?;
+    if !completion.limitations.is_empty() {
+        writeln!(
+            w,
+            "  Limitations:        {}",
+            completion.limitations.join(", ")
+        )?;
+    }
     writeln!(w, "  Total Packets:      {}", summary.total_packets)?;
     writeln!(w, "  Total Flows:        {}", summary.total_flows)?;
     writeln!(

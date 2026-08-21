@@ -96,13 +96,15 @@ v1 CLI contract.
 - [Workspace architecture and crate boundaries](docs/ARCHITECTURE.md)
 - [Domain, flow, observation, and evidence model](docs/DOMAIN_MODEL.md)
 - [Detection, finding, severity, and confidence model](docs/DETECTION_MODEL.md)
+- [MITRE ATT&CK mapping provenance and validation](docs/MITRE_ATTACK_MAPPING.md)
+- [Deterministic multi-format reporting architecture](docs/REPORTING.md)
 - [Security and hostile-capture threat model](docs/SECURITY_MODEL.md)
 - [Testing, property-testing, fuzzing, and fixture strategy](docs/TESTING.md)
 - [Roadmap through v1.0.0](docs/ROADMAP.md)
 - [Repository structure](MANIFEST.md)
 
 Workspace tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-13-quality-gates),
+workspace quality commands in [Testing](docs/TESTING.md#phase-16-quality-gates),
 the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 

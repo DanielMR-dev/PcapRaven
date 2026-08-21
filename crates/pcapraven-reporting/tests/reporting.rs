@@ -224,8 +224,8 @@ fn test_schema_version_anchor() {
 #[test]
 fn test_validation_report_all_formats() {
     let metadata = ValidationMetadataDto {
-        format: "PCAP (little-endian)".to_string(),
-        byte_order: "little-endian".to_string(),
+        format: "pcap".to_string(),
+        byte_order: "little_endian".to_string(),
         version_major: Some(2),
         version_minor: Some(4),
         linktype: Some(1),
@@ -237,8 +237,8 @@ fn test_validation_report_all_formats() {
         unusable_interfaces: None,
     };
     let summary = ValidationSummaryDto {
-        records_emitted: 42,
-        total_diagnostics: 0,
+        records_emitted: "42".to_string(),
+        total_diagnostics: "0".to_string(),
         had_diagnostics: false,
     };
     let completion = ValidationCompletionDto {
@@ -260,7 +260,7 @@ fn test_validation_report_all_formats() {
     .unwrap();
     let table_str = String::from_utf8(table_out).unwrap();
     assert!(table_str.contains("Format"));
-    assert!(table_str.contains("PCAP (little-endian)"));
+    assert!(table_str.contains("pcap"));
 
     // JSON
     let mut json_out = Vec::new();
@@ -323,7 +323,7 @@ fn test_flows_report_all_formats() {
     report_flows(ReportFormat::Json, &flows, &mut json_out).unwrap();
     let json_str = String::from_utf8(json_out).unwrap();
     assert!(json_str.contains("\"schema_version\": \"v1.0\""));
-    assert!(json_str.contains("\"total_flows\": 1"));
+    assert!(json_str.contains("\"total_flows\": \"1\""));
 
     // NDJSON
     let mut ndjson_out = Vec::new();
@@ -357,7 +357,7 @@ fn test_dns_report_all_formats() {
     report_dns(ReportFormat::Json, &observations, &mut json_out).unwrap();
     let json_str = String::from_utf8(json_out).unwrap();
     assert!(json_str.contains("\"schema_version\": \"v1.0\""));
-    assert!(json_str.contains("\"total_observations\": 1"));
+    assert!(json_str.contains("\"total_observations\": \"1\""));
 
     // NDJSON
     let mut ndjson_out = Vec::new();
@@ -480,7 +480,7 @@ fn test_http_report_all_formats() {
     pcapraven_reporting::report_http(ReportFormat::Json, &observations, &mut json_out).unwrap();
     let json_str = String::from_utf8(json_out).unwrap();
     assert!(json_str.contains("\"kind\": \"http\""));
-    assert!(json_str.contains("\"total_observations\": 1"));
+    assert!(json_str.contains("\"total_observations\": \"1\""));
 
     // NDJSON
     let mut ndjson_out = Vec::new();
@@ -514,7 +514,7 @@ fn test_tls_report_all_formats() {
     pcapraven_reporting::report_tls(ReportFormat::Json, &observations, &mut json_out).unwrap();
     let json_str = String::from_utf8(json_out).unwrap();
     assert!(json_str.contains("\"kind\": \"tls\""));
-    assert!(json_str.contains("\"total_observations\": 1"));
+    assert!(json_str.contains("\"total_observations\": \"1\""));
 
     // NDJSON
     let mut ndjson_out = Vec::new();
@@ -535,32 +535,53 @@ fn test_tls_report_all_formats() {
 fn test_findings_report_all_formats() {
     let (finding, evi) = make_synthetic_finding();
     let findings = vec![&finding];
-    let evidence = vec![evi];
+    let evidence = vec![&evi];
 
     // Table
     let mut table_out = Vec::new();
-    report_findings(ReportFormat::Table, &findings, &evidence, &mut table_out).unwrap();
+    report_findings(
+        ReportFormat::Table,
+        &findings,
+        &evidence,
+        None,
+        &mut table_out,
+    )
+    .unwrap();
     let table_str = String::from_utf8(table_out).unwrap();
     assert!(table_str.contains("Possible DNS Tunneling Activity"));
     assert!(table_str.contains("T1071.004"));
 
     // JSON
     let mut json_out = Vec::new();
-    report_findings(ReportFormat::Json, &findings, &evidence, &mut json_out).unwrap();
+    report_findings(
+        ReportFormat::Json,
+        &findings,
+        &evidence,
+        None,
+        &mut json_out,
+    )
+    .unwrap();
     let json_str = String::from_utf8(json_out).unwrap();
     assert!(json_str.contains("\"schema_version\": \"v1.0\""));
     assert!(json_str.contains("\"technique_id\": \"T1071.004\""));
 
     // NDJSON
     let mut ndjson_out = Vec::new();
-    report_findings(ReportFormat::Ndjson, &findings, &evidence, &mut ndjson_out).unwrap();
+    report_findings(
+        ReportFormat::Ndjson,
+        &findings,
+        &evidence,
+        None,
+        &mut ndjson_out,
+    )
+    .unwrap();
     let ndjson_str = String::from_utf8(ndjson_out).unwrap();
     let lines: Vec<&str> = ndjson_str.lines().collect();
-    assert_eq!(lines.len(), 3); // header + 1 finding + 1 evidence
+    assert_eq!(lines.len(), 3); // summary + 1 finding + 1 evidence
 
     // CSV
     let mut csv_out = Vec::new();
-    report_findings(ReportFormat::Csv, &findings, &evidence, &mut csv_out).unwrap();
+    report_findings(ReportFormat::Csv, &findings, &evidence, None, &mut csv_out).unwrap();
     let csv_str = String::from_utf8(csv_out).unwrap();
     assert!(csv_str.contains("id,ordinal,detector_id"));
     assert!(csv_str.contains("T1071.004:TA0011"));
@@ -574,15 +595,15 @@ fn test_analysis_report_formats_and_csv_rejection() {
     let findings = vec![&finding];
 
     let mut report = AnalysisReportDto::default();
-    report.metadata.format = "PCAP (little-endian)".to_string();
+    report.metadata.format = "pcap".to_string();
     report.summary = AnalysisSummaryDto {
-        total_packets: 100,
-        total_flows: 1,
-        total_dns_observations: 0,
-        total_http_observations: 0,
-        total_tls_observations: 0,
-        total_findings: 1,
-        total_evidence_records: 1,
+        total_packets: "100".to_string(),
+        total_flows: "1".to_string(),
+        total_dns_observations: "0".to_string(),
+        total_http_observations: "0".to_string(),
+        total_tls_observations: "0".to_string(),
+        total_findings: "1".to_string(),
+        total_evidence_records: "1".to_string(),
     };
     report.completion.status = "complete".to_string();
     report.flows = vec![FlowRecordDto::from_domain(&flows[0])];
@@ -651,6 +672,9 @@ fn test_csv_formula_injection_defense() {
     assert_eq!(sanitize_csv_cell("\r=test"), "'\r=test");
     assert_eq!(sanitize_csv_cell("\n=test"), "'\n=test");
     assert_eq!(sanitize_csv_cell("  =test"), "'  =test");
+    assert_eq!(sanitize_csv_cell("\tSAFE"), "'\tSAFE");
+    assert_eq!(sanitize_csv_cell("\rSAFE"), "'\rSAFE");
+    assert_eq!(sanitize_csv_cell("\nSAFE"), "'\nSAFE");
     assert_eq!(sanitize_csv_cell("normal"), "normal");
 }
 
@@ -658,15 +682,9 @@ proptest! {
     #[test]
     fn prop_csv_sanitizer_never_allows_unquoted_formula(s in "\\PC*") {
         let sanitized = sanitize_csv_cell(&s);
-        let trimmed = s.trim_start();
-        if trimmed.starts_with('=')
-            || trimmed.starts_with('+')
-            || trimmed.starts_with('-')
-            || trimmed.starts_with('@')
-            || trimmed.starts_with('\t')
-            || trimmed.starts_with('\r')
-            || trimmed.starts_with('\n')
-        {
+        let raw_trigger = s.starts_with(['=', '+', '-', '@', '\t', '\r', '\n']);
+        let trimmed_trigger = s.trim_start().starts_with(['=', '+', '-', '@']);
+        if raw_trigger || trimmed_trigger {
             prop_assert!(sanitized.starts_with('\''));
         } else {
             prop_assert_eq!(&sanitized, &s);

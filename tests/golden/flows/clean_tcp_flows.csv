@@ -1,0 +1,3 @@
+id,ordinal,protocol,endpoint_a,endpoint_b,total_packets,packets_a_to_b,packets_b_to_a,packets_same_endpoint,total_captured_bytes,captured_bytes_a_to_b,captured_bytes_b_to_a,total_wire_bytes,wire_bytes_a_to_b,wire_bytes_b_to_a,duration_numerator,duration_denominator,duration_display,end_reason
+Flow(0),0,tcp,192.0.2.10:40001,198.51.100.20:8080,2,2,0,0,108,108,0,108,108,0,1,1000,1/1000s,end_of_input
+Flow(1),1,tcp,192.0.2.10:40002,198.51.100.20:9090,2,2,0,0,108,108,0,108,108,0,1,1000,1/1000s,end_of_input

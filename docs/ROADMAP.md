@@ -7,13 +7,9 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, and Phase 14 are complete.
-Phase 14 delivered explainable repeated low-volume flow behavior detection in `pcapraven-detection` (`RepeatedLowVolumeFlowDetector`, `behavior.repeated_low_volume_flows`)
-and deterministic cross-detector finding correlation (`PossibleC2MultiSignalCorrelator`, `behavior.possible_c2_multi_signal`)
-over normalized flow statistics and temporal metrics, featuring canonical `ConnectionPeerKey` aggregation, 5 factual traffic measurements,
-finding domain model extension (`source_finding_references`), zero new evidence allocation during correlation, and comprehensive integration tests
-in `crates/pcapraven-domain/tests/finding.rs`, `crates/pcapraven-detection/tests/connection_behavior.rs`, and `crates/pcapraven-detection/tests/correlation.rs`.
-Phase 15 (severity, confidence, filtering, and MITRE ATT&CK mappings) is next.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, and Phase 16 are complete.
+Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
+Phase 17 (synthetic fixture corpus, golden report matrix, cross-crate integration, and end-to-end regression testing) is the current active phase. Phase 18 (fuzzing and robustness) is next.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -201,11 +197,11 @@ and the `dns-detection` skill in `.agents/skills/dns-detection/SKILL.md`.
 
 Implemented explainable repeated low-volume flow behavior detector (`RepeatedLowVolumeFlowDetector`, `behavior.repeated_low_volume_flows`)
 and deterministic cross-detector finding correlation (`PossibleC2MultiSignalCorrelator`, `behavior.possible_c2_multi_signal`) in `pcapraven-detection`.
-Aggregated flows using port-agnostic `ConnectionPeerKey` (`peer_a <= peer_b`), evaluated 5 factual traffic measurements (`flow_count`, `maximum_flow_bytes`,
-`maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`), extended the finding domain model with `source_finding_references`,
-and implemented the post-evaluation correlation pipeline reusing existing primary evidence without redundant allocations or unevidenced malware/C2 assertions.
-Delivered comprehensive integration tests in `crates/pcapraven-domain/tests/finding.rs`, `crates/pcapraven-detection/tests/connection_behavior.rs`,
-and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`,
+Aggregated flows using port-agnostic `ConnectionPeerKey` (`peer_a <= peer_b`), evaluated 6 factual traffic measurements (`candidate_flow_count`,
+`candidate_flow_ratio`, `eligible_flow_instance_count`, `maximum_candidate_duration`, `maximum_candidate_packet_count`, `maximum_candidate_wire_bytes`),
+extended the finding domain model with `source_finding_references`, and implemented the post-evaluation correlation pipeline reusing existing primary evidence
+without redundant allocations or unevidenced malware/C2 assertions. Delivered comprehensive integration tests in `crates/pcapraven-domain/tests/finding.rs`,
+`crates/pcapraven-detection/tests/connection_behavior.rs`, and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`,
 and the `connection-behavior-detection` and `finding-correlation` skills.
 
 ## Phase 15 - Severity, confidence, filtering and MITRE mappings
@@ -223,13 +219,15 @@ and delivered the minimal `pcapraven findings` CLI inspection subcommand in `pca
 `--tcp-idle-timeout`, `--udp-idle-timeout`). Delivered comprehensive integration tests in
 `crates/pcapraven-detection/tests/filtering.rs` and `crates/pcapraven-cli/tests/cli.rs`, and documented mapping contracts
 in `docs/MITRE_ATTACK_MAPPING.md`.
-Structured reporting formats (JSON, NDJSON, CSV, table) and full `analyze` orchestration (Phase 16) are the active implementation target.
 
 ## Phase 16 - Table/JSON/NDJSON/CSV reporting
 
-Implement deterministic reporters and documented schemas, terminal/CSV
-injection defenses, output-file behavior, and strict stdout/stderr separation.
-Define lossless or explicit command-specific projections for each format.
+Implemented deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`
+with frozen schema version anchor (`REPORT_SCHEMA_VERSION = "v1.0"`), exact wide integer string representation, exact rational
+duration and ratio formats, complete evidence and flow domain projections, unified protocol observation preservation,
+CSV formula injection defenses, strict LF line endings, safe output file lifecycle via `with_output_sink` in `pcapraven-cli`,
+and the unified `pcapraven analyze` CLI subcommand. Delivered schema contract tests in `crates/pcapraven-reporting/tests/schema_contract.rs`
+and CLI format tests in `crates/pcapraven-cli/tests/cli.rs`.
 
 ## Phase 17 - Fixture corpus + golden/integration/E2E tests
 

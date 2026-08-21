@@ -26,7 +26,7 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 16 (with Phase 15.1
+The accepted repository phase for this branch is Phase 17 (with Phase 16.1
 hardening complete). Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
 normalization work, Phase 4 flow reconstruction, Phase 5 checked flow
@@ -37,13 +37,13 @@ handshake metadata analysis, Phase 10 unified protocol observations and
 structured evidence foundation, Phase 11 detection engine architecture, Phase 12
 explainable periodic beaconing detection, Phase 13 explainable DNS anomaly and
 possible tunneling detection, Phase 14 explainable repeated low-volume flow
-behavior detection and deterministic cross-detector finding correlation, and
+behavior detection and deterministic cross-detector finding correlation,
 Phase 15/15.1 severity and confidence finalization, MITRE ATT&CK Enterprise
 Matrix v19.2 mapping provenance, finding filtering, shared analysis assembly, and
-findings CLI inspection are complete.
-Phase 16 covers deterministic reporting architecture (Table, JSON, NDJSON, CSV),
-safe output file creation, and the unified `analyze` CLI subcommand.
-Phase 17 and later capabilities remain out of scope until their roadmap gates are accepted.
+findings CLI inspection, and Phase 16/16.1 deterministic reporting architecture (Table, JSON, NDJSON, CSV),
+safe output file creation, schema freeze, and unified `analyze` CLI subcommand are complete.
+Phase 17 covers synthetic fixture corpus generation, golden report matrix, cross-crate integration, and end-to-end regression testing.
+Phase 18 and later capabilities remain out of scope until their roadmap gates are accepted.
 
 ## Project Invariants
 
@@ -192,6 +192,8 @@ for connection behavior detection, use `connection-behavior-detection`;
 for finding correlation, use `finding-correlation`;
 for MITRE mapping, use `mitre-attack-mapping`;
 for finding filtering, use `finding-filtering`;
+for reporting, use `reporting`;
+for fixture corpus and golden testing, use `fixture-golden-testing`;
 for CLI orchestration, use `cli-contract`.
 Inspect every changed or created file, verify referenced paths, and confirm the
 repository contains no out-of-phase artifacts.

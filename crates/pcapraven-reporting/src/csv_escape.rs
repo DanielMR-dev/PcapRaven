@@ -6,20 +6,16 @@
 /// cells starting with `=`, `+`, `-`, `@`, `\t`, `\r`, or `\n` can be interpreted
 /// as formulas or commands.
 ///
-/// If `input` (ignoring leading whitespace) starts with any of these characters,
-/// this function prefixes the string with a single quote (`'`) so spreadsheet
-/// processors treat the cell contents strictly as plain text.
+/// If `input` starts with any of these characters, or if `input` with leading whitespace
+/// trimmed starts with a formula trigger (`=`, `+`, `-`, `@`), this function prefixes
+/// the string with a single quote (`'`) so spreadsheet processors treat the cell contents
+/// strictly as plain text.
 #[must_use]
 pub fn sanitize_csv_cell(input: &str) -> String {
-    let trimmed = input.trim_start();
-    if trimmed.starts_with('=')
-        || trimmed.starts_with('+')
-        || trimmed.starts_with('-')
-        || trimmed.starts_with('@')
-        || trimmed.starts_with('\t')
-        || trimmed.starts_with('\r')
-        || trimmed.starts_with('\n')
-    {
+    let raw_trigger = input.starts_with(['=', '+', '-', '@', '\t', '\r', '\n']);
+    let trimmed_trigger = input.trim_start().starts_with(['=', '+', '-', '@']);
+
+    if raw_trigger || trimmed_trigger {
         format!("'{input}")
     } else {
         input.to_string()
@@ -49,6 +45,13 @@ mod tests {
         assert_eq!(sanitize_csv_cell("\t=cmd"), "'\t=cmd");
         assert_eq!(sanitize_csv_cell("\r=calc"), "'\r=calc");
         assert_eq!(sanitize_csv_cell("\n=calc"), "'\n=calc");
+    }
+
+    #[test]
+    fn test_leading_control_whitespace_prefixed() {
+        assert_eq!(sanitize_csv_cell("\tSAFE"), "'\tSAFE");
+        assert_eq!(sanitize_csv_cell("\rSAFE"), "'\rSAFE");
+        assert_eq!(sanitize_csv_cell("\nSAFE"), "'\nSAFE");
     }
 
     #[test]

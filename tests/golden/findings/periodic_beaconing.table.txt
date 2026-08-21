@@ -1,0 +1,8 @@
+Findings (1)
+================================================================================
+[find:0] Possible periodic beaconing behavior (Low, Medium)
+  Detector:     behavior.periodic_beaconing@v1.0.0
+  Summary:      Observed highly regular directional packet timing intervals consistent with possible periodic beaconing
+  Rationale:    Directional traffic in this flow exhibits low-jitter periodic inter-arrival timing satisfying configured statistical thresholds. Periodic timing is common in application keepalives, health checks, monitoring agents, scheduled polling, and heartbeat traffic, and does not establish malicious activity without independent corroborating evidence.
+  Subject:      flows=[Flow(0)]
+  Evidence:     evi:0

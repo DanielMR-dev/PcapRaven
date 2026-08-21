@@ -6,12 +6,15 @@ Phase 0 documentation and governance work, Phase 1 workspace/tooling work,
 Phase 2 capture-container ingestion tests, Phase 3 protocol normalization tests,
 Phase 4 bidirectional flow reconstruction tests, Phase 5 flow statistics and
 exact temporal metric tests, Phase 6 functional CLI integration tests,
-Phase 7 bounded DNS protocol analysis tests, Phase 8 bounded HTTP/1.x protocol
+Phase 7 bounded DNS protocol analysis tests, Phase 8 bounded HTTP/1.x protocol analysis tests,
+Phase 9 bounded TLS 1.2 / TLS 1.3 handshake metadata analysis tests,
 Phase 10 unified protocol observations and structured evidence integration tests,
-Phase 11 detection engine architecture tests, Phase 12 explainable periodic beaconing
-detection tests, and Phase 13 explainable DNS anomaly and possible tunneling detection tests are complete.
-Phase 14 (connection/C2-like behavioral heuristics), further threat detection heuristics,
-and advanced reporting testing remain future phase work.
+Phase 11 detection engine architecture tests, Phase 12 explainable periodic beaconing detection tests,
+Phase 13 explainable DNS anomaly and possible tunneling detection tests,
+Phase 14 repeated low-volume flow and correlation tests,
+Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance tests,
+and Phase 16 deterministic reporting architecture and schema contract tests are complete.
+Phase 17 (synthetic fixture corpus, golden report matrix, and end-to-end regression testing) is the current active phase.
 
 ## Testing Pyramid
 

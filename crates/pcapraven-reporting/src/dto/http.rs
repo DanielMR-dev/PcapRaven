@@ -15,8 +15,8 @@ pub struct HttpReportDto {
     pub schema_version: &'static str,
     /// Report kind identifier ("http").
     pub kind: &'static str,
-    /// Total count of HTTP observations.
-    pub total_observations: usize,
+    /// Total count of HTTP observations as a decimal string.
+    pub total_observations: String,
     /// List of normalized HTTP observations.
     pub observations: Vec<HttpObservationDto>,
 }
@@ -28,7 +28,7 @@ impl HttpReportDto {
         Self {
             schema_version: REPORT_SCHEMA_VERSION,
             kind: "http",
-            total_observations: observations.len(),
+            total_observations: observations.len().to_string(),
             observations: observations
                 .iter()
                 .map(HttpObservationDto::from_domain)
@@ -40,9 +40,9 @@ impl HttpReportDto {
 /// A normalized HTTP/1.x message observation record.
 #[derive(Debug, Clone, Serialize)]
 pub struct HttpObservationDto {
-    /// Zero-based packet ordinal in capture file.
-    pub packet_ordinal: u64,
-    /// Transport protocol ("TCP").
+    /// Zero-based packet ordinal in capture file as a decimal string.
+    pub packet_ordinal: String,
+    /// Transport protocol ("tcp").
     pub transport: &'static str,
     /// Source IP address string.
     pub source_ip: String,
@@ -52,15 +52,13 @@ pub struct HttpObservationDto {
     pub destination_ip: String,
     /// Destination TCP port number.
     pub destination_port: u16,
-    /// Message kind ("Request" or "Response").
+    /// Message kind ("request" or "response").
     pub message_kind: String,
     /// HTTP protocol version string ("HTTP/1.0", "HTTP/1.1", etc.).
     pub version: String,
     /// Request line metadata if this message is an HTTP request.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<HttpRequestDto>,
     /// Response line metadata if this message is an HTTP response.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<HttpResponseDto>,
     /// Selected headers and privacy flags.
     pub headers: HttpHeadersDto,
@@ -72,14 +70,19 @@ impl HttpObservationDto {
     /// Converts a domain [`HttpObservation`] into a serializable DTO.
     #[must_use]
     pub fn from_domain(obs: &HttpObservation) -> Self {
+        let kind_str = match obs.message_kind {
+            pcapraven_domain::HttpMessageKind::Request => "request",
+            pcapraven_domain::HttpMessageKind::Response => "response",
+        };
+
         Self {
-            packet_ordinal: obs.packet.capture_record_ordinal,
-            transport: "TCP",
+            packet_ordinal: obs.packet.capture_record_ordinal.to_string(),
+            transport: "tcp",
             source_ip: obs.source_ip.to_string(),
             source_port: obs.source_port,
             destination_ip: obs.destination_ip.to_string(),
             destination_port: obs.destination_port,
-            message_kind: obs.message_kind.as_str().to_string(),
+            message_kind: kind_str.to_string(),
             version: obs.version.as_str().to_string(),
             request: obs.request.as_ref().map(HttpRequestDto::from_domain),
             response: obs.response.as_ref().map(HttpResponseDto::from_domain),
@@ -134,21 +137,16 @@ impl HttpResponseDto {
 #[derive(Debug, Clone, Serialize)]
 pub struct HttpHeadersDto {
     /// Host header value if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
     /// Content-Type header value if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
-    /// Content-Length state ("none", "invalid", or byte length string).
+    /// Content-Length state ("not_present", "invalid", or byte length string).
     pub content_length: String,
     /// Transfer-Encoding header value if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub transfer_encoding: Option<String>,
     /// Server header value if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub server: Option<String>,
     /// User-Agent header value if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
     /// Privacy flags indicating presence of sensitive credentials/tokens.
     pub sensitive_headers: HttpSensitiveHeadersDto,

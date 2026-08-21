@@ -1,0 +1,3 @@
+PKT    KIND     SRC                   DST                   VER      METHOD   STATUS TARGET                   HOST                 CONTENT-TYPE                 CL TE        
+3      Request  192.0.2.10:49152      198.51.100.20:80      HTTP/1.1 GET           - /                        example.com          -                             - -         
+4      Response 198.51.100.20:80      192.0.2.10:49152      HTTP/1.1 -           200 -                        -                    text/plain                   13 -         

@@ -1,0 +1,185 @@
+{
+  "schema_version": "v1.0",
+  "kind": "findings",
+  "total_findings": "1",
+  "total_evidence_records": "1",
+  "filter": null,
+  "findings": [
+    {
+      "id": "find:0",
+      "ordinal": "0",
+      "detector_id": "behavior.periodic_beaconing",
+      "detector_version": "v1.0.0",
+      "title": "Possible periodic beaconing behavior",
+      "summary": "Observed highly regular directional packet timing intervals consistent with possible periodic beaconing",
+      "rationale": "Directional traffic in this flow exhibits low-jitter periodic inter-arrival timing satisfying configured statistical thresholds. Periodic timing is common in application keepalives, health checks, monitoring agents, scheduled polling, and heartbeat traffic, and does not establish malicious activity without independent corroborating evidence.",
+      "severity": "low",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [
+          "Flow(0)"
+        ],
+        "observations": []
+      },
+      "evidence_references": [
+        "evi:0"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evi:0",
+      "kind": "TemporalMetric",
+      "description": "A-to-B periodic inter-arrival timing metrics",
+      "packet_references": [],
+      "flow_references": [
+        "Flow(0)"
+      ],
+      "observation_references": [],
+      "measurements": [
+        {
+          "metric_key": "discontinuity_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "0"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "interval_sample_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "9"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "6"
+          },
+          "comparison": ">=",
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_interval",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "5",
+              "denominator": "1",
+              "display": "5s"
+            }
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "s"
+        },
+        {
+          "metric_key": "mean_absolute_successive_interval_delta",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "0",
+              "denominator": "1",
+              "display": "0s"
+            }
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "s"
+        },
+        {
+          "metric_key": "mean_interval",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "5",
+              "denominator": "1",
+              "display": "5s"
+            }
+          },
+          "threshold": {
+            "type": "Duration",
+            "value": {
+              "numerator": "1",
+              "denominator": "1",
+              "display": "1s"
+            }
+          },
+          "comparison": ">=",
+          "unit": "s"
+        },
+        {
+          "metric_key": "minimum_interval",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "5",
+              "denominator": "1",
+              "display": "5s"
+            }
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "s"
+        },
+        {
+          "metric_key": "relative_jitter_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "0",
+              "denominator": "1",
+              "string_representation": "0/1"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "10",
+              "string_representation": "1/10"
+            }
+          },
+          "comparison": "<=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "spread_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "0",
+              "denominator": "1",
+              "string_representation": "0/1"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "4",
+              "string_representation": "1/4"
+            }
+          },
+          "comparison": "<=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "successive_delta_sample_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "8"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    }
+  ]
+}

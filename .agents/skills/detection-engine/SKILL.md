@@ -27,7 +27,8 @@ in `pcapraven-domain`.
 - `pcapraven-detection` owns the detection engine and execution pipeline:
   - `Detector` trait (`metadata()`, `validate_parameters()`, `evaluate(&input, &params, &mut output)`)
   - `DetectorDraftSink` (engine-controlled bounded output sink tracking remaining findings and evidence capacity)
-  - `DetectorMetadata` (`id`, `version`, `title`, `purpose`, `incomplete_data_policy`)
+  - `DetectorMetadata` (`id`, `version`, `title`, `purpose`, `incomplete_data_policy`, `mitre_mappings`)
+  - `MitreMappingDeclaration` (static mapping declarations validated on metadata)
   - `IncompleteDataPolicy` (`Skip`, `AllowWithLimitations`)
   - `DetectorParameterKey` (validated ASCII key `[a-z0-9][a-z0-9._-]*`, max 64 bytes)
   - `DetectorParameterValue` (`Boolean`, `Unsigned`, `Signed`, `Ratio`, `Duration` — strictly zero floats)

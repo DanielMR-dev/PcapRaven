@@ -1,0 +1,2 @@
+PKT    KIND              SRC                   DST                   REC_VER  TLS_VER  CIPHER   SNI                      ALPN         CIPHERS EXTS
+1      ClientHello       192.0.2.10:50000      198.51.100.20:443     TLS 1.2  -        -        secure.example.com       -                  2    2

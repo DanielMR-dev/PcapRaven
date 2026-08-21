@@ -4,22 +4,24 @@ use std::io::Write;
 
 use serde::Serialize;
 
-use crate::dto::analysis::AnalysisReportDto;
+use crate::dto::analysis::{AnalysisReportDto, AnalysisSummaryDto, ReportCompletionDto};
 use crate::dto::dns::DnsReportDto;
-use crate::dto::findings::FindingsReportDto;
+use crate::dto::findings::{FindingFilterDto, FindingsReportDto};
 use crate::dto::flows::FlowsReportDto;
 use crate::dto::http::HttpReportDto;
 use crate::dto::tls::TlsReportDto;
-use crate::dto::validation::ValidationReportDto;
+use crate::dto::validation::{
+    ValidationCompletionDto, ValidationMetadataDto, ValidationReportDto, ValidationSummaryDto,
+};
 use crate::error::ReportError;
 use crate::format::REPORT_SCHEMA_VERSION;
 
 #[derive(Serialize)]
-struct NdjsonHeaderDto {
+struct NdjsonLineEnvelope<'a, T: Serialize> {
     schema_version: &'static str,
-    record_type: &'static str,
     kind: &'static str,
-    total_records: usize,
+    record_type: &'static str,
+    data: &'a T,
 }
 
 fn write_ndjson_line<T: Serialize>(w: &mut impl Write, record: &T) -> Result<(), ReportError> {
@@ -30,76 +32,170 @@ fn write_ndjson_line<T: Serialize>(w: &mut impl Write, record: &T) -> Result<(),
     Ok(())
 }
 
-/// Renders a validation report as NDJSON.
+#[derive(Serialize)]
+struct ValidationSummaryData<'a> {
+    source_path: Option<&'a str>,
+    metadata: &'a ValidationMetadataDto,
+    summary: &'a ValidationSummaryDto,
+    completion: &'a ValidationCompletionDto,
+}
+
+/// Renders a validation report as streaming NDJSON records.
 pub fn render_validation_ndjson(
     report: &ValidationReportDto,
     w: &mut impl Write,
 ) -> Result<(), ReportError> {
-    write_ndjson_line(w, report)
+    let summary_payload = ValidationSummaryData {
+        source_path: report.source_path.as_deref(),
+        metadata: &report.metadata,
+        summary: &report.summary,
+        completion: &report.completion,
+    };
+    let header = NdjsonLineEnvelope {
+        schema_version: REPORT_SCHEMA_VERSION,
+        kind: "validation",
+        record_type: "summary",
+        data: &summary_payload,
+    };
+    write_ndjson_line(w, &header)?;
+
+    for diag in &report.diagnostics {
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "validation",
+            record_type: "diagnostic",
+            data: diag,
+        };
+        write_ndjson_line(w, &line)?;
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct FlowsSummaryData {
+    total_flows: String,
 }
 
 /// Renders a flows report as streaming NDJSON records.
 pub fn render_flows_ndjson(report: &FlowsReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let header = NdjsonHeaderDto {
+    let summary_payload = FlowsSummaryData {
+        total_flows: report.total_flows.clone(),
+    };
+    let header = NdjsonLineEnvelope {
         schema_version: REPORT_SCHEMA_VERSION,
-        record_type: "header",
         kind: "flows",
-        total_records: report.total_flows,
+        record_type: "summary",
+        data: &summary_payload,
     };
     write_ndjson_line(w, &header)?;
 
     for flow in &report.flows {
-        write_ndjson_line(w, flow)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "flows",
+            record_type: "flow",
+            data: flow,
+        };
+        write_ndjson_line(w, &line)?;
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct DnsSummaryData {
+    total_observations: String,
 }
 
 /// Renders a DNS report as streaming NDJSON records.
 pub fn render_dns_ndjson(report: &DnsReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let header = NdjsonHeaderDto {
+    let summary_payload = DnsSummaryData {
+        total_observations: report.total_observations.clone(),
+    };
+    let header = NdjsonLineEnvelope {
         schema_version: REPORT_SCHEMA_VERSION,
-        record_type: "header",
         kind: "dns",
-        total_records: report.total_observations,
+        record_type: "summary",
+        data: &summary_payload,
     };
     write_ndjson_line(w, &header)?;
 
     for obs in &report.observations {
-        write_ndjson_line(w, obs)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "dns",
+            record_type: "dns",
+            data: obs,
+        };
+        write_ndjson_line(w, &line)?;
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct HttpSummaryData {
+    total_observations: String,
 }
 
 /// Renders an HTTP report as streaming NDJSON records.
 pub fn render_http_ndjson(report: &HttpReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let header = NdjsonHeaderDto {
+    let summary_payload = HttpSummaryData {
+        total_observations: report.total_observations.clone(),
+    };
+    let header = NdjsonLineEnvelope {
         schema_version: REPORT_SCHEMA_VERSION,
-        record_type: "header",
         kind: "http",
-        total_records: report.total_observations,
+        record_type: "summary",
+        data: &summary_payload,
     };
     write_ndjson_line(w, &header)?;
 
     for obs in &report.observations {
-        write_ndjson_line(w, obs)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "http",
+            record_type: "http",
+            data: obs,
+        };
+        write_ndjson_line(w, &line)?;
     }
     Ok(())
 }
 
+#[derive(Serialize)]
+struct TlsSummaryData {
+    total_observations: String,
+}
+
 /// Renders a TLS report as streaming NDJSON records.
 pub fn render_tls_ndjson(report: &TlsReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let header = NdjsonHeaderDto {
+    let summary_payload = TlsSummaryData {
+        total_observations: report.total_observations.clone(),
+    };
+    let header = NdjsonLineEnvelope {
         schema_version: REPORT_SCHEMA_VERSION,
-        record_type: "header",
         kind: "tls",
-        total_records: report.total_observations,
+        record_type: "summary",
+        data: &summary_payload,
     };
     write_ndjson_line(w, &header)?;
 
     for obs in &report.observations {
-        write_ndjson_line(w, obs)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "tls",
+            record_type: "tls",
+            data: obs,
+        };
+        write_ndjson_line(w, &line)?;
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct FindingsSummaryData<'a> {
+    total_findings: String,
+    total_evidence_records: String,
+    filter: Option<&'a FindingFilterDto>,
 }
 
 /// Renders a findings report as streaming NDJSON records.
@@ -107,21 +203,46 @@ pub fn render_findings_ndjson(
     report: &FindingsReportDto,
     w: &mut impl Write,
 ) -> Result<(), ReportError> {
-    let header = NdjsonHeaderDto {
+    let summary_payload = FindingsSummaryData {
+        total_findings: report.total_findings.clone(),
+        total_evidence_records: report.total_evidence_records.clone(),
+        filter: report.filter.as_ref(),
+    };
+    let header = NdjsonLineEnvelope {
         schema_version: REPORT_SCHEMA_VERSION,
-        record_type: "header",
         kind: "findings",
-        total_records: report.total_findings,
+        record_type: "summary",
+        data: &summary_payload,
     };
     write_ndjson_line(w, &header)?;
 
     for finding in &report.findings {
-        write_ndjson_line(w, finding)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "findings",
+            record_type: "finding",
+            data: finding,
+        };
+        write_ndjson_line(w, &line)?;
     }
     for evi in &report.evidence {
-        write_ndjson_line(w, evi)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "findings",
+            record_type: "evidence",
+            data: evi,
+        };
+        write_ndjson_line(w, &line)?;
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct AnalysisSummaryData<'a> {
+    metadata: &'a ValidationMetadataDto,
+    summary: &'a AnalysisSummaryDto,
+    completion: &'a ReportCompletionDto,
+    filter: Option<&'a FindingFilterDto>,
 }
 
 /// Renders a unified analysis report as streaming NDJSON records.
@@ -129,34 +250,55 @@ pub fn render_analysis_ndjson(
     report: &AnalysisReportDto,
     w: &mut impl Write,
 ) -> Result<(), ReportError> {
-    let header = NdjsonHeaderDto {
+    let summary_payload = AnalysisSummaryData {
+        metadata: &report.metadata,
+        summary: &report.summary,
+        completion: &report.completion,
+        filter: report.filter.as_ref(),
+    };
+    let header = NdjsonLineEnvelope {
         schema_version: REPORT_SCHEMA_VERSION,
-        record_type: "header",
         kind: "analysis",
-        total_records: report.summary.total_packets as usize,
+        record_type: "summary",
+        data: &summary_payload,
     };
     write_ndjson_line(w, &header)?;
-    write_ndjson_line(w, &report.metadata)?;
-    write_ndjson_line(w, &report.summary)?;
 
     for flow in &report.flows {
-        write_ndjson_line(w, flow)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "analysis",
+            record_type: "flow",
+            data: flow,
+        };
+        write_ndjson_line(w, &line)?;
     }
-    for obs in &report.dns {
-        write_ndjson_line(w, obs)?;
-    }
-    for obs in &report.http {
-        write_ndjson_line(w, obs)?;
-    }
-    for obs in &report.tls {
-        write_ndjson_line(w, obs)?;
-    }
-    for finding in &report.findings {
-        write_ndjson_line(w, finding)?;
+    for obs in &report.observations {
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "analysis",
+            record_type: "observation",
+            data: obs,
+        };
+        write_ndjson_line(w, &line)?;
     }
     for evi in &report.evidence {
-        write_ndjson_line(w, evi)?;
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "analysis",
+            record_type: "evidence",
+            data: evi,
+        };
+        write_ndjson_line(w, &line)?;
     }
-    write_ndjson_line(w, &report.completion)?;
+    for finding in &report.findings {
+        let line = NdjsonLineEnvelope {
+            schema_version: REPORT_SCHEMA_VERSION,
+            kind: "analysis",
+            record_type: "finding",
+            data: finding,
+        };
+        write_ndjson_line(w, &line)?;
+    }
     Ok(())
 }

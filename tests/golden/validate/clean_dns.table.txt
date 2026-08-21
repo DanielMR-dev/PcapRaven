@@ -1,0 +1,9 @@
+Capture
+Format        pcap
+Completion    complete
+Records       2
+Diagnostics   0
+Version       2.4
+Linktype      1
+Snaplen       65535
+TimestampRes  10^6 units/s (1000000 Hz)

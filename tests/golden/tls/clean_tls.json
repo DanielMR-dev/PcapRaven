@@ -1,0 +1,40 @@
+{
+  "schema_version": "v1.0",
+  "kind": "tls",
+  "total_observations": "1",
+  "observations": [
+    {
+      "packet_ordinal": "1",
+      "source_ip": "192.0.2.10",
+      "source_port": 50000,
+      "destination_ip": "198.51.100.20",
+      "destination_port": 443,
+      "record_version": "TLS 1.2",
+      "handshake_kind": "client_hello",
+      "client_hello": {
+        "client_version": "TLS 1.2",
+        "server_name": "secure.example.com",
+        "supported_versions": [
+          "TLS 1.3"
+        ],
+        "alpn_protocols": [],
+        "cipher_suites": [
+          "0x1301",
+          "0x1302"
+        ],
+        "extensions": [
+          {
+            "extension_type": 0,
+            "length": 23
+          },
+          {
+            "extension_type": 43,
+            "length": 3
+          }
+        ]
+      },
+      "server_hello": null,
+      "completeness": "complete"
+    }
+  ]
+}

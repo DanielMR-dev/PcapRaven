@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Check the Phase 15/16 Cargo package roles and audited dependency topology."""
+"""Check the Phase 16/17 Cargo package roles and audited dependency topology."""
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import subprocess
 import sys
 import tomllib
-from pathlib import Path
 
 
 EXPECTED = {
@@ -59,8 +59,8 @@ EXPECTED_TEST_TARGETS = {
         "correlation",
         "filtering",
     },
-    "pcapraven-reporting": {"reporting"},
-    "pcapraven-cli": {"cli"},
+    "pcapraven-reporting": {"reporting", "schema_contract"},
+    "pcapraven-cli": {"cli", "corpus", "golden"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 EXPECTED_EXTERNAL = {

@@ -15,7 +15,7 @@ explainable connection behavior detectors in PcapRaven.
 3. **Bounded State:** Tracked peers must be bounded by `maximum_tracked_peer_groups` ($1..=1\_000\_000$).
 4. **Flow Qualification Rules:**
    - Exclude flows with `end_reason == AnalysisStopped`.
-   - Exclude flows with distinct peer addresses (`endpoint_a.address != endpoint_b.address`).
+   - Exclude flows with same-address peers (`endpoint_a.address == endpoint_b.address`); peer addresses must be distinct.
    - `temporal.duration` must be Available.
    - Clean timestamps (`unavailable_timestamps == 0`, `invalid_timestamps == 0`, `non_monotonic_transitions == 0`).
    - Exclude flows with `traffic.same_endpoint.packet_count > 0`.

@@ -1,0 +1,66 @@
+{
+  "schema_version": "v1.0",
+  "kind": "http",
+  "total_observations": "2",
+  "observations": [
+    {
+      "packet_ordinal": "3",
+      "transport": "tcp",
+      "source_ip": "192.0.2.10",
+      "source_port": 49152,
+      "destination_ip": "198.51.100.20",
+      "destination_port": 80,
+      "message_kind": "request",
+      "version": "HTTP/1.1",
+      "request": {
+        "method": "GET",
+        "target": "/"
+      },
+      "response": null,
+      "headers": {
+        "host": "example.com",
+        "content_type": null,
+        "content_length": "not_present",
+        "transfer_encoding": null,
+        "server": null,
+        "user_agent": "PcapRavenTest",
+        "sensitive_headers": {
+          "authorization_present": false,
+          "cookie_present": false,
+          "set_cookie_present": false,
+          "proxy_authorization_present": false
+        }
+      },
+      "completeness": "complete"
+    },
+    {
+      "packet_ordinal": "4",
+      "transport": "tcp",
+      "source_ip": "198.51.100.20",
+      "source_port": 80,
+      "destination_ip": "192.0.2.10",
+      "destination_port": 49152,
+      "message_kind": "response",
+      "version": "HTTP/1.1",
+      "request": null,
+      "response": {
+        "status_code": 200
+      },
+      "headers": {
+        "host": null,
+        "content_type": "text/plain",
+        "content_length": "13",
+        "transfer_encoding": null,
+        "server": null,
+        "user_agent": null,
+        "sensitive_headers": {
+          "authorization_present": false,
+          "cookie_present": false,
+          "set_cookie_present": false,
+          "proxy_authorization_present": false
+        }
+      },
+      "completeness": "complete"
+    }
+  ]
+}

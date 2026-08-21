@@ -1,0 +1,3 @@
+packet_ordinal,transport,source_ip,source_port,destination_ip,destination_port,transaction_id,message_kind,opcode,authoritative_answer,truncation,recursion_desired,recursion_available,response_code,qname,qtype,qclass,answers_count,edns_present,completeness
+0,udp,192.0.2.10,53000,203.0.113.53,53,4097,query,0,false,false,true,false,0,example.com,A,1,0,false,complete
+1,udp,203.0.113.53,53,192.0.2.10,53000,4097,response,0,false,false,true,true,0,example.com,A,1,1,false,complete

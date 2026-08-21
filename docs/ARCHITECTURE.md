@@ -10,16 +10,11 @@ flow inspection, Phase 7 bounded DNS protocol analysis, Phase 8 bounded HTTP/1.x
 protocol analysis, Phase 9 bounded visible TLS 1.2 / TLS 1.3 handshake
 metadata analysis, Phase 10 unified protocol observations and structured evidence
 foundation, Phase 11 detection engine architecture, Phase 12 explainable periodic beaconing
-detection, Phase 13 explainable DNS anomaly and possible tunneling detection, and
-Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation are complete.
-`pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation,
-evidence, and finding models, statistics, and exact temporal metrics,
-`pcapraven-pcap` provides capture ingestion, `pcapraven-protocols` provides packet normalization,
-DNS parsing, HTTP/1.x parsing, and TLS handshake parsing, `pcapraven-flows` provides stateful
-flow reconstruction, traffic statistics, and exact rational temporal metrics,
-`pcapraven-detection` provides detection engine execution pipeline, detector registry,
-correlation pipeline, parameter configuration, and explainable behavioral detectors and correlators, and `pcapraven-cli` provides the functional CLI.
-Phase 15 (MITRE ATT&CK mappings), further threat detection heuristics, and reporting remain future work.
+detection, Phase 13 explainable DNS anomaly and possible tunneling detection,
+Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation,
+Phase 15 severity and confidence classification, finding filtering, and MITRE ATT&CK mapping provenance,
+and Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output file creation, and unified `analyze` CLI are complete.
+Phase 17 (synthetic fixture corpus, golden report matrix, and end-to-end regression testing) is the current active phase.
 
 ## Architectural Principles
 
@@ -64,9 +59,10 @@ intentionally newer than the declared MSRV. The only dependencies are the
 documented path edges below and the audited external dependencies. Every member
 opts into the workspace lint policy, which forbids project `unsafe` code by default.
 
-The source files for the reporting package remain
-a compile-only documentation skeleton. It does not define business behavior or
-implement analysis.
+The `pcapraven-reporting` package defines deterministic multi-format serialization
+(Table, JSON, NDJSON, CSV), CSV formula injection defenses, and frozen schema version anchors.
+It depends strictly on `pcapraven-domain` and audited serializers (`serde`, `serde_json`, `csv`).
+It does not perform capture parsing, flow reconstruction, detection, or network I/O.
 
 ## Phase 2 Capture-Container Boundary
 

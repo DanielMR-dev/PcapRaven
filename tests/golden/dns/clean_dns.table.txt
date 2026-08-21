@@ -1,0 +1,3 @@
+PKT    XPORT SRC                   DST                      ID KIND     OPCODE RCODE  QD  AN  NS  AR QNAME                          QTYPE  EDNS
+0      UDP   192.0.2.10:53000      203.0.113.53:53        4097 Query         0     0   1   0   0   0 example.com                    A      no  
+1      UDP   203.0.113.53:53       192.0.2.10:53000       4097 Response      0     0   1   1   0   0 example.com                    A      no  

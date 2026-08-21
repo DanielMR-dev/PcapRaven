@@ -211,8 +211,7 @@ pub fn run_analysis(
             Ok(s) => s,
             Err(e) => {
                 had_stream_error = true;
-                let err_str = e.to_string();
-                if err_str.contains("budget") || err_str.contains("capacity") {
+                if matches!(&e, pcapraven_flows::FlowError::ResourceLimit { .. }) {
                     had_flow_budget_exhaustion = true;
                 }
                 let _ = diag_emitter.emit_diagnostic(&format!(
@@ -233,12 +232,10 @@ pub fn run_analysis(
                 ) {
                     Ok(fa) => fa,
                     Err(e) => {
-                        had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
-                            "failed to map flow association on packet {}: {e}",
+                        return Err(AnalysisError::Fatal(format!(
+                            "fatal flow-observation association invariant failure on packet {}: {e}",
                             record.ordinal
-                        ));
-                        ObservationFlowAssociation::Unassociated
+                        )));
                     }
                 }
             }
@@ -290,11 +287,10 @@ pub fn run_analysis(
                         }
                     }
                     Err(e) => {
-                        had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
+                        return Err(AnalysisError::Fatal(format!(
                             "DNS observation construction failed on packet {}: {e}",
                             record.ordinal
-                        ));
+                        )));
                     }
                 }
             }
@@ -346,11 +342,10 @@ pub fn run_analysis(
                         }
                     }
                     Err(e) => {
-                        had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
+                        return Err(AnalysisError::Fatal(format!(
                             "HTTP observation construction failed on packet {}: {e}",
                             record.ordinal
-                        ));
+                        )));
                     }
                 }
             }
@@ -401,11 +396,10 @@ pub fn run_analysis(
                         }
                     }
                     Err(e) => {
-                        had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
+                        return Err(AnalysisError::Fatal(format!(
                             "TLS observation construction failed on packet {}: {e}",
                             record.ordinal
-                        ));
+                        )));
                     }
                 }
             }
@@ -431,6 +425,11 @@ pub fn run_analysis(
     let mut detection_limitations = Vec::new();
     if !reader_outcome.is_complete() {
         detection_limitations.push(DetectionInputLimitation::CaptureTruncated);
+    }
+    if let Some(max_rec) = options.max_records {
+        if total_records_processed >= max_rec {
+            detection_limitations.push(DetectionInputLimitation::PacketCountBudgetReached);
+        }
     }
     if observation_budget_exhausted {
         detection_limitations.push(DetectionInputLimitation::ObservationBudgetReached);

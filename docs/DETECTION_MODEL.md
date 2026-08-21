@@ -12,8 +12,8 @@ detection engine architecture and finding filters in `pcapraven-detection`,
 the explainable periodic beaconing detector (`behavior.periodic_beaconing`),
 explainable DNS anomaly and possible tunneling detectors (`dns.long_query_name`, `dns.possible_tunneling`),
 explainable repeated low-volume flow detector (`behavior.repeated_low_volume_flows`), and
-deterministic cross-detector finding correlation (`behavior.possible_c2_multi_signal`).
-Structured reporting formats (JSON, NDJSON, CSV, table) and full `analyze` orchestration (Phase 16) remain targets for later roadmap phases.
+Structured reporting formats (JSON, NDJSON, CSV, table), safe output file creation, and full `analyze` orchestration (Phase 16) are complete in `pcapraven-reporting` and `pcapraven-cli`.
+Synthetic fixture corpus generation, golden reports, and end-to-end integration testing (Phase 17) are current.
 
 ## Separation from Parsing
 

@@ -324,7 +324,51 @@ Phase 14 implements explainable repeated low-volume flow behavior detection and 
 - Implements finding correlation pipeline in `crates/pcapraven-detection/src/correlation.rs` and `engine.rs` (`FindingCorrelator` trait, `CorrelationRegistry`, `CorrelationDraftSink`, `execute_detection_with_correlators`).
 - Implements `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, version `1.0.0`, severity `Medium`, confidence `Medium`) correlating `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
 - Full verification: integration tests in `crates/pcapraven-detection/tests/connection_behavior.rs` and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`, and skills in `.agents/skills/connection-behavior-detection/SKILL.md` and `.agents/skills/finding-correlation/SKILL.md`.
-- Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings (Phase 15) and formal reporting (Phase 16) remain strictly future roadmap phases.
+- Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings (Phase 15), formal reporting (Phase 16), and fixture corpus/golden testing (Phase 17) are documented below.
+  That historical gate is superseded by the current Phase 15 gate below.
+
+## Phase 15 Gate
+
+Phase 15 finalizes severity and confidence assignment, implements the MITRE ATT&CK Enterprise Matrix (v19.2) mapping domain model in `pcapraven-domain` with strict format validation and engine-stamped provenance, implements multi-criteria finding filtering in `pcapraven-detection`, extracts the shared capture analysis pipeline in `pcapraven-cli`, and introduces the minimal `pcapraven findings` CLI subcommand.
+- Severity and confidence ordering: `Severity::from_str` (`info < low < medium < high < critical`) and `Confidence::from_str` (`low < medium < high`).
+- MITRE ATT&CK mapping provenance: `MitreAttackId`, `MitreTactic`, `MitreMappingDeclaration`, `MitreMappingProvenance`, and `MitreMapping` in `pcapraven-domain::mitre_attack`.
+- Multi-criteria finding filtering: `FindingFilter` in `pcapraven-detection::filtering`.
+- CLI findings inspection: `pcapraven findings <capture>` with `--min-severity`, `--min-confidence`, `--detector`, `--mitre`.
+- Verified in `crates/pcapraven-detection/tests/filtering.rs` and `crates/pcapraven-cli/tests/cli.rs`.
+
+## Phase 16 Gate
+
+Phase 16 implements deterministic reporting architecture (Table, JSON, NDJSON, CSV) in `pcapraven-reporting`, safe output file creation via `with_output_sink` in `pcapraven-cli`, and the unified forensic analysis subcommand `pcapraven analyze`.
+- Multi-format serialization: `report_validation`, `report_flows`, `report_dns`, `report_http`, `report_tls`, `report_findings`, and `report_analysis`.
+- CSV formula injection defense via `sanitize_csv_cell`.
+- Strict LF line endings (`\n`) for CSV output across all platforms.
+- Atomic file output creation via `std::fs::OpenOptions::new().create_new(true)`.
+- Rejection of CSV format for `analyze` with Exit Code 2.
+
+## Phase 16.1 Hardening Gate
+
+Phase 16.1 freezes the machine reporting schema (`v1.0`) and hardens analysis completeness and lifecycle behavior:
+- Frozen schema version anchor: `REPORT_SCHEMA_VERSION = "v1.0"`.
+- Wide integer string policy: all 64-bit and larger integers (`u64`, `i64`, `u128`, `i128`, `usize`), ordinals, and sample counts serialize as decimal string tokens.
+- Exact rational duration and ratio formats (`numerator` and `denominator` as strings).
+- Complete `EvidenceRecordDto` provenance (`packet_references`, `flow_references`, `observation_references`).
+- Complete `FlowRecordDto` machine projection (4 directional traffic buckets, duration, exact temporal metrics).
+- Preserved `ProtocolObservationDto` identity and flow association facts for `analyze`.
+- Evidence closure: filtered reports emit only evidence records referenced by retained findings.
+- Whole-analysis `ReportCompletionDto` reflecting reader, flow, observation, and detection completeness.
+- Self-describing tagged NDJSON envelopes (`{"schema_version": "v1.0", "kind": "...", "record_type": "...", "data": { ... }}`).
+- Output file write lifecycle: atomic creation, explicit flush, and cleanup of newly created files on error.
+- Verified in `crates/pcapraven-reporting/tests/schema_contract.rs` and `crates/pcapraven-cli/tests/cli.rs`.
+
+## Phase 17 Gate
+
+Phase 17 establishes the documented synthetic, sanitized, redistributable PCAP/PCAPNG fixture corpus, generates golden output matrices across all commands and formats, and delivers cross-crate integration and end-to-end regression testing.
+- Top-level reproducible synthetic corpus under `tests/fixtures/pcaps/`.
+- Documented fixture provenance and SHA-256 checksums in `tests/fixtures/pcaps/README.md` and `tests/fixtures/pcaps/checksums.sha256`.
+- Exact golden output matrices under `tests/golden/` across commands and formats (`table`, `json`, `ndjson`, `csv`).
+- Comprehensive cross-crate integration tests in `crates/pcapraven-cli/tests/corpus.rs` and golden regression tests in `crates/pcapraven-cli/tests/golden.rs`.
+- Phase 18 and later capabilities remain strictly out of scope.
+
 
 
 

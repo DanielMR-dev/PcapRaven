@@ -1,0 +1,2 @@
+packet_ordinal,source_ip,source_port,destination_ip,destination_port,record_version,handshake_kind,client_version,server_version,selected_version,selected_cipher_suite,server_name,alpn_protocols,ciphers_count,extensions_count,completeness
+1,192.0.2.10,50000,198.51.100.20,443,TLS 1.2,client_hello,TLS 1.2,'-,'-,'-,secure.example.com,,2,2,complete
