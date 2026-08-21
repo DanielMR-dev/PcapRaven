@@ -10,11 +10,13 @@ finding correlators and multi-signal heuristics in PcapRaven.
 
 ## Core Invariants
 
-1. **Post-Primary Evaluation:** Correlators run strictly after primary detectors have executed.
-2. **Evidence Reuse:** Correlated findings reuse existing `EvidenceReference`s from primary findings; zero new `EvidenceRecord`s are generated during correlation.
-3. **Source Finding Traceability:** Correlated findings must reference $\ge 2$ unique, sorted `FindingReference`s corresponding to accepted primary findings.
-4. **Referential Integrity:** All `source_finding_references` and `evidence_references` must resolve to existing records in the run outcome.
-5. **Deterministic Execution:** Correlators are registered in `CorrelationRegistry` and executed in canonical `DetectorId` order.
-6. **Bounded Output:** Correlation sinks enforce finite capacity limits governed by the engine's `max_total_findings`.
-7. **No Floating-Point Arithmetic:** Zero `f32`/`f64` usage.
-8. **Balanced Rationale:** Do not assert confirmed malware presence; document multi-signal characteristics and benign alternative explanations (such as CDN telemetry or automated sync).
+1. **Post-Primary Evaluation:** Correlators run strictly after all primary detectors have finished, operating over a frozen snapshot of accepted primary findings.
+2. **No Correlation-of-Correlation:** Correlators consume primary findings only; they never correlate previously correlated findings.
+3. **Evidence Reuse:** Correlated findings reuse existing `EvidenceReference`s from primary findings; zero new `EvidenceRecord`s are allocated during correlation.
+4. **Source Finding Traceability:** Correlated findings must reference $\ge 2$ unique, sorted `FindingReference`s corresponding to accepted primary findings.
+5. **Direct Lookup & Referential Integrity:** Source findings are resolved by direct `FindingReference` ordinal indexing. The engine verifies evidence ownership and subject relationship.
+6. **Transactional Correlator Isolation:** A failed correlator's draft findings are transactionally discarded without aborting the entire run. Subsequent correlators continue evaluation.
+7. **Deterministic Execution:** Correlators are registered in `CorrelationRegistry` and executed in canonical `DetectorId` order.
+8. **Engine-Stamped MITRE Provenance:** The engine stamps `MitreMappingProvenance::CorrelatorDeclared { correlator_id, correlator_version }` on accepted correlated findings.
+9. **No Floating-Point Arithmetic:** Zero `f32`/`f64` usage.
+10. **Balanced Rationale:** Do not assert confirmed malware presence; document multi-signal characteristics and benign alternative explanations (such as CDN telemetry or automated sync).

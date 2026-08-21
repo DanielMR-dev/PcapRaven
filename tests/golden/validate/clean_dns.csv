@@ -1,0 +1,9 @@
+property,value
+schema_version,v1.0
+format,pcap
+completion,complete
+records_emitted,2
+total_diagnostics,0
+version,2.4
+linktype,1
+snaplen,65535

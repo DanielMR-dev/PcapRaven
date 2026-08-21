@@ -71,6 +71,8 @@ You are the senior Rust developer for PcapRaven.
 - `finding-correlation` skill for explainable cross-detector finding correlation.
 - `mitre-attack-mapping` skill for MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance, validation, and explainability.
 - `finding-filtering` skill for explainable finding filtering by severity, confidence, detector identifier, and MITRE technique.
+- `reporting` skill for deterministic multi-format reporting architecture, schema serialization, sanitization, and output files.
+- `fixture-golden-testing` skill for synthetic fixture corpus, schema freeze verification, golden reports, and end-to-end regression testing.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `phase-validation` skill for phase verification checklists.
 

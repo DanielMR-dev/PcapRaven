@@ -16,8 +16,11 @@ handshake metadata analysis and TLS inspection (`pcapraven tls`), Phase 10 adds
 unified protocol observations and structured evidence foundation in `pcapraven-domain`,
 Phase 11 adds detection engine architecture in `pcapraven-detection`, Phase 12 adds
 explainable periodic beaconing detection in `pcapraven-detection`, Phase 13 adds
-explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`, and Phase 14 adds
-explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`.
+explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`, Phase 14 adds
+explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`,
+Phase 15 adds severity/confidence classification, finding filtering, and MITRE ATT&CK mapping provenance,
+and Phase 16 adds deterministic reporting architecture (Table, JSON, NDJSON, CSV), CSV formula injection defenses, safe output file lifecycle, and unified forensic analysis (`analyze`).
+Synthetic fixture corpus generation, golden reports, and end-to-end regression testing (Phase 17) are current.
 
 ## Assets
 

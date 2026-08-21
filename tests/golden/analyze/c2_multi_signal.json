@@ -1,0 +1,1809 @@
+{
+  "schema_version": "v1.0",
+  "kind": "analysis",
+  "metadata": {
+    "format": "pcap",
+    "byte_order": "little_endian",
+    "version_major": 2,
+    "version_minor": 4,
+    "linktype": 1,
+    "snaplen": 65535,
+    "timestamp_resolution": "10^6 units/s (1000000 Hz)",
+    "section_count": null,
+    "interface_count": null,
+    "usable_interfaces": null,
+    "unusable_interfaces": null
+  },
+  "summary": {
+    "total_packets": "10",
+    "total_flows": "1",
+    "total_dns_observations": "10",
+    "total_http_observations": "0",
+    "total_tls_observations": "0",
+    "total_findings": "11",
+    "total_evidence_records": "10"
+  },
+  "completion": {
+    "status": "complete",
+    "limitations": []
+  },
+  "filter": null,
+  "flows": [
+    {
+      "id": "Flow(0)",
+      "ordinal": "0",
+      "protocol": "udp",
+      "endpoint_a": "192.0.2.10:56000",
+      "endpoint_b": "203.0.113.53:53",
+      "first_packet": "0",
+      "last_packet": "9",
+      "end_reason": "end_of_input",
+      "traffic": {
+        "total": {
+          "packet_count": "10",
+          "captured_bytes": "2210",
+          "wire_bytes": "2210",
+          "truncated_packet_count": "0"
+        },
+        "a_to_b": {
+          "packet_count": "10",
+          "captured_bytes": "2210",
+          "wire_bytes": "2210",
+          "truncated_packet_count": "0"
+        },
+        "b_to_a": {
+          "packet_count": "0",
+          "captured_bytes": "0",
+          "wire_bytes": "0",
+          "truncated_packet_count": "0"
+        },
+        "same_endpoint": {
+          "packet_count": "0",
+          "captured_bytes": "0",
+          "wire_bytes": "0",
+          "truncated_packet_count": "0"
+        }
+      },
+      "temporal": {
+        "status": "available",
+        "unavailable_reason": null,
+        "duration": {
+          "numerator": "45",
+          "denominator": "1",
+          "display": "45s"
+        },
+        "timestamp_coverage": {
+          "available_timestamps": "10",
+          "unavailable_timestamps": "0",
+          "invalid_timestamps": "0",
+          "non_monotonic_transitions": "0"
+        },
+        "first_packet_timestamp": {
+          "seconds": "1700000000",
+          "fractional_units": "0",
+          "units_per_second": "1000000",
+          "offset_seconds": "0"
+        },
+        "last_packet_timestamp": {
+          "seconds": "1700000045",
+          "fractional_units": "0",
+          "units_per_second": "1000000",
+          "offset_seconds": "0"
+        },
+        "overall_inter_arrival": {
+          "interval_sample_count": "9",
+          "discontinuity_count": "0",
+          "min_interval": {
+            "numerator": "5",
+            "denominator": "1",
+            "display": "5s"
+          },
+          "max_interval": {
+            "numerator": "5",
+            "denominator": "1",
+            "display": "5s"
+          },
+          "mean_interval": {
+            "numerator": "5",
+            "denominator": "1",
+            "display": "5s"
+          },
+          "successive_delta_sample_count": "8",
+          "mean_absolute_successive_interval_delta": {
+            "numerator": "0",
+            "denominator": "1",
+            "display": "0s"
+          }
+        },
+        "a_to_b_inter_arrival": {
+          "interval_sample_count": "9",
+          "discontinuity_count": "0",
+          "min_interval": {
+            "numerator": "5",
+            "denominator": "1",
+            "display": "5s"
+          },
+          "max_interval": {
+            "numerator": "5",
+            "denominator": "1",
+            "display": "5s"
+          },
+          "mean_interval": {
+            "numerator": "5",
+            "denominator": "1",
+            "display": "5s"
+          },
+          "successive_delta_sample_count": "8",
+          "mean_absolute_successive_interval_delta": {
+            "numerator": "0",
+            "denominator": "1",
+            "display": "0s"
+          }
+        },
+        "b_to_a_inter_arrival": {
+          "interval_sample_count": "0",
+          "discontinuity_count": "0",
+          "min_interval": null,
+          "max_interval": null,
+          "mean_interval": null,
+          "successive_delta_sample_count": "0",
+          "mean_absolute_successive_interval_delta": null
+        },
+        "same_endpoint_inter_arrival": {
+          "interval_sample_count": "0",
+          "discontinuity_count": "0",
+          "min_interval": null,
+          "max_interval": null,
+          "mean_interval": null,
+          "successive_delta_sample_count": "0",
+          "mean_absolute_successive_interval_delta": null
+        }
+      }
+    }
+  ],
+  "observations": [
+    {
+      "id": "obs:0:dns:0",
+      "protocol": "dns",
+      "packet_reference": "0",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "0",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16384,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "e6331e0813a4eab760c01d5a6b39d323a7f13880bb0dcefb.7203fc08ed1799480bd87d98680965c5fc710003e91e0ae7.eac23714169cf2dd84bc8c600fd481f4d5fbe987aa226277.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:1:dns:0",
+      "protocol": "dns",
+      "packet_reference": "1",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "1",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16385,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "e025d945219c0e571b4ee0586df6bf47d13bf0b9c4ab0386.9a94cfe575fec7502a9ecf5a41acb46b1e38ee3775d84acc.f901e96abb50d76c89fbf02af97b9876c64596633b9b8730.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:2:dns:0",
+      "protocol": "dns",
+      "packet_reference": "2",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "2",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16386,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "e96c44d3a14559ca13c80f1fda1cb14c016ba59c911c136f.0cf37becf70bbd8a895e1a90d8ad9d876be9d86f1df1e767.f076f7087e620c9d2072f50742ad9c57547ec2fc9f230a55.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:3:dns:0",
+      "protocol": "dns",
+      "packet_reference": "3",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "3",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16387,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "ab37ba25fee7f34621742d27093ee1861d892d905bce61fd.e57d3282029f72d2a1a3c42f619209b573cc7849ea7dae35.6fa196b3bd49d3ffbaabba6f4429d9e7d6245f7d2d9909c0.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:4:dns:0",
+      "protocol": "dns",
+      "packet_reference": "4",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "4",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16388,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "42240a6f36df68d5e66198a2dd0f649b4138a5c89da6c2c8.b1c7bbad29a27c238904e467aad405590ab285f60f7cc89a.cbc1e852f98654479dfe534c3e6c2fbcc242c092317aee40.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:5:dns:0",
+      "protocol": "dns",
+      "packet_reference": "5",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "5",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16389,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "efa8b475711932d7b073448796b4745303c88bc964d12d81.09f353222e2191f76594e56f092c3a20938a9a5506d69dfa.5b646ed97850422066fd8f4a46f9a2319ce019066886e88f.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:6:dns:0",
+      "protocol": "dns",
+      "packet_reference": "6",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "6",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16390,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "b4cb971439c142858f67f6c8b6cf464a773d9f7766d0834d.1306ae9f1677e5537e21ac204cd2a4801b70dd9d60bf7468.31a88ebee56b2462d1ff00daf6772091e64846afbcc73c6d.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:7:dns:0",
+      "protocol": "dns",
+      "packet_reference": "7",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "7",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16391,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "fdb4aef60c7f07c1c10b42f70edb69a9f9eb00491281c584.4301493acd336a75b7eed62f41935446941aec54976ff3b6.4a186292bd489ce835129f846a8276015ebe8f586e5ebf4d.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:8:dns:0",
+      "protocol": "dns",
+      "packet_reference": "8",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "8",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16392,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "7e0b3c2509369858aebf2163c0b1bf62d3572382f79b890b.f1697f3b508413ffd9b9a8fda7ec471c26a4ee24024cef01.0a50cf4548ae359345f68150c2928a559bb3614d91142491.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    },
+    {
+      "id": "obs:9:dns:0",
+      "protocol": "dns",
+      "packet_reference": "9",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "9",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 56000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 16393,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "2e4fcfcdcb77941bc6ff9413e8db47ed0a73aa6321acd2c7.a0f51115debfc05b41eb57c7a006d1ce8ed844587ecd97b5.348ba3bf16aa9276d9ba6f85527c1d09bcbf2605aa50d211.c2.example.org",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "id": "evi:0",
+      "kind": "TemporalMetric",
+      "description": "A-to-B periodic inter-arrival timing metrics",
+      "packet_references": [],
+      "flow_references": [
+        "Flow(0)"
+      ],
+      "observation_references": [],
+      "measurements": [
+        {
+          "metric_key": "discontinuity_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "0"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "interval_sample_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "9"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "6"
+          },
+          "comparison": ">=",
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_interval",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "5",
+              "denominator": "1",
+              "display": "5s"
+            }
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "s"
+        },
+        {
+          "metric_key": "mean_absolute_successive_interval_delta",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "0",
+              "denominator": "1",
+              "display": "0s"
+            }
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "s"
+        },
+        {
+          "metric_key": "mean_interval",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "5",
+              "denominator": "1",
+              "display": "5s"
+            }
+          },
+          "threshold": {
+            "type": "Duration",
+            "value": {
+              "numerator": "1",
+              "denominator": "1",
+              "display": "1s"
+            }
+          },
+          "comparison": ">=",
+          "unit": "s"
+        },
+        {
+          "metric_key": "minimum_interval",
+          "observed_value": {
+            "type": "Duration",
+            "value": {
+              "numerator": "5",
+              "denominator": "1",
+              "display": "5s"
+            }
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "s"
+        },
+        {
+          "metric_key": "relative_jitter_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "0",
+              "denominator": "1",
+              "string_representation": "0/1"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "10",
+              "string_representation": "1/10"
+            }
+          },
+          "comparison": "<=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "spread_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "0",
+              "denominator": "1",
+              "string_representation": "0/1"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "4",
+              "string_representation": "1/4"
+            }
+          },
+          "comparison": "<=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "successive_delta_sample_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "8"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:1",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:0:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:2",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:1:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:3",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:3:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:4",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:4:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:5",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:5:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:6",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:6:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:7",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:7:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:8",
+      "kind": "ProtocolObservation",
+      "description": "DNS query-name structural measurements",
+      "packet_references": [],
+      "flow_references": [],
+      "observation_references": [
+        "obs:8:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "matching_question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "question_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "1"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "id": "evi:9",
+      "kind": "RatioComparison",
+      "description": "Flow-level DNS query structural and candidate proportion measurements",
+      "packet_references": [],
+      "flow_references": [
+        "Flow(0)"
+      ],
+      "observation_references": [
+        "obs:0:dns:0",
+        "obs:8:dns:0"
+      ],
+      "measurements": [
+        {
+          "metric_key": "candidate_query_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "8"
+          },
+          "threshold": null,
+          "comparison": null,
+          "unit": "count"
+        },
+        {
+          "metric_key": "candidate_query_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "4",
+              "denominator": "5",
+              "string_representation": "4/5"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "3",
+              "denominator": "4",
+              "string_representation": "3/4"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "dns_query_observation_count",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "10"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "8"
+          },
+          "comparison": ">=",
+          "unit": "count"
+        },
+        {
+          "metric_key": "maximum_label_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "48"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "40"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        },
+        {
+          "metric_key": "maximum_label_octet_diversity_ratio",
+          "observed_value": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "threshold": {
+            "type": "Ratio",
+            "value": {
+              "numerator": "1",
+              "denominator": "3",
+              "string_representation": "1/3"
+            }
+          },
+          "comparison": ">=",
+          "unit": "ratio"
+        },
+        {
+          "metric_key": "maximum_qname_wire_length",
+          "observed_value": {
+            "type": "Unsigned",
+            "value": "163"
+          },
+          "threshold": {
+            "type": "Unsigned",
+            "value": "120"
+          },
+          "comparison": ">=",
+          "unit": "bytes"
+        }
+      ],
+      "limitations": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "find:0",
+      "ordinal": "0",
+      "detector_id": "behavior.periodic_beaconing",
+      "detector_version": "v1.0.0",
+      "title": "Possible periodic beaconing behavior",
+      "summary": "Observed highly regular directional packet timing intervals consistent with possible periodic beaconing",
+      "rationale": "Directional traffic in this flow exhibits low-jitter periodic inter-arrival timing satisfying configured statistical thresholds. Periodic timing is common in application keepalives, health checks, monitoring agents, scheduled polling, and heartbeat traffic, and does not establish malicious activity without independent corroborating evidence.",
+      "severity": "low",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [
+          "Flow(0)"
+        ],
+        "observations": []
+      },
+      "evidence_references": [
+        "evi:0"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:1",
+      "ordinal": "1",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:0:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:1"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:2",
+      "ordinal": "2",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:1:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:2"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:3",
+      "ordinal": "3",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:3:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:3"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:4",
+      "ordinal": "4",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:4:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:4"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:5",
+      "ordinal": "5",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:5:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:5"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:6",
+      "ordinal": "6",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:6:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:6"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:7",
+      "ordinal": "7",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:7:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:7"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:8",
+      "ordinal": "8",
+      "detector_id": "dns.long_query_name",
+      "detector_version": "v1.0.1",
+      "title": "Unusually long DNS query name",
+      "summary": "A DNS query contains one or more unusually long, high-octet-diversity names meeting configured structural thresholds",
+      "rationale": "Observed DNS query observation contains 1 matching question(s) (total 1) with maximum QNAME wire length 163 octets (threshold >= 120), maximum label length 48 octets (threshold >= 40), and maximum label octet diversity ratio 1/3 (threshold >= 1/3). Long or high-diversity query names can arise from DNS tunneling or data exfiltration, but are also commonly used by CDNs, anti-spam RBL reputation lookups, DKIM/SPF TXT records, ACME challenges, security scanners, and telemetry endpoints.",
+      "severity": "info",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [],
+        "observations": [
+          "obs:8:dns:0"
+        ]
+      },
+      "evidence_references": [
+        "evi:8"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": []
+    },
+    {
+      "id": "find:9",
+      "ordinal": "9",
+      "detector_id": "dns.possible_tunneling",
+      "detector_version": "v1.1.1",
+      "title": "Possible DNS tunneling pattern",
+      "summary": "Repeated DNS query observations within this flow contain unusually long, high-octet-diversity names in a proportion (4/5) meeting configured aggregate thresholds",
+      "rationale": "Flow contains 10 DNS query observation(s), of which 8 (4/5) exhibit long QNAME wire length (max 163 octets), long labels (max 48 octets), and high label octet diversity (max 1/3). The pattern is consistent with possible DNS data tunneling or encoded exfiltration channels, but can also arise from benign generated identifiers, telemetry, cache keys, service discovery, security products, or application-specific opaque labels.",
+      "severity": "low",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [
+          "Flow(0)"
+        ],
+        "observations": []
+      },
+      "evidence_references": [
+        "evi:9"
+      ],
+      "source_finding_references": [],
+      "mitre_mappings": [
+        {
+          "domain": "enterprise",
+          "catalog_version": "19.2",
+          "technique_id": "T1071.004",
+          "technique_name": "Application Layer Protocol: DNS",
+          "technique_version": "1.4",
+          "tactic_id": "TA0011",
+          "tactic": "command_and_control",
+          "relationship": "analytical",
+          "rationale": "The detector identified repeated DNS query observations with unusually long, high-octet-diversity names consistent with structured data transmission over DNS. This mapping describes an analytical relationship with network protocol characteristics defined in ATT&CK T1071.004, not confirmed malware or external attribution.",
+          "provenance": {
+            "kind": "detector",
+            "component_id": "dns.possible_tunneling",
+            "component_version": "v1.1.1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "find:10",
+      "ordinal": "10",
+      "detector_id": "behavior.possible_c2_multi_signal",
+      "detector_version": "v1.1.1",
+      "title": "Possible multi-signal C2-like behavior",
+      "summary": "The same flow independently matched periodic communication and possible DNS tunneling heuristics.",
+      "rationale": "Two independent detector signals (periodic beaconing and possible DNS tunneling) co-occur on the same network flow. While this multi-signal correlation increases investigative relevance, it does not establish confirmed malware, command-and-control, or data exfiltration. Benign alternatives include periodic DNS telemetry, monitoring software, generated scheduled lookups, service discovery, heartbeat mechanisms, security software, or automated infrastructure management.",
+      "severity": "medium",
+      "confidence": "medium",
+      "subject": {
+        "packets": [],
+        "flows": [
+          "Flow(0)"
+        ],
+        "observations": []
+      },
+      "evidence_references": [
+        "evi:0",
+        "evi:9"
+      ],
+      "source_finding_references": [
+        "find:0",
+        "find:9"
+      ],
+      "mitre_mappings": [
+        {
+          "domain": "enterprise",
+          "catalog_version": "19.2",
+          "technique_id": "T1071.004",
+          "technique_name": "Application Layer Protocol: DNS",
+          "technique_version": "1.4",
+          "tactic_id": "TA0011",
+          "tactic": "command_and_control",
+          "relationship": "analytical",
+          "rationale": "The correlator matched co-occurring periodic beaconing and possible DNS tunneling heuristics on the same flow, increasing investigative relevance for command-and-control channel analysis. This mapping reflects heuristic alignment with ATT&CK T1071.004 without asserting confirmed adversary presence.",
+          "provenance": {
+            "kind": "correlator",
+            "component_id": "behavior.possible_c2_multi_signal",
+            "component_version": "v1.1.1"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 //! Serializable DTOs for normalized DNS observation reports.
 
-use pcapraven_domain::{DnsObservation, DnsQuestion, DnsResourceRecord};
+use pcapraven_domain::{DnsObservation, DnsQuestion, DnsResourceRecord, DnsTransport};
 use serde::Serialize;
 
 use crate::format::REPORT_SCHEMA_VERSION;
@@ -12,8 +12,8 @@ pub struct DnsReportDto {
     pub schema_version: &'static str,
     /// Report kind identifier ("dns").
     pub kind: &'static str,
-    /// Total count of DNS observations.
-    pub total_observations: usize,
+    /// Total count of DNS observations as a decimal string.
+    pub total_observations: String,
     /// List of normalized DNS observations.
     pub observations: Vec<DnsObservationDto>,
 }
@@ -25,7 +25,7 @@ impl DnsReportDto {
         Self {
             schema_version: REPORT_SCHEMA_VERSION,
             kind: "dns",
-            total_observations: observations.len(),
+            total_observations: observations.len().to_string(),
             observations: observations
                 .iter()
                 .map(DnsObservationDto::from_domain)
@@ -37,9 +37,9 @@ impl DnsReportDto {
 /// A normalized DNS observation record.
 #[derive(Debug, Clone, Serialize)]
 pub struct DnsObservationDto {
-    /// Zero-based packet ordinal in capture file.
-    pub packet_ordinal: u64,
-    /// Transport protocol ("UDP" or "TCP").
+    /// Zero-based packet ordinal in capture file as a decimal string.
+    pub packet_ordinal: String,
+    /// Transport protocol ("udp" or "tcp").
     pub transport: String,
     /// Source IP address string.
     pub source_ip: String,
@@ -74,7 +74,6 @@ pub struct DnsObservationDto {
     /// Additional resource records.
     pub additionals: Vec<DnsResourceRecordDto>,
     /// EDNS(0) metadata if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub edns: Option<DnsEdnsDto>,
     /// Completeness status ("complete" or "partial").
     pub completeness: String,
@@ -84,15 +83,25 @@ impl DnsObservationDto {
     /// Converts a domain [`DnsObservation`] into a serializable DTO.
     #[must_use]
     pub fn from_domain(obs: &DnsObservation) -> Self {
+        let transport_str = match obs.transport {
+            DnsTransport::Tcp => "tcp",
+            DnsTransport::Udp => "udp",
+        };
+
+        let kind_str = match obs.message_kind {
+            pcapraven_domain::DnsMessageKind::Query => "query",
+            pcapraven_domain::DnsMessageKind::Response => "response",
+        };
+
         Self {
-            packet_ordinal: obs.packet.capture_record_ordinal,
-            transport: obs.transport.as_str().to_string(),
+            packet_ordinal: obs.packet.capture_record_ordinal.to_string(),
+            transport: transport_str.to_string(),
             source_ip: obs.source_ip.to_string(),
             source_port: obs.source_port,
             destination_ip: obs.destination_ip.to_string(),
             destination_port: obs.destination_port,
             transaction_id: obs.transaction_id,
-            message_kind: obs.message_kind.as_str().to_string(),
+            message_kind: kind_str.to_string(),
             opcode: obs.opcode,
             authoritative_answer: obs.flags.aa,
             truncation: obs.flags.tc,

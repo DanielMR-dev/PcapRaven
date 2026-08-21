@@ -275,7 +275,7 @@ fn test_validate_complete() {
     let (code, stdout, stderr) = run_cli(&["validate", &temp.path_str()]);
     assert_eq!(code, 0);
     assert!(stdout.contains("Capture"));
-    assert!(stdout.contains("Format        PCAP (little-endian)"));
+    assert!(stdout.contains("Format        pcap"));
     assert!(stdout.contains("Completion    complete"));
     assert!(stdout.contains("Records       0"));
     assert!(stdout.contains("Linktype      1"));

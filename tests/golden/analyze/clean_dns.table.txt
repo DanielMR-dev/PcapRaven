@@ -1,0 +1,20 @@
+=== PCAPRAVEN ANALYSIS REPORT ===
+
+Capture Summary:
+  Format:             pcap
+  Completion:         complete
+  Total Packets:      2
+  Total Flows:        1
+  DNS Observations:   2
+  HTTP Observations:  0
+  TLS Observations:   0
+  Total Findings:     0
+
+Reconstructed Flows (1):
+--------------------------------------------------------------------------------
+ID     PROTO ENDPOINT_A            ENDPOINT_B              PKTS    A>B    B>A   SELF  CAP_BYTES WIRE_BYTES DURATION   END             
+0      UDP   192.0.2.10:53000      203.0.113.53:53            2      1      1      0        158        158 1/50s      EndOfInput      
+
+Analytical Findings (0):
+--------------------------------------------------------------------------------
+No findings matched the requested criteria.

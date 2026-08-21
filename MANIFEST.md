@@ -17,9 +17,10 @@ Phase 11 detection engine architecture,
 Phase 12 explainable periodic beaconing detection,
 Phase 13 explainable DNS anomaly and possible tunneling detection,
 Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation,
-Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection, and
-Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command are complete.
-Phase 17 (fixture corpus + golden/integration/E2E tests) and later capabilities remain future work.
+Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection,
+Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command, and
+Phase 17 synthetic fixture corpus, schema freeze verification, golden reports matrix, cross-crate integration, and end-to-end regression testing are complete.
+Phase 18 (property testing, fuzzing, robustness, and performance) and later capabilities remain future work.
 
 ## Tracked Current Inventory
 
@@ -36,14 +37,19 @@ Phase 17 (fixture corpus + golden/integration/E2E tests) and later capabilities 
 | `Cargo.lock` | Cargo-generated locked dependency graph for the seven-package main workspace. |
 | `rust-toolchain.toml` | Exact pinned stable development toolchain and components. |
 | `scripts/check_workspace_architecture.py` | Dependency-free Cargo-metadata package, internal-graph, and audited-dependency checker. |
+| `scripts/generate_fixtures.py` | Standalone deterministic generator for synthetic PCAP/PCAPNG fixture corpus. |
+| `scripts/generate_goldens.py` | Standalone generator for canonical CLI golden output matrix. |
 | `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and bounded fuzz-target build CI. |
+| `tests/fixtures/pcaps/README.md` | Provenance and inventory documentation for synthetic PCAP fixture corpus. |
+| `tests/fixtures/pcaps/checksums.sha256` | SHA-256 integrity checksums for synthetic PCAP fixture corpus. |
+| `tests/golden/README.md` | Documentation and golden update policy for CLI golden reports matrix. |
 | `docs/PRODUCT.md` | Product identity, scope, goals, non-goals, and target CLI behavior. |
 | `docs/ARCHITECTURE.md` | Workspace, crate boundaries, dependency direction, errors, logging, and unsafe Rust. |
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
-| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, and CLI integration tests, dependency audits, quality gates, fuzzing, and later test strategy. |
+| `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
 | `docs/detectors/PERIODIC_BEACONING.md` | Specification and statistical contract for the periodic beaconing detector. |
 | `docs/detectors/DNS_ANOMALY_TUNNELING.md` | Specification and analytical contract for DNS anomaly and possible tunneling detectors. |
@@ -59,6 +65,7 @@ Phase 17 (fixture corpus + golden/integration/E2E tests) and later capabilities 
 | `.agents/skills/dns-protocol-analysis/SKILL.md` | Reusable DNS wire parser, candidate classification, and observation extraction procedure. |
 | `.agents/skills/finding-correlation/SKILL.md` | Reusable cross-detector finding correlation procedure. |
 | `.agents/skills/finding-filtering/SKILL.md` | Reusable explainable finding filtering procedure. |
+| `.agents/skills/fixture-golden-testing/SKILL.md` | Reusable synthetic fixture corpus, schema freeze verification, golden reports, and end-to-end regression testing procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
 | `.agents/skills/http-protocol-analysis/SKILL.md` | Reusable HTTP/1.x header parser, candidate classification, sensitive header masking, and observation extraction procedure. |
@@ -137,17 +144,18 @@ Phase 17 (fixture corpus + golden/integration/E2E tests) and later capabilities 
 | `crates/pcapraven-reporting/src/csv_escape.rs` | Formula injection defense and CSV cell sanitizer. |
 | `crates/pcapraven-reporting/src/dto/mod.rs` | Serializable Data Transfer Object root and module declarations. |
 | `crates/pcapraven-reporting/src/dto/validation.rs` | DTO models for capture validation reports. |
-| `crates/pcapraven-reporting/src/dto/flow.rs` | DTO models for network flow reports. |
+| `crates/pcapraven-reporting/src/dto/flows.rs` | DTO models for network flow reports. |
 | `crates/pcapraven-reporting/src/dto/dns.rs` | DTO models for DNS observation reports. |
 | `crates/pcapraven-reporting/src/dto/http.rs` | DTO models for HTTP observation reports. |
 | `crates/pcapraven-reporting/src/dto/tls.rs` | DTO models for TLS observation reports. |
-| `crates/pcapraven-reporting/src/dto/finding.rs` | DTO models for analytical findings and evidence reports. |
+| `crates/pcapraven-reporting/src/dto/findings.rs` | DTO models for analytical findings and evidence reports. |
 | `crates/pcapraven-reporting/src/dto/analysis.rs` | DTO models for unified forensic analysis reports. |
 | `crates/pcapraven-reporting/src/table/mod.rs` | Deterministic ASCII table and terminal card formatters. |
 | `crates/pcapraven-reporting/src/json/mod.rs` | Deterministic pretty-printed JSON serialization engine. |
 | `crates/pcapraven-reporting/src/ndjson/mod.rs` | Deterministic newline-delimited JSON streaming serializer. |
 | `crates/pcapraven-reporting/src/csv/mod.rs` | Deterministic 2D tabular CSV serializer with formula injection sanitization. |
 | `crates/pcapraven-reporting/tests/reporting.rs` | Integration, schema anchor, format projection, CSV formula defense, and property tests for reporting. |
+| `crates/pcapraven-reporting/tests/schema_contract.rs` | Schema contract tests verifying wide integer string formatting, null preservation, and NDJSON envelope structures. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
 | `crates/pcapraven-cli/src/main.rs` | Functional CLI binary entry point and exit-code mapping. |
 | `crates/pcapraven-cli/src/analysis.rs` | Shared capture analysis pipeline and detection engine orchestration. |
@@ -155,6 +163,8 @@ Phase 17 (fixture corpus + golden/integration/E2E tests) and later capabilities 
 | `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, DNS, HTTP, TLS, findings, and unified analysis inspection. |
 | `crates/pcapraven-cli/src/diagnostics.rs` | Bounded diagnostic emission and suppression tracking. |
 | `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI across subcommands, formats, and safe output writing. |
+| `crates/pcapraven-cli/tests/corpus.rs` | Cross-crate integration tests over synthetic PCAP fixture corpus, validation, flows, and findings. |
+| `crates/pcapraven-cli/tests/golden.rs` | End-to-end golden regression tests verifying exact byte-for-byte CLI stdout matching. |
 | `fuzz/Cargo.toml` | Excluded independent cargo-fuzz project manifest with separately audited fuzz-only dependency. |
 | `fuzz/Cargo.lock` | Cargo-generated lockfile for the excluded fuzz project. |
 | `fuzz/fuzz_targets/fuzz_pcap_reader.rs` | Stable-name libFuzzer target using only the public bounded reader API. |

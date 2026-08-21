@@ -164,21 +164,22 @@ pub fn report_tls(
 pub fn report_findings(
     format: ReportFormat,
     findings: &[&FindingRecord],
-    evidence: &[EvidenceRecord],
+    evidence: &[&EvidenceRecord],
+    filter: Option<FindingFilterDto>,
     w: &mut impl Write,
 ) -> Result<(), ReportError> {
     match format {
         ReportFormat::Table => table::render_findings_table(findings, w),
         ReportFormat::Json => {
-            let dto = FindingsReportDto::from_domain_findings(findings, evidence);
+            let dto = FindingsReportDto::from_domain_findings(findings, evidence, filter);
             json::render_findings_json(&dto, w)
         }
         ReportFormat::Ndjson => {
-            let dto = FindingsReportDto::from_domain_findings(findings, evidence);
+            let dto = FindingsReportDto::from_domain_findings(findings, evidence, filter);
             ndjson::render_findings_ndjson(&dto, w)
         }
         ReportFormat::Csv => {
-            let dto = FindingsReportDto::from_domain_findings(findings, evidence);
+            let dto = FindingsReportDto::from_domain_findings(findings, evidence, filter);
             csv::render_findings_csv(&dto, w)
         }
     }

@@ -20,7 +20,10 @@ in `pcapraven-domain`. Phase 11 implements the detection engine architecture, de
 preflight validation, and execution pipeline in `pcapraven-detection`. Phase 12 implements explainable
 periodic beaconing detection, Phase 13 implements explainable DNS anomaly and possible tunneling detection, and
 Phase 14 implements explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`.
-MITRE ATT&CK mappings (Phase 15) and structured reporting (Phase 16) remain future work.
+Phase 15 implements finding classification, filtering, and MITRE ATT&CK mapping provenance in `pcapraven-domain` and `pcapraven-detection`.
+Phase 16 implements deterministic reporting DTO projections and multi-format serialization in `pcapraven-reporting`.
+Domain model facts remain separate from reporting DTO wire representations.
+Phase 17 (synthetic fixture corpus, golden report matrix, and end-to-end regression testing) is the current active phase.
 
 ## Modeling Rules
 

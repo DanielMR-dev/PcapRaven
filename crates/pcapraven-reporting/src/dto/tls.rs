@@ -1,7 +1,8 @@
 //! Serializable DTOs for normalized TLS handshake observation reports.
 
 use pcapraven_domain::{
-    TlsClientHelloMetadata, TlsExtensionMetadata, TlsObservation, TlsServerHelloMetadata,
+    TlsClientHelloMetadata, TlsExtensionMetadata, TlsHandshakeKind, TlsObservation,
+    TlsServerHelloMetadata,
 };
 use serde::Serialize;
 
@@ -14,8 +15,8 @@ pub struct TlsReportDto {
     pub schema_version: &'static str,
     /// Report kind identifier ("tls").
     pub kind: &'static str,
-    /// Total count of TLS observations.
-    pub total_observations: usize,
+    /// Total count of TLS observations as a decimal string.
+    pub total_observations: String,
     /// List of normalized TLS observations.
     pub observations: Vec<TlsObservationDto>,
 }
@@ -27,7 +28,7 @@ impl TlsReportDto {
         Self {
             schema_version: REPORT_SCHEMA_VERSION,
             kind: "tls",
-            total_observations: observations.len(),
+            total_observations: observations.len().to_string(),
             observations: observations
                 .iter()
                 .map(TlsObservationDto::from_domain)
@@ -39,8 +40,8 @@ impl TlsReportDto {
 /// A normalized TLS 1.2 / TLS 1.3 handshake observation record.
 #[derive(Debug, Clone, Serialize)]
 pub struct TlsObservationDto {
-    /// Zero-based packet ordinal in capture file.
-    pub packet_ordinal: u64,
+    /// Zero-based packet ordinal in capture file as a decimal string.
+    pub packet_ordinal: String,
     /// Source IP address string.
     pub source_ip: String,
     /// Source TCP port number.
@@ -51,13 +52,11 @@ pub struct TlsObservationDto {
     pub destination_port: u16,
     /// TLS record layer version string (e.g. "TLSv1.0", "TLSv1.2").
     pub record_version: String,
-    /// Handshake message kind ("ClientHello", "ServerHello", etc.).
+    /// Handshake message kind ("client_hello", "server_hello", "hello_retry_request", "other").
     pub handshake_kind: String,
     /// ClientHello handshake metadata if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_hello: Option<TlsClientHelloDto>,
     /// ServerHello handshake metadata if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub server_hello: Option<TlsServerHelloDto>,
     /// Completeness status ("complete" or "partial").
     pub completeness: String,
@@ -67,14 +66,21 @@ impl TlsObservationDto {
     /// Converts a domain [`TlsObservation`] into a serializable DTO.
     #[must_use]
     pub fn from_domain(obs: &TlsObservation) -> Self {
+        let kind_str = match obs.handshake_kind {
+            TlsHandshakeKind::ClientHello => "client_hello",
+            TlsHandshakeKind::ServerHello => "server_hello",
+            TlsHandshakeKind::HelloRetryRequest => "hello_retry_request",
+            TlsHandshakeKind::Other(_) => "other",
+        };
+
         Self {
-            packet_ordinal: obs.packet.capture_record_ordinal,
+            packet_ordinal: obs.packet.capture_record_ordinal.to_string(),
             source_ip: obs.source_ip.to_string(),
             source_port: obs.source_port,
             destination_ip: obs.destination_ip.to_string(),
             destination_port: obs.destination_port,
             record_version: obs.record_version.as_str().to_string(),
-            handshake_kind: obs.handshake_kind.as_str().to_string(),
+            handshake_kind: kind_str.to_string(),
             client_hello: obs
                 .client_hello
                 .as_ref()
@@ -98,7 +104,6 @@ pub struct TlsClientHelloDto {
     /// Client declared legacy protocol version string (e.g. "TLSv1.2").
     pub client_version: String,
     /// Server Name Indication (SNI) hostname if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub server_name: Option<String>,
     /// Supported versions announced via supported_versions extension.
     pub supported_versions: Vec<String>,
@@ -147,12 +152,10 @@ pub struct TlsServerHelloDto {
     /// Server declared legacy protocol version string (e.g. "TLSv1.2").
     pub server_version: String,
     /// Negotiated protocol version (from supported_versions extension if TLS 1.3).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_version: Option<String>,
     /// Selected 16-bit cipher suite code (formatted as hex "0x1301").
     pub selected_cipher_suite: String,
     /// Negotiated ALPN protocol name if present.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_alpn: Option<String>,
     /// Extensions present in the ServerHello.
     pub extensions: Vec<TlsExtensionDto>,

@@ -13,12 +13,13 @@ use pcapraven_pcap::{
     CaptureTimestampResolution, ReaderLimits,
 };
 use pcapraven_reporting::{
-    AnalysisReportDto, AnalysisSummaryDto, DnsObservationDto, EvidenceRecordDto, FindingRecordDto,
-    FlowRecordDto, HttpObservationDto, ReportError, ReportFormat, TlsObservationDto,
+    AnalysisReportDto, AnalysisSummaryDto, EvidenceRecordDto, FindingFilterDto, FindingRecordDto,
+    FlowRecordDto, ProtocolObservationDto, ReportCompletionDto, ReportError, ReportFormat,
     ValidationCompletionDto, ValidationDiagnosticDto, ValidationMetadataDto, ValidationSummaryDto,
     report_analysis, report_dns, report_findings, report_flows, report_http, report_tls,
     report_validation,
 };
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
@@ -37,24 +38,63 @@ fn emit_fatal_error(message: &str) -> u8 {
     1
 }
 
-/// Opens the requested output sink (safe file or stdout).
-fn open_output_sink(output_path: Option<&Path>) -> Result<Box<dyn Write>, u8> {
+/// Executes a reporting closure against the requested output sink (safe atomic file or stdout).
+fn with_output_sink<F>(output_path: Option<&Path>, f: F) -> Result<(), u8>
+where
+    F: FnOnce(&mut dyn Write) -> Result<(), ReportError>,
+{
     match output_path {
-        Some(path) => match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)
-        {
-            Ok(file) => Ok(Box::new(std::io::BufWriter::new(file))),
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Err(emit_config_error(
-                &format!("output file already exists: {}", path.display()),
-            )),
-            Err(err) => Err(emit_fatal_error(&format!(
-                "failed to create output file '{}': {err}",
-                path.display()
-            ))),
-        },
-        None => Ok(Box::new(io::stdout())),
+        Some(path) => {
+            let file = match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)
+            {
+                Ok(f) => f,
+                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                    return Err(emit_config_error(&format!(
+                        "output file already exists: {}",
+                        path.display()
+                    )));
+                }
+                Err(err) => {
+                    return Err(emit_fatal_error(&format!(
+                        "failed to create output file '{}': {err}",
+                        path.display()
+                    )));
+                }
+            };
+            let mut writer = std::io::BufWriter::new(file);
+            let write_res = f(&mut writer).and_then(|()| writer.flush().map_err(ReportError::Io));
+            if let Err(e) = write_res {
+                drop(writer);
+                let _ = std::fs::remove_file(path);
+                return match e {
+                    ReportError::UnsupportedFormat { rationale, .. } => {
+                        Err(emit_config_error(rationale))
+                    }
+                    other => Err(emit_fatal_error(&format!(
+                        "failed to render report: {other}"
+                    ))),
+                };
+            }
+            Ok(())
+        }
+        None => {
+            let mut stdout = io::stdout().lock();
+            let write_res = f(&mut stdout).and_then(|()| stdout.flush().map_err(ReportError::Io));
+            if let Err(e) = write_res {
+                return match e {
+                    ReportError::UnsupportedFormat { rationale, .. } => {
+                        Err(emit_config_error(rationale))
+                    }
+                    other => Err(emit_fatal_error(&format!(
+                        "failed to render report: {other}"
+                    ))),
+                };
+            }
+            Ok(())
+        }
     }
 }
 
@@ -71,14 +111,11 @@ fn convert_validation_outcome(
     let mut meta = ValidationMetadataDto::default();
     match outcome.metadata.format {
         CaptureFormat::LegacyPcap => {
+            meta.format = "pcap".to_string();
             if let Some(ref legacy) = outcome.metadata.legacy {
-                meta.format = match legacy.byte_order {
-                    ByteOrder::Little => "PCAP (little-endian)".to_string(),
-                    ByteOrder::Big => "PCAP (big-endian)".to_string(),
-                };
                 meta.byte_order = match legacy.byte_order {
-                    ByteOrder::Little => "little-endian".to_string(),
-                    ByteOrder::Big => "big-endian".to_string(),
+                    ByteOrder::Little => "little_endian".to_string(),
+                    ByteOrder::Big => "big_endian".to_string(),
                 };
                 meta.version_major = Some(legacy.version_major);
                 meta.version_minor = Some(legacy.version_minor);
@@ -95,11 +132,12 @@ fn convert_validation_outcome(
                     } => Some(format!("2^{exponent} units/s ({units_per_second} Hz)")),
                 };
             } else {
-                meta.format = "PCAP".to_string();
+                meta.byte_order = "unknown".to_string();
             }
         }
         CaptureFormat::PcapNg => {
-            meta.section_count = Some(outcome.metadata.sections.len());
+            meta.format = "pcapng".to_string();
+            meta.section_count = Some(outcome.metadata.sections.len().to_string());
             let mut total_ifaces = 0usize;
             let mut usable_ifaces = 0usize;
             let mut unusable_ifaces = 0usize;
@@ -113,33 +151,30 @@ fn convert_validation_outcome(
                     }
                 }
             }
-            meta.interface_count = Some(total_ifaces);
-            meta.usable_interfaces = Some(usable_ifaces);
-            meta.unusable_interfaces = Some(unusable_ifaces);
+            meta.interface_count = Some(total_ifaces.to_string());
+            meta.usable_interfaces = Some(usable_ifaces.to_string());
+            meta.unusable_interfaces = Some(unusable_ifaces.to_string());
 
             if let Some(first_sec) = outcome.metadata.sections.first() {
-                meta.format = match first_sec.byte_order {
-                    ByteOrder::Little => "PCAPNG (little-endian)".to_string(),
-                    ByteOrder::Big => "PCAPNG (big-endian)".to_string(),
-                };
                 meta.byte_order = match first_sec.byte_order {
-                    ByteOrder::Little => "little-endian".to_string(),
-                    ByteOrder::Big => "big-endian".to_string(),
+                    ByteOrder::Little => "little_endian".to_string(),
+                    ByteOrder::Big => "big_endian".to_string(),
                 };
                 meta.version_major = Some(first_sec.version_major);
                 meta.version_minor = Some(first_sec.version_minor);
             } else {
-                meta.format = "PCAPNG".to_string();
+                meta.byte_order = "unknown".to_string();
             }
         }
         CaptureFormat::Unknown => {
-            meta.format = "Unknown".to_string();
+            meta.format = "unknown".to_string();
+            meta.byte_order = "unknown".to_string();
         }
     }
 
     let summary = ValidationSummaryDto {
-        records_emitted,
-        total_diagnostics: outcome.diagnostics.len(),
+        records_emitted: records_emitted.to_string(),
+        total_diagnostics: outcome.diagnostics.len().to_string(),
         had_diagnostics: !outcome.diagnostics.is_empty(),
     };
 
@@ -167,12 +202,31 @@ fn convert_validation_outcome(
         .diagnostics
         .iter()
         .enumerate()
-        .map(|(i, d)| ValidationDiagnosticDto {
-            index: i,
-            stage: format!("{:?}", d.stage),
-            kind: format!("{:?}", d.kind),
-            message: d.message.to_string(),
-            byte_offset: Some(d.location.offset),
+        .map(|(i, d)| {
+            let stage_str = match d.stage {
+                pcapraven_pcap::CaptureDiagnosticStage::Format => "format",
+                pcapraven_pcap::CaptureDiagnosticStage::Header => "header",
+                pcapraven_pcap::CaptureDiagnosticStage::Block => "block",
+                pcapraven_pcap::CaptureDiagnosticStage::Interface => "interface",
+                pcapraven_pcap::CaptureDiagnosticStage::Packet => "packet",
+                pcapraven_pcap::CaptureDiagnosticStage::Reader => "reader",
+            };
+            let kind_str = match d.kind {
+                pcapraven_pcap::CaptureDiagnosticKind::Unsupported => "unsupported",
+                pcapraven_pcap::CaptureDiagnosticKind::Malformed => "malformed",
+                pcapraven_pcap::CaptureDiagnosticKind::Incomplete => "incomplete",
+                pcapraven_pcap::CaptureDiagnosticKind::InvalidReference => "invalid_reference",
+                pcapraven_pcap::CaptureDiagnosticKind::ResourceLimit => "resource_limit",
+                pcapraven_pcap::CaptureDiagnosticKind::Io => "io",
+                pcapraven_pcap::CaptureDiagnosticKind::Internal => "internal",
+            };
+            ValidationDiagnosticDto {
+                index: i.to_string(),
+                stage: stage_str.to_string(),
+                kind: kind_str.to_string(),
+                message: d.message.to_string(),
+                byte_offset: Some(d.location.offset.to_string()),
+            }
         })
         .collect();
 
@@ -282,15 +336,10 @@ fn run_validate(
             &format!("capture validation failed before useful records: {terminal_error}"),
         ),
         _ => {
-            let mut sink = match open_output_sink(output_path) {
-                Ok(s) => s,
-                Err(code) => return code,
-            };
-
-            if let Err(e) =
-                report_validation(format, &meta, &summary, &completion, &diags, &mut sink)
-            {
-                return emit_fatal_error(&format!("failed to write validation output: {e}"));
+            if let Err(code) = with_output_sink(output_path, |mut w| {
+                report_validation(format, &meta, &summary, &completion, &diags, &mut w)
+            }) {
+                return code;
             }
 
             if outcome.is_complete() && !had_stream_error {
@@ -329,13 +378,10 @@ fn run_flows(args: FlowsArgs, quiet: bool, format: ReportFormat, output_path: Op
         return 1;
     }
 
-    let mut sink = match open_output_sink(output_path) {
-        Ok(s) => s,
-        Err(code) => return code,
-    };
-
-    if let Err(e) = report_flows(format, &result.flows, &mut sink) {
-        return emit_fatal_error(&format!("failed to write flows output: {e}"));
+    if let Err(code) = with_output_sink(output_path, |mut w| {
+        report_flows(format, &result.flows, &mut w)
+    }) {
+        return code;
     }
 
     result.exit_code()
@@ -375,13 +421,8 @@ fn run_dns(args: DnsArgs, quiet: bool, format: ReportFormat, output_path: Option
         }
     }
 
-    let mut sink = match open_output_sink(output_path) {
-        Ok(s) => s,
-        Err(code) => return code,
-    };
-
-    if let Err(e) = report_dns(format, &dns_obs, &mut sink) {
-        return emit_fatal_error(&format!("failed to write DNS output: {e}"));
+    if let Err(code) = with_output_sink(output_path, |mut w| report_dns(format, &dns_obs, &mut w)) {
+        return code;
     }
 
     result.exit_code()
@@ -421,13 +462,9 @@ fn run_http(args: HttpArgs, quiet: bool, format: ReportFormat, output_path: Opti
         }
     }
 
-    let mut sink = match open_output_sink(output_path) {
-        Ok(s) => s,
-        Err(code) => return code,
-    };
-
-    if let Err(e) = report_http(format, &http_obs, &mut sink) {
-        return emit_fatal_error(&format!("failed to write HTTP output: {e}"));
+    if let Err(code) = with_output_sink(output_path, |mut w| report_http(format, &http_obs, &mut w))
+    {
+        return code;
     }
 
     result.exit_code()
@@ -467,13 +504,8 @@ fn run_tls(args: TlsArgs, quiet: bool, format: ReportFormat, output_path: Option
         }
     }
 
-    let mut sink = match open_output_sink(output_path) {
-        Ok(s) => s,
-        Err(code) => return code,
-    };
-
-    if let Err(e) = report_tls(format, &tls_obs, &mut sink) {
-        return emit_fatal_error(&format!("failed to write TLS output: {e}"));
+    if let Err(code) = with_output_sink(output_path, |mut w| report_tls(format, &tls_obs, &mut w)) {
+        return code;
     }
 
     result.exit_code()
@@ -486,6 +518,21 @@ fn run_findings(
     output_path: Option<&Path>,
 ) -> u8 {
     let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
+
+    let filter_dto = if args.min_severity.is_some()
+        || args.min_confidence.is_some()
+        || args.detector_id.is_some()
+        || args.mitre_id.is_some()
+    {
+        Some(FindingFilterDto {
+            min_severity: args.min_severity.map(|s| s.as_str().to_string()),
+            min_confidence: args.min_confidence.map(|c| c.as_str().to_string()),
+            detector_id: args.detector_id.as_ref().map(|d| d.to_string()),
+            mitre_attack_id: args.mitre_id.as_ref().map(|m| m.to_string()),
+        })
+    } else {
+        None
+    };
 
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
@@ -519,18 +566,27 @@ fn run_findings(
 
     let filtered_findings = filter.filter_findings(&result.detection_outcome.findings);
 
-    let mut sink = match open_output_sink(output_path) {
-        Ok(s) => s,
-        Err(code) => return code,
-    };
+    let needed_evidence_refs: BTreeSet<_> = filtered_findings
+        .iter()
+        .flat_map(|f| f.evidence_references().iter().copied())
+        .collect();
+    let filtered_evidence: Vec<&pcapraven_domain::EvidenceRecord> = result
+        .detection_outcome
+        .evidence
+        .iter()
+        .filter(|e| needed_evidence_refs.contains(&e.reference()))
+        .collect();
 
-    if let Err(e) = report_findings(
-        format,
-        &filtered_findings,
-        &result.detection_outcome.evidence,
-        &mut sink,
-    ) {
-        return emit_fatal_error(&format!("failed to render findings: {e}"));
+    if let Err(code) = with_output_sink(output_path, |mut w| {
+        report_findings(
+            format,
+            &filtered_findings,
+            &filtered_evidence,
+            filter_dto,
+            &mut w,
+        )
+    }) {
+        return code;
     }
 
     result.exit_code()
@@ -550,6 +606,21 @@ fn run_analyze(
 
     let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
 
+    let filter_dto = if args.min_severity.is_some()
+        || args.min_confidence.is_some()
+        || args.detector_id.is_some()
+        || args.mitre_id.is_some()
+    {
+        Some(FindingFilterDto {
+            min_severity: args.min_severity.map(|s| s.as_str().to_string()),
+            min_confidence: args.min_confidence.map(|c| c.as_str().to_string()),
+            detector_id: args.detector_id.as_ref().map(|d| d.to_string()),
+            mitre_attack_id: args.mitre_id.as_ref().map(|m| m.to_string()),
+        })
+    } else {
+        None
+    };
+
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
         max_records: args.max_records,
@@ -582,29 +653,69 @@ fn run_analyze(
 
     let filtered_findings = filter.filter_findings(&result.detection_outcome.findings);
 
-    let (meta, _, completion, _) =
+    let (meta, _, _, _) =
         convert_validation_outcome(&result.reader_outcome, result.total_records_processed);
 
-    let mut dns_obs = Vec::new();
-    let mut http_obs = Vec::new();
-    let mut tls_obs = Vec::new();
+    let needed_evidence_refs: BTreeSet<_> = filtered_findings
+        .iter()
+        .flat_map(|f| f.evidence_references().iter().copied())
+        .collect();
+    let filtered_evidence: Vec<&pcapraven_domain::EvidenceRecord> = result
+        .detection_outcome
+        .evidence
+        .iter()
+        .filter(|e| needed_evidence_refs.contains(&e.reference()))
+        .collect();
 
-    for obs in &result.observations {
-        match obs.data() {
-            ProtocolObservationData::Dns(d) => dns_obs.push(DnsObservationDto::from_domain(d)),
-            ProtocolObservationData::Http(h) => http_obs.push(HttpObservationDto::from_domain(h)),
-            ProtocolObservationData::Tls(t) => tls_obs.push(TlsObservationDto::from_domain(t)),
-        }
-    }
+    let completion_dto = ReportCompletionDto {
+        status: if result.is_partial() {
+            "partial".to_string()
+        } else {
+            "complete".to_string()
+        },
+        limitations: result
+            .detection_input_limitations
+            .iter()
+            .map(|l| match l {
+                pcapraven_detection::DetectionInputLimitation::CaptureTruncated => {
+                    "capture_truncated".to_string()
+                }
+                pcapraven_detection::DetectionInputLimitation::PacketCountBudgetReached => {
+                    "packet_count_budget_reached".to_string()
+                }
+                pcapraven_detection::DetectionInputLimitation::FlowBudgetReached => {
+                    "flow_budget_reached".to_string()
+                }
+                pcapraven_detection::DetectionInputLimitation::ObservationBudgetReached => {
+                    "observation_budget_reached".to_string()
+                }
+            })
+            .collect(),
+    };
 
     let summary = AnalysisSummaryDto {
-        total_packets: result.total_records_processed,
-        total_flows: result.flows.len(),
-        total_dns_observations: dns_obs.len(),
-        total_http_observations: http_obs.len(),
-        total_tls_observations: tls_obs.len(),
-        total_findings: filtered_findings.len(),
-        total_evidence_records: result.detection_outcome.evidence.len(),
+        total_packets: result.total_records_processed.to_string(),
+        total_flows: result.flows.len().to_string(),
+        total_dns_observations: result
+            .observations
+            .iter()
+            .filter(|o| o.protocol_kind() == pcapraven_domain::ProtocolKind::Dns)
+            .count()
+            .to_string(),
+        total_http_observations: result
+            .observations
+            .iter()
+            .filter(|o| o.protocol_kind() == pcapraven_domain::ProtocolKind::Http)
+            .count()
+            .to_string(),
+        total_tls_observations: result
+            .observations
+            .iter()
+            .filter(|o| o.protocol_kind() == pcapraven_domain::ProtocolKind::Tls)
+            .count()
+            .to_string(),
+        total_findings: filtered_findings.len().to_string(),
+        total_evidence_records: filtered_evidence.len().to_string(),
     };
 
     let analysis_dto = AnalysisReportDto {
@@ -612,43 +723,38 @@ fn run_analyze(
         kind: pcapraven_reporting::ReportKind::Analysis.as_str(),
         metadata: meta,
         summary,
-        completion,
+        completion: completion_dto,
+        filter: filter_dto,
         flows: result
             .flows
             .iter()
             .map(FlowRecordDto::from_domain)
             .collect(),
-        dns: dns_obs,
-        http: http_obs,
-        tls: tls_obs,
+        observations: result
+            .observations
+            .iter()
+            .map(ProtocolObservationDto::from_domain)
+            .collect(),
         findings: filtered_findings
             .iter()
             .map(|f| FindingRecordDto::from_domain(f))
             .collect(),
-        evidence: result
-            .detection_outcome
-            .evidence
+        evidence: filtered_evidence
             .iter()
-            .map(EvidenceRecordDto::from_domain)
+            .map(|e| EvidenceRecordDto::from_domain(e))
             .collect(),
     };
 
-    let mut sink = match open_output_sink(output_path) {
-        Ok(s) => s,
-        Err(code) => return code,
-    };
-
-    if let Err(e) = report_analysis(
-        format,
-        &analysis_dto,
-        &result.flows,
-        &filtered_findings,
-        &mut sink,
-    ) {
-        return match e {
-            ReportError::UnsupportedFormat { rationale, .. } => emit_config_error(rationale),
-            other => emit_fatal_error(&format!("failed to render analysis: {other}")),
-        };
+    if let Err(code) = with_output_sink(output_path, |mut w| {
+        report_analysis(
+            format,
+            &analysis_dto,
+            &result.flows,
+            &filtered_findings,
+            &mut w,
+        )
+    }) {
+        return code;
     }
 
     result.exit_code()

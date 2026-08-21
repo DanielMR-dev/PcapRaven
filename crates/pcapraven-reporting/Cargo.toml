@@ -1,6 +1,6 @@
 [package]
 name = "pcapraven-reporting"
-description = "PcapRaven reporting boundary skeleton"
+description = "PcapRaven deterministic reporting library and serialization schemas"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

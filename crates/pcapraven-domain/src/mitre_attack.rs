@@ -51,8 +51,8 @@ pub enum MitreAttackValidationError {
     },
     /// Technique name contains a prohibited control character.
     TechniqueNameControlCharacter {
-        /// Prohibited byte value.
-        byte: u8,
+        /// Prohibited Unicode codepoint.
+        codepoint: u32,
     },
     /// Mapping rationale must not be empty.
     EmptyRationale,
@@ -65,8 +65,8 @@ pub enum MitreAttackValidationError {
     },
     /// Mapping rationale contains a prohibited control character.
     RationaleControlCharacter {
-        /// Prohibited byte value.
-        byte: u8,
+        /// Prohibited Unicode codepoint.
+        codepoint: u32,
     },
     /// Catalog version string is invalid.
     InvalidCatalogVersion(String),
@@ -109,18 +109,18 @@ impl fmt::Display for MitreAttackValidationError {
                 f,
                 "MITRE ATT&CK technique name length ({length} bytes) exceeds maximum ({max} bytes)"
             ),
-            Self::TechniqueNameControlCharacter { byte } => write!(
+            Self::TechniqueNameControlCharacter { codepoint } => write!(
                 f,
-                "MITRE ATT&CK technique name contains prohibited control character 0x{byte:02x}"
+                "MITRE ATT&CK technique name contains prohibited control character U+{codepoint:04X}"
             ),
             Self::EmptyRationale => f.write_str("MITRE ATT&CK mapping rationale cannot be empty"),
             Self::RationaleTooLong { length, max } => write!(
                 f,
                 "MITRE ATT&CK mapping rationale length ({length} bytes) exceeds maximum ({max} bytes)"
             ),
-            Self::RationaleControlCharacter { byte } => write!(
+            Self::RationaleControlCharacter { codepoint } => write!(
                 f,
-                "MITRE ATT&CK mapping rationale contains prohibited control character 0x{byte:02x}"
+                "MITRE ATT&CK mapping rationale contains prohibited control character U+{codepoint:04X}"
             ),
             Self::InvalidCatalogVersion(s) => {
                 write!(
@@ -479,7 +479,7 @@ impl MitreMappingRationale {
         for c in raw.chars() {
             if c.is_control() {
                 return Err(MitreAttackValidationError::RationaleControlCharacter {
-                    byte: c as u32 as u8,
+                    codepoint: c as u32,
                 });
             }
         }
@@ -577,7 +577,7 @@ impl MitreMappingDeclaration {
         for c in name.chars() {
             if c.is_control() {
                 return Err(MitreAttackValidationError::TechniqueNameControlCharacter {
-                    byte: c as u32 as u8,
+                    codepoint: c as u32,
                 });
             }
         }

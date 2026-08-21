@@ -13,8 +13,11 @@ capture and flow inspection, Phase 7 bounded DNS protocol analysis,
 Phase 8 bounded HTTP/1.x protocol analysis, Phase 9 bounded visible
 TLS 1.2 / TLS 1.3 handshake metadata analysis, Phase 10 unified protocol
 observations and structured evidence foundation, Phase 11 detection engine architecture,
-Phase 12 explainable periodic beaconing detection, and Phase 13 explainable DNS anomaly and possible tunneling detection are complete. Further
-threat detection heuristics, correlation, and advanced reporting remain targets for later roadmap phases.
+Phase 12 explainable periodic beaconing detection, Phase 13 explainable DNS anomaly and possible tunneling detection,
+Phase 14 explainable repeated low-volume flow behavior and finding correlation,
+Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance,
+and Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI are complete.
+Synthetic fixture corpus generation, golden reports, and end-to-end integration testing (Phase 17) are current.
 
 ## Problem Statement
 
@@ -97,18 +100,22 @@ Malformed records should produce bounded diagnostics and permit continued
 analysis when safe. Unsupported input is not equivalent to malicious input.
 Heuristic behavior is described as possible or suspicious, not as proof.
 
-## Current Implemented CLI Contract
+## Implemented CLI Contract (Phase 16)
 
 The functional CLI is implemented in `pcapraven-cli` and provides:
 
 ```text
+pcapraven analyze <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--max-observations <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>] [--min-severity <LEVEL>] [--min-confidence <LEVEL>] [--detector <ID>] [--mitre <ID>]
 pcapraven validate <capture> [--max-records <N>]
 pcapraven flows <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>]
 pcapraven dns <capture> [--max-records <N>]
 pcapraven http <capture> [--max-records <N>]
 pcapraven tls <capture> [--max-records <N>]
+pcapraven findings <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--max-observations <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>] [--min-severity <LEVEL>] [--min-confidence <LEVEL>] [--detector <ID>] [--mitre <ID>]
 pcapraven --help
 pcapraven --version
+pcapraven --format <table|json|ndjson|csv> <subcommand> <capture>
+pcapraven --output <path> <subcommand> <capture>
 pcapraven --quiet <subcommand> <capture>
 ```
 
@@ -116,78 +123,39 @@ pcapraven --quiet <subcommand> <capture>
 
 | Command | Current Implemented Behavior |
 | --- | --- |
-| `validate` | Streams capture records through the safe reader, validating container integrity, sections, interfaces, linktypes, and timestamp resolutions. Emits factual summary to stdout. |
-| `flows` | Streams capture records through packet normalization and flow reconstruction, immediately emitting closed bidirectional flow records and factual traffic/temporal statistics to stdout in tabular format. |
-| `dns` | Streams capture records through packet normalization and DNS parser, immediately emitting normalized DNS observations to stdout in tabular format. |
-| `http` | Streams capture records through packet normalization and HTTP/1.x parser, immediately emitting normalized cleartext HTTP observations to stdout in tabular format. |
-| `tls` | Streams capture records through packet normalization and TLS parser, immediately emitting normalized visible TLS handshake metadata observations to stdout in tabular format. |
-| `findings` | Streams capture records through flow reconstruction and protocol analysis, runs registered detectors and correlators, applies multi-criteria filters (`--min-severity`, `--min-confidence`, `--detector`, `--mitre`), and emits human-readable findings to stdout. |
+| `analyze` | Unified forensic capture analysis across metadata, flows, protocol observations, and analytical security findings. Supported formats: `table`, `json`, `ndjson`. (`csv` returns exit code 2 as hierarchical multi-section analysis cannot be flattened into a single flat CSV). |
+| `validate` | Streams capture records through the safe reader, validating container integrity, sections, interfaces, linktypes, and timestamp resolutions. Emits factual metadata and diagnostics. |
+| `flows` | Streams capture records through packet normalization and flow reconstruction, emitting closed bidirectional flow records and factual traffic/temporal statistics. |
+| `dns` | Streams capture records through packet normalization and DNS parser, emitting normalized DNS observations. |
+| `http` | Streams capture records through packet normalization and HTTP/1.x parser, emitting normalized cleartext HTTP observations. |
+| `tls` | Streams capture records through packet normalization and TLS parser, emitting normalized visible TLS handshake metadata observations. |
+| `findings` | Runs detection engine heuristics and cross-detector correlators over normalized flows and observations, applying multi-criteria filters (`--min-severity`, `--min-confidence`, `--detector`, `--mitre`), emitting findings and referenced evidence closure. |
 
 ### Implemented Exit Codes
 
 - `0`: Successful complete command execution.
 - `1`: Fatal input, I/O, or analysis failure before any useful result was produced.
-- `2`: Usage or configuration error (invalid flags, missing arguments, limit errors).
-- `3`: Useful result produced, but analysis/validation was partial (e.g. flow exclusions, degraded temporal metrics, capture recovery/truncation, partial protocol parse).
+- `2`: Usage or configuration error (invalid flags, missing arguments, limit errors, collision on existing `--output` file, or unsupported `analyze --format csv`).
+- `3`: Useful result produced, but analysis/validation was partial (e.g. flow exclusions, degraded temporal metrics, capture recovery/truncation, partial protocol parse, or packet budget reached).
 
-### Implemented Stream Separation
+### Implemented Formats
 
-- `stdout`: Requested factual summary, table, or findings only. No ANSI color.
-- `stderr`: Nonfatal diagnostics (budgeted to 100 lines default, suppressed summary unless `--quiet`) and fatal errors.
+- `table`: Formatted interactive human-readable output (default).
+- `json`: Pretty-printed single structured JSON document following the frozen `v1.0` schema.
+- `ndjson`: Stream-oriented newline-delimited JSON where each line is a self-describing tagged envelope (`{"schema_version": "v1.0", "kind": "...", "record_type": "...", "data": { ... }}`).
+- `csv`: Flat, tabular comma-separated values with strict LF (`\n`) terminators and CSV formula injection protection.
 
-## Target v1 CLI Contract
+### Implemented Global Options
 
-The expanded CLI described below is a target for later roadmap phases. The unified
-`analyze` command and machine-readable reporting formats (`json`, `ndjson`, `csv`)
-are not yet implemented.
-
-```text
-pcapraven analyze <capture>
-pcapraven flows <capture>
-pcapraven dns <capture>
-pcapraven http <capture>
-pcapraven tls <capture>
-pcapraven findings <capture>
-pcapraven validate <capture>
-```
-
-### Target Command Intent
-
-| Command | Intended result |
+| Option | Implemented Contract |
 | --- | --- |
-| `analyze` | Run the available analysis pipeline and emit a unified result. |
-| `flows` | Inspect reconstructed bidirectional flows and statistics. |
-| `dns` | Inspect normalized DNS observations. |
-| `http` | Inspect normalized HTTP/1.x metadata observations. |
-| `tls` | Inspect normalized TLS handshake metadata observations. |
-| `findings` | Run and display applicable security findings. |
-| `validate` | Validate capture structure and report recoverable and fatal input problems. |
-
-### Target Formats
-
-- `table` for interactive human-readable output.
-- `json` for one structured document.
-- `ndjson` for stream-oriented structured records.
-- `csv` for flat, command-appropriate records.
-
-Not every domain shape can be represented losslessly in CSV. Commands that
-offer CSV must define a stable, documented row schema and reject ambiguous
-requests rather than silently discard required information.
-
-### Target Global Options
-
-| Option | Intended contract |
-| --- | --- |
-| `--output <path>` | Write requested result output to a file instead of stdout. Refuse unsafe ambiguity or unintended overwrite according to the future CLI specification. |
-| `--format <format>` | Select `table`, `json`, `ndjson`, or `csv` where supported. |
-| `--no-color` | Disable color and presentation escape sequences. Machine formats never contain color. |
-| `--quiet` | Suppress non-error diagnostics; requested result output is unaffected. |
-| `-v`, `-vv` | Increase diagnostic verbosity without changing result semantics. |
-| `--min-severity <level>` | Filter findings below the selected severity. |
-| `--min-confidence <level>` | Filter findings below the selected confidence. |
-
-Severity and confidence filters apply to findings, not raw observations.
-Invalid combinations must produce a usage error rather than being ignored.
+| `--output <path>` | Atomically creates the destination file with `create_new(true)`. Returns exit code 2 if the file already exists. Flushes explicitly and cleans up on write failure. |
+| `--format <format>` | Selects `table`, `json`, `ndjson`, or `csv`. |
+| `--quiet` | Suppresses non-error stderr diagnostics; requested stdout result is unaffected. |
+| `--min-severity <level>` | Filters findings by minimum severity (`info`, `low`, `medium`, `high`, `critical`). |
+| `--min-confidence <level>` | Filters findings by minimum confidence (`low`, `medium`, `high`). |
+| `--detector <id>` | Filters findings by exact detector ID (e.g., `dns.possible_tunneling`). |
+| `--mitre <id>` | Filters findings by MITRE ATT&CK technique or tactic ID (e.g., `T1071.004`). |
 
 ## v1 Success Criteria
 

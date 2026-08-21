@@ -12,12 +12,18 @@ use crate::dto::validation::ValidationReportDto;
 use crate::error::ReportError;
 use crate::format::{ReportFormat, ReportKind};
 
+fn build_csv_writer<W: Write>(w: W) -> csv::Writer<W> {
+    csv::WriterBuilder::new()
+        .terminator(csv::Terminator::Any(b'\n'))
+        .from_writer(w)
+}
+
 /// Renders a validation report as a 2-column key/value CSV table.
 pub fn render_validation_csv(
     report: &ValidationReportDto,
     w: &mut impl Write,
 ) -> Result<(), ReportError> {
-    let mut writer = csv::Writer::from_writer(w);
+    let mut writer = build_csv_writer(w);
     writer
         .write_record(["property", "value"])
         .map_err(|e| ReportError::Serialization(e.to_string()))?;
@@ -28,11 +34,11 @@ pub fn render_validation_csv(
         ("completion", sanitize_csv_cell(&report.completion.status)),
         (
             "records_emitted",
-            report.summary.records_emitted.to_string(),
+            sanitize_csv_cell(&report.summary.records_emitted),
         ),
         (
             "total_diagnostics",
-            report.summary.total_diagnostics.to_string(),
+            sanitize_csv_cell(&report.summary.total_diagnostics),
         ),
         (
             "version",
@@ -75,7 +81,7 @@ pub fn render_validation_csv(
 
 /// Renders a flows report as a CSV table with formula injection defense.
 pub fn render_flows_csv(report: &FlowsReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let mut writer = csv::Writer::from_writer(w);
+    let mut writer = build_csv_writer(w);
     writer
         .write_record([
             "id",
@@ -105,13 +111,13 @@ pub fn render_flows_csv(report: &FlowsReportDto, w: &mut impl Write) -> Result<(
             .temporal
             .duration
             .as_ref()
-            .map(|d| d.numerator.to_string())
+            .map(|d| d.numerator.clone())
             .unwrap_or_else(|| "-".to_string());
         let dur_den = f
             .temporal
             .duration
             .as_ref()
-            .map(|d| d.denominator.to_string())
+            .map(|d| d.denominator.clone())
             .unwrap_or_else(|| "-".to_string());
         let dur_disp = f
             .temporal
@@ -123,20 +129,20 @@ pub fn render_flows_csv(report: &FlowsReportDto, w: &mut impl Write) -> Result<(
         writer
             .write_record([
                 sanitize_csv_cell(&f.id),
-                f.ordinal.to_string(),
+                sanitize_csv_cell(&f.ordinal),
                 sanitize_csv_cell(&f.protocol),
                 sanitize_csv_cell(&f.endpoint_a),
                 sanitize_csv_cell(&f.endpoint_b),
-                f.traffic.total_packets.to_string(),
-                f.traffic.packets_a_to_b.to_string(),
-                f.traffic.packets_b_to_a.to_string(),
-                f.traffic.packets_same_endpoint.to_string(),
-                f.traffic.total_captured_bytes.to_string(),
-                f.traffic.captured_bytes_a_to_b.to_string(),
-                f.traffic.captured_bytes_b_to_a.to_string(),
-                f.traffic.total_wire_bytes.to_string(),
-                f.traffic.wire_bytes_a_to_b.to_string(),
-                f.traffic.wire_bytes_b_to_a.to_string(),
+                sanitize_csv_cell(&f.traffic.total.packet_count),
+                sanitize_csv_cell(&f.traffic.a_to_b.packet_count),
+                sanitize_csv_cell(&f.traffic.b_to_a.packet_count),
+                sanitize_csv_cell(&f.traffic.same_endpoint.packet_count),
+                sanitize_csv_cell(&f.traffic.total.captured_bytes),
+                sanitize_csv_cell(&f.traffic.a_to_b.captured_bytes),
+                sanitize_csv_cell(&f.traffic.b_to_a.captured_bytes),
+                sanitize_csv_cell(&f.traffic.total.wire_bytes),
+                sanitize_csv_cell(&f.traffic.a_to_b.wire_bytes),
+                sanitize_csv_cell(&f.traffic.b_to_a.wire_bytes),
                 dur_num,
                 dur_den,
                 sanitize_csv_cell(dur_disp),
@@ -152,7 +158,7 @@ pub fn render_flows_csv(report: &FlowsReportDto, w: &mut impl Write) -> Result<(
 
 /// Renders a DNS report as a CSV table with formula injection defense.
 pub fn render_dns_csv(report: &DnsReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let mut writer = csv::Writer::from_writer(w);
+    let mut writer = build_csv_writer(w);
     writer
         .write_record([
             "packet_ordinal",
@@ -187,7 +193,7 @@ pub fn render_dns_csv(report: &DnsReportDto, w: &mut impl Write) -> Result<(), R
 
         writer
             .write_record([
-                obs.packet_ordinal.to_string(),
+                sanitize_csv_cell(&obs.packet_ordinal),
                 sanitize_csv_cell(&obs.transport),
                 sanitize_csv_cell(&obs.source_ip),
                 obs.source_port.to_string(),
@@ -218,7 +224,7 @@ pub fn render_dns_csv(report: &DnsReportDto, w: &mut impl Write) -> Result<(), R
 
 /// Renders an HTTP report as a CSV table with formula injection defense.
 pub fn render_http_csv(report: &HttpReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let mut writer = csv::Writer::from_writer(w);
+    let mut writer = build_csv_writer(w);
     writer
         .write_record([
             "packet_ordinal",
@@ -265,7 +271,7 @@ pub fn render_http_csv(report: &HttpReportDto, w: &mut impl Write) -> Result<(),
 
         writer
             .write_record([
-                obs.packet_ordinal.to_string(),
+                sanitize_csv_cell(&obs.packet_ordinal),
                 sanitize_csv_cell(obs.transport),
                 sanitize_csv_cell(&obs.source_ip),
                 obs.source_port.to_string(),
@@ -304,7 +310,7 @@ pub fn render_http_csv(report: &HttpReportDto, w: &mut impl Write) -> Result<(),
 
 /// Renders a TLS report as a CSV table with formula injection defense.
 pub fn render_tls_csv(report: &TlsReportDto, w: &mut impl Write) -> Result<(), ReportError> {
-    let mut writer = csv::Writer::from_writer(w);
+    let mut writer = build_csv_writer(w);
     writer
         .write_record([
             "packet_ordinal",
@@ -365,7 +371,7 @@ pub fn render_tls_csv(report: &TlsReportDto, w: &mut impl Write) -> Result<(), R
 
         writer
             .write_record([
-                obs.packet_ordinal.to_string(),
+                sanitize_csv_cell(&obs.packet_ordinal),
                 sanitize_csv_cell(&obs.source_ip),
                 obs.source_port.to_string(),
                 sanitize_csv_cell(&obs.destination_ip),
@@ -395,7 +401,7 @@ pub fn render_findings_csv(
     report: &FindingsReportDto,
     w: &mut impl Write,
 ) -> Result<(), ReportError> {
-    let mut writer = csv::Writer::from_writer(w);
+    let mut writer = build_csv_writer(w);
     writer
         .write_record([
             "id",
@@ -438,7 +444,7 @@ pub fn render_findings_csv(
         writer
             .write_record([
                 sanitize_csv_cell(&f.id),
-                f.ordinal.to_string(),
+                sanitize_csv_cell(&f.ordinal),
                 sanitize_csv_cell(&f.detector_id),
                 sanitize_csv_cell(&f.detector_version),
                 sanitize_csv_cell(&f.title),

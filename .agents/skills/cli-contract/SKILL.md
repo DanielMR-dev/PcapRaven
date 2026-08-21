@@ -50,10 +50,11 @@ the `pcapraven-cli` orchestration boundary and command-line interface.
 - `--quiet` suppresses nonfatal stderr diagnostics and suppression summaries completely,
   while preserving fatal errors, exit codes, and stdout result content identically.
 
-### 6. Streaming Pipeline & Memory Non-Retention
-- Normal execution must stream records incrementally via `CaptureReader::next_record()`.
-- Never retain all `CaptureRecord`, `NormalizedPacket`, or completed `FlowRecord` instances in memory.
-- Closed flows stream to stdout immediately as lifecycle boundaries trigger.
+### 6. Streaming Pipeline & Bounded Memory Policy
+- Capture records are streamed incrementally via `CaptureReader::next_record()`.
+- Never bulk-retain raw `CaptureRecord` streams, unbounded packet payloads, or unbounded `NormalizedPacket` instances.
+- When evaluating detectors, finding correlation, or generating unified analysis reports, finite bounded vectors of canonical `FlowRecord`s and `ProtocolObservation`s may be retained subject to configured capacity limits (`--max-flows`, `--max-flow-instances`, `--max-observations`).
+- Capture payload bytes are released immediately upon normalization.
 
 ### 7. Truthful Finalization
 - Clean end-of-input finalizes active flows with `FlowEndReason::EndOfInput`.
