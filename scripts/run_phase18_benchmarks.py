@@ -22,6 +22,8 @@ MAX_SOURCE_RECORDS = 4096
 MAX_GENERATED_RECORDS = 50_000
 MAX_GENERATED_BYTES = 256 * 1024 * 1024
 MAX_PROVENANCE_BYTES = 1024 * 1024
+BENCHMARK_SCHEMA_VERSION = "phase18.2-measurement-v1"
+BENCHMARK_IMPLEMENTATION = "phase18.2-methodology-v1"
 
 RecordTransform = Callable[[bytes, int, str], bytes]
 
@@ -168,7 +170,9 @@ def write_capture(
 
 
 def run_checked(command: list[str], root: Path) -> None:
-    subprocess.run(command, cwd=root, check=True)
+    # Keep the machine-readable benchmark stream pure while leaving Cargo's
+    # diagnostics visible on stderr when a build fails.
+    subprocess.run(command, cwd=root, check=True, stdout=subprocess.DEVNULL)
 
 
 def run_benchmark_command(command: list[str], root: Path) -> int:
@@ -315,7 +319,8 @@ def scenario_matrix(smoke: bool) -> list[dict[str, object]]:
         for record_count in (1_000, 10_000):
             scenarios.append({"name": f"analyze_{workload}_{record_count}", "family": "analyze", "workload": workload, "records": record_count, "source": workload, "command": "analyze", "format": "json"})
     for report_format in ("table", "json", "ndjson", "csv"):
-        scenarios.append({"name": f"reporting_{report_format}", "family": "reporting", "workload": "multi_signal_findings", "records": 1_000, "source": "multi_signal", "command": "findings", "format": report_format})
+        for record_count in (1_000, 10_000):
+            scenarios.append({"name": f"reporting_{report_format}_{record_count}", "family": "reporting", "workload": "multi_signal_findings", "records": record_count, "source": "multi_signal", "command": "findings", "format": report_format})
     return scenarios
 
 
@@ -418,6 +423,8 @@ def main() -> int:
                     "family": scenario["family"],
                     "workload": scenario["workload"],
                     "format": scenario["format"],
+                    "source": scenario["source"],
+                    "command": scenario["command"],
                     "capture_bytes": capture_bytes,
                     "packet_records": record_count,
                     "samples": samples,
@@ -438,7 +445,9 @@ def main() -> int:
         result["growth_ratio_basis_points"] = median_ns * 10_000 // baseline
 
     payload = {
-        "phase": "18-part-b-foundation",
+        "schema_version": BENCHMARK_SCHEMA_VERSION,
+        "phase": "18.2",
+        "benchmark_implementation": BENCHMARK_IMPLEMENTATION,
         "mode": "smoke" if args.smoke else "benchmark",
         "timing_unit": "nanoseconds",
         "growth_ratio_unit": "basis_points_relative_to_smallest_matching_workload",

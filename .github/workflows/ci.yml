@@ -134,6 +134,14 @@ jobs:
       - name: Check workspace architecture
         run: python3 scripts/check_workspace_architecture.py
 
+      - name: Test Phase 18 benchmark methodology
+        run: python3 scripts/test_phase18_performance.py
+
+      - name: Run Phase 18 benchmark smoke matrix
+        run: |
+          python3 scripts/run_phase18_benchmarks.py --smoke > /tmp/pcapraven-phase18-smoke.json
+          python3 -m json.tool /tmp/pcapraven-phase18-smoke.json > /dev/null
+
   msrv:
     name: MSRV 1.85.0
     runs-on: ubuntu-latest

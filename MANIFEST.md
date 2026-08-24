@@ -44,6 +44,8 @@ Phase 18 property testing, fuzzing, robustness, and performance verification is 
 | `scripts/check_goldens.py` | Read-only canonical CLI exit/stdout/stderr golden checker with hard fixture/golden structural preflight before reads or execution. |
 | `scripts/stage_goldens.py` | Safe explicit-output candidate staging tool that preflights fixture inputs and refuses `tests/golden/`. |
 | `scripts/run_phase18_benchmarks.py` | Dependency-free bounded release-CLI semantic scenario benchmark and separate smoke tool with five-run integer nanosecond summaries, growth ratios, and environment provenance. |
+| `scripts/derive_phase18_budgets.py` | Dependency-free strict validator and integer-only derivation tool for the three-run Phase 18.2 baseline budget document. |
+| `scripts/test_phase18_performance.py` | Focused dependency-free regression tests for the Phase 18.2 benchmark matrix, growth groups, budget arithmetic, and invalid-input rejection. |
 | `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and eight-target bounded Linux fuzz-smoke CI. |
 | `tests/fixtures/pcaps/README.md` | Provenance and inventory documentation for synthetic PCAP fixture corpus. |
 | `tests/fixtures/pcaps/manifest.json` | Canonical schema-v1/generator-v1 path-sorted fixture provenance, behavior, and SHA-256 manifest. |

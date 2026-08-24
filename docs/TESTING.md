@@ -521,6 +521,26 @@ CNAME messages whose aggregate expanded question, owner, and RDATA names total
 detector identifiers, detector versions, finding semantics, report schema, or
 golden report bytes.
 
+## Phase 18.2 Performance Methodology (premeasurement)
+
+The dependency-free benchmark tooling is covered by
+`scripts/test_phase18_performance.py`, which verifies the finite smoke matrix,
+the exact 24-scenario full matrix, all required workload scales, meaningful
+two-scale reporting growth groups, integer-only budget arithmetic, and strict
+rejection of invalid baseline measurements. Linux quality CI runs this focused
+test and the separate `--smoke` benchmark invocation. CI does not run the full
+benchmark as a performance gate and does not treat runner timing as canonical
+baseline evidence.
+
+The full benchmark methodology requires one warmup and five measured samples
+for each scenario, exactly three sequential clean-revision runs, a predeclared
+15% run-to-run stability limit, and predeclared integer 125% absolute and
+growth budget margins. `scripts/derive_phase18_budgets.py` accepts exactly
+three complete full-run JSON documents and rejects smoke, dirty, mixed-revision,
+incomplete, inconsistent, or unstable input. Official measurements and final
+performance acceptance remain separate Phase 18.2 evidence and Phase 18.3
+work, respectively.
+
 ## Dependency Audits
 
 ### `pcap-parser = 0.17.0` (Phase 2)
