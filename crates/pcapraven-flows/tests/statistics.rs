@@ -1512,6 +1512,19 @@ proptest! {
         prop_assert_eq!(records.len(), 1);
         let flow = &records[0];
         let overall = &flow.temporal.overall_inter_arrival;
+        prop_assert_eq!(
+            flow.temporal.coverage.available_timestamps
+                + flow.temporal.coverage.unavailable_timestamps
+                + flow.temporal.coverage.invalid_timestamps,
+            flow.traffic.total.packet_count
+        );
+        prop_assert!(overall.interval_sample_count < flow.temporal.coverage.available_timestamps);
+        prop_assert_eq!(
+            overall.successive_delta_sample_count,
+            overall
+                .interval_sample_count
+                .saturating_sub(1)
+        );
 
         if overall.interval_sample_count > 0 {
             if let (Some(min), Some(mean), Some(max)) = (
@@ -1522,6 +1535,15 @@ proptest! {
                 // Property 10: min <= mean <= max
                 prop_assert!(min <= mean);
                 prop_assert!(mean <= max);
+                for duration in [min, mean, max] {
+                    prop_assert_eq!(
+                        pcapraven_flows::metrics::gcd(
+                            duration.numerator(),
+                            duration.denominator()
+                        ),
+                        1
+                    );
+                }
             }
 
             // Property 11: successive delta count < interval_sample_count

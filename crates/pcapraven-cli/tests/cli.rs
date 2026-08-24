@@ -1111,14 +1111,15 @@ fn test_findings_cli_resource_flags() {
 }
 
 #[test]
-fn test_findings_cli_truncated_capture_exit_3() {
+fn test_findings_cli_truncated_before_useful_output_exit_1() {
     let mut pcap_bytes = make_pcap_header(65535, 1);
     // Incomplete packet header (truncated 8 bytes of packet header)
     pcap_bytes.extend_from_slice(&[1, 2, 3, 4]);
     let temp = TempCaptureFile::new("findings_truncated.pcap", &pcap_bytes);
 
-    let (code, _, stderr) = run_cli(&["findings", &temp.path_str()]);
-    assert_eq!(code, 3);
+    let (code, stdout, stderr) = run_cli(&["findings", &temp.path_str()]);
+    assert_eq!(code, 1);
+    assert!(stdout.is_empty());
     assert!(stderr.contains("capture reader stream error") || stderr.contains("incomplete"));
 }
 
@@ -1237,6 +1238,30 @@ fn test_cli_safe_output_file_collision_fails_exit_2() {
     assert_eq!(contents, "already exists");
 
     let _ = std::fs::remove_file(&out_path);
+}
+
+#[test]
+fn test_cli_output_file_parent_creation_failure_is_fatal() {
+    let pcap_bytes = make_pcap_header(65535, 1);
+    let temp_pcap = TempCaptureFile::new("create_failure_source.pcap", &pcap_bytes);
+    let missing_parent =
+        std::env::temp_dir().join(format!("pcapraven_missing_parent_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&missing_parent);
+    let out_path = missing_parent.join("report.json");
+
+    let (code, stdout, stderr) = run_cli(&[
+        "analyze",
+        "--format",
+        "json",
+        "--output",
+        out_path.to_str().unwrap(),
+        &temp_pcap.path_str(),
+    ]);
+
+    assert_eq!(code, 1);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("failed to create output file"));
+    assert!(!out_path.exists());
 }
 
 #[test]

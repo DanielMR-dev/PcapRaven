@@ -1,0 +1,1 @@
+diagnostic: HTTP diagnostic on packet 0: truncated HTTP header field line (missing CRLF)

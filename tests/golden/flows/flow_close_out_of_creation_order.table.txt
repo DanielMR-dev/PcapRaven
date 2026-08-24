@@ -1,0 +1,3 @@
+ID     PROTO ENDPOINT_A            ENDPOINT_B              PKTS    A>B    B>A   SELF  CAP_BYTES WIRE_BYTES DURATION   END             
+0      TCP   192.0.2.10:48000      198.51.100.20:8080         2      2      0      0        108        108 3/1000s    TcpReset        
+1      TCP   192.0.2.10:48001      198.51.100.20:8081         2      2      0      0        108        108 1/1000s    TcpReset        

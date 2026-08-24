@@ -13,6 +13,22 @@ use pcapraven_domain::{
     ProtocolObservationData, Severity, TransportProtocol,
 };
 
+trait TestConstructor {
+    fn new() -> Self;
+}
+
+impl TestConstructor for DnsLongQueryNameDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
+impl TestConstructor for DnsPossibleTunnelingDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
 fn create_synthetic_dns_obs(
     obs_ordinal: u64,
     pkt_ordinal: u64,
@@ -64,11 +80,12 @@ fn create_synthetic_dns_obs(
         None => ObservationFlowAssociation::Unassociated,
     };
 
-    ProtocolObservation::new(
+    ProtocolObservation::try_new(
         ObservationReference::new(pkt_ordinal, ProtocolKind::Dns, obs_ordinal as u32),
         flow_assoc,
         ProtocolObservationData::Dns(dns_obs),
     )
+    .expect("test observation is valid")
 }
 
 fn create_synthetic_dns_obs_custom(
@@ -107,11 +124,12 @@ fn create_synthetic_dns_obs_custom(
         completeness: DnsObservationCompleteness::Complete,
     };
 
-    ProtocolObservation::new(
+    ProtocolObservation::try_new(
         ObservationReference::new(pkt_ordinal, ProtocolKind::Dns, obs_ordinal as u32),
         flow_assoc,
         ProtocolObservationData::Dns(dns_obs),
     )
+    .expect("test observation is valid")
 }
 
 fn create_synthetic_flow(ordinal: u64) -> FlowRecord {
@@ -1060,14 +1078,15 @@ fn test_dns_causal_evidence_matching_questions_only_and_qualifying_labels() {
         completeness: DnsObservationCompleteness::Complete,
     };
 
-    let obs = ProtocolObservation::new(
+    let obs = ProtocolObservation::try_new(
         ObservationReference::new(0, ProtocolKind::Dns, 0),
         ObservationFlowAssociation::Associated {
             flow: flow.reference,
             direction: FlowDirection::AToB,
         },
         ProtocolObservationData::Dns(dns_obs),
-    );
+    )
+    .expect("test observation is valid");
 
     let flows = vec![flow];
     let observations = vec![obs];

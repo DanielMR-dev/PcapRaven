@@ -12,7 +12,7 @@ This skill governs the design, implementation, review, and verification of expla
 - Detect individual long DNS queries and repetitive high-diversity tunneling patterns over normalized DNS observations.
 - Implement the `Detector` trait for two detectors:
   1. `DnsLongQueryNameDetector` (`dns.long_query_name`, v1.0.1, policy `Skip`, severity `Info`, confidence `Medium`)
-  2. `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, v1.0.1, policy `Skip`, severity `Low`, confidence `Medium`)
+  2. `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, v1.1.1, policy `Skip`, severity `Low`, confidence `Medium`)
 - Compute exact rational `label_octet_diversity_ratio` using fixed `[bool; 256]` memory without floating-point math or Shannon entropy.
 - Enforce strict parameter validation (e.g. `minimum_query_observations: 2..=u64::MAX`) and bounded scalar flow aggregation.
 - Emit structured `EvidenceDraft`s with factual measurements and threshold comparisons.

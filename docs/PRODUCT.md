@@ -16,8 +16,10 @@ observations and structured evidence foundation, Phase 11 detection engine archi
 Phase 12 explainable periodic beaconing detection, Phase 13 explainable DNS anomaly and possible tunneling detection,
 Phase 14 explainable repeated low-volume flow behavior and finding correlation,
 Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance,
-and Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI are complete.
-Synthetic fixture corpus generation, golden reports, and end-to-end integration testing (Phase 17) are current.
+Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, unified `analyze` CLI,
+and Phase 17 synthetic fixtures, golden reports, and end-to-end integration testing are complete.
+Phase 18 robustness and performance verification is current. It adds verification
+depth, not a new runtime feature claim.
 
 ## Problem Statement
 

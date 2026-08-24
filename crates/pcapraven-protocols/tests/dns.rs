@@ -6,7 +6,13 @@ use pcapraven_domain::{
     NormalizedPacket, PacketCompleteness, PacketReference, PacketTimestamp, TcpMetadata,
     TransportLayer, UdpMetadata,
 };
-use pcapraven_protocols::{DnsLimits, DnsLimitsBuilder, DnsPacketDisposition, parse_dns_packet};
+use pcapraven_protocols::{
+    DnsLimits, DnsLimitsBuilder, DnsPacketDisposition, MAX_ALLOWED_DNS_DIAGNOSTICS_PER_PACKET,
+    MAX_ALLOWED_DNS_EDNS_OPTIONS_PER_MESSAGE, MAX_ALLOWED_DNS_MESSAGES_PER_PACKET,
+    MAX_ALLOWED_DNS_NAME_POINTER_HOPS, MAX_ALLOWED_DNS_QUESTIONS_PER_MESSAGE,
+    MAX_ALLOWED_DNS_RESOURCE_RECORDS_PER_MESSAGE, MAX_ALLOWED_DNS_TOTAL_NAME_BYTES_PER_MESSAGE,
+    parse_dns_packet,
+};
 use proptest::prelude::*;
 
 const SIMPLE_QUERY_BYTES: &[u8] = include_bytes!("fixtures/dns/simple_query.bin");
@@ -387,6 +393,230 @@ fn test_limits_builder_validation() {
 }
 
 #[test]
+fn phase18_all_dns_limit_hard_caps_accept_n_minus_1_and_n_but_reject_n_plus_1() {
+    macro_rules! assert_boundary {
+        ($setter:ident, $maximum:expr) => {{
+            let maximum = $maximum;
+            assert!(DnsLimitsBuilder::new().$setter(maximum - 1).build().is_ok());
+            assert!(DnsLimitsBuilder::new().$setter(maximum).build().is_ok());
+            assert!(
+                DnsLimitsBuilder::new()
+                    .$setter(maximum + 1)
+                    .build()
+                    .is_err()
+            );
+        }};
+    }
+
+    assert_boundary!(
+        maximum_messages_per_packet,
+        MAX_ALLOWED_DNS_MESSAGES_PER_PACKET
+    );
+    assert_boundary!(
+        maximum_questions_per_message,
+        MAX_ALLOWED_DNS_QUESTIONS_PER_MESSAGE
+    );
+    assert_boundary!(
+        maximum_resource_records_per_message,
+        MAX_ALLOWED_DNS_RESOURCE_RECORDS_PER_MESSAGE
+    );
+    assert_boundary!(maximum_name_pointer_hops, MAX_ALLOWED_DNS_NAME_POINTER_HOPS);
+    assert_boundary!(
+        maximum_edns_options_per_message,
+        MAX_ALLOWED_DNS_EDNS_OPTIONS_PER_MESSAGE
+    );
+    assert_boundary!(
+        maximum_diagnostics_per_packet,
+        MAX_ALLOWED_DNS_DIAGNOSTICS_PER_PACKET
+    );
+    assert_boundary!(
+        maximum_total_retained_name_bytes_per_message,
+        MAX_ALLOWED_DNS_TOTAL_NAME_BYTES_PER_MESSAGE
+    );
+}
+
+#[test]
+fn phase18_dns_tcp_message_and_name_byte_limits_cover_n_minus_1_n_n_plus_1() {
+    let mut tcp_payload = Vec::new();
+    for _ in 0..2 {
+        tcp_payload.extend_from_slice(&(SIMPLE_QUERY_BYTES.len() as u16).to_be_bytes());
+        tcp_payload.extend_from_slice(SIMPLE_QUERY_BYTES);
+    }
+    let packet = make_normalized_tcp_packet(53535, 53, tcp_payload);
+    for (limit, expected_observations, limited) in [(1, 1, true), (2, 2, false), (3, 2, false)] {
+        let limits = DnsLimitsBuilder::new()
+            .maximum_messages_per_packet(limit)
+            .build()
+            .unwrap();
+        let outcome = parse_dns_packet(&packet, &limits);
+        assert_eq!(outcome.observations.len(), expected_observations);
+        assert_eq!(
+            outcome
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == DnsDiagnosticKind::ResourceLimit),
+            limited
+        );
+    }
+
+    let udp_packet = make_normalized_udp_packet(53535, 53, SIMPLE_QUERY_BYTES.to_vec());
+    let retained_name_bytes = 13;
+    for (limit, parsed) in [
+        (retained_name_bytes - 1, false),
+        (retained_name_bytes, true),
+        (retained_name_bytes + 1, true),
+    ] {
+        let limits = DnsLimitsBuilder::new()
+            .maximum_total_retained_name_bytes_per_message(limit)
+            .build()
+            .unwrap();
+        let outcome = parse_dns_packet(&udp_packet, &limits);
+        assert_eq!(outcome.disposition == DnsPacketDisposition::Parsed, parsed);
+    }
+}
+
+fn cname_response_with_repeated_name(compressed: bool) -> Vec<u8> {
+    let expanded_name = b"\x07example\x03com\x00";
+    let mut message = vec![
+        0x12, 0x34, 0x81, 0x80, // ID and standard response flags
+        0, 1, 0, 1, 0, 0, 0, 0, // one question and one answer
+    ];
+    message.extend_from_slice(expanded_name);
+    message.extend_from_slice(&[0, 1, 0, 1]);
+    if compressed {
+        message.extend_from_slice(&[0xc0, 0x0c]);
+    } else {
+        message.extend_from_slice(expanded_name);
+    }
+    message.extend_from_slice(&[
+        0, 5, // CNAME
+        0, 1, // IN
+        0, 0, 0, 60, // TTL
+    ]);
+    if compressed {
+        message.extend_from_slice(&[0, 2, 0xc0, 0x0c]);
+    } else {
+        message.extend_from_slice(&[0, 13]);
+        message.extend_from_slice(expanded_name);
+    }
+    message
+}
+
+fn retained_expanded_name_bytes(observation: &pcapraven_domain::DnsObservation) -> usize {
+    observation
+        .questions
+        .iter()
+        .map(|question| question.name.wire_length())
+        .chain(
+            observation
+                .records
+                .iter()
+                .map(|record| record.name.wire_length()),
+        )
+        .chain(
+            observation
+                .records
+                .iter()
+                .filter_map(|record| match &record.rdata {
+                    DnsRdataMetadata::Cname(name)
+                    | DnsRdataMetadata::Ns(name)
+                    | DnsRdataMetadata::Ptr(name) => Some(name.wire_length()),
+                    DnsRdataMetadata::Mx { exchange, .. } => Some(exchange.wire_length()),
+                    _ => None,
+                }),
+        )
+        .sum()
+}
+
+#[test]
+fn aggregate_retained_expanded_name_bytes_cover_compressed_and_uncompressed_n_minus_1_n_n_plus_1() {
+    const AGGREGATE_EXPANDED_BYTES: usize = 39;
+
+    for compressed in [false, true] {
+        let packet =
+            make_normalized_udp_packet(53, 53535, cname_response_with_repeated_name(compressed));
+        for (limit, complete) in [
+            (AGGREGATE_EXPANDED_BYTES - 1, false),
+            (AGGREGATE_EXPANDED_BYTES, true),
+            (AGGREGATE_EXPANDED_BYTES + 1, true),
+        ] {
+            let limits = DnsLimitsBuilder::new()
+                .maximum_total_retained_name_bytes_per_message(limit)
+                .build()
+                .expect("valid retained-name limit");
+            let outcome = parse_dns_packet(&packet, &limits);
+            assert_eq!(outcome.observations.len(), 1);
+            let observation = &outcome.observations[0];
+            assert_eq!(observation.completeness.is_complete(), complete);
+            assert!(retained_expanded_name_bytes(observation) <= limit);
+            if complete {
+                assert_eq!(
+                    retained_expanded_name_bytes(observation),
+                    AGGREGATE_EXPANDED_BYTES
+                );
+                assert_eq!(observation.records.len(), 1);
+            } else {
+                assert!(observation.records.is_empty());
+                assert!(
+                    outcome
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.kind == DnsDiagnosticKind::ResourceLimit)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn phase18_dns_question_and_resource_record_counts_cover_n_minus_1_n_n_plus_1() {
+    let mut two_questions = vec![
+        0, 1, 0, 0, // ID and flags
+        0, 2, 0, 0, 0, 0, 0, 0, // QDCOUNT=2; all RR counts zero
+    ];
+    for _ in 0..2 {
+        two_questions.extend_from_slice(&[0, 0, 1, 0, 1]);
+    }
+    let question_packet = make_normalized_udp_packet(53535, 53, two_questions);
+    for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+        let limits = DnsLimitsBuilder::new()
+            .maximum_questions_per_message(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_dns_packet(&question_packet, &limits).disposition == DnsPacketDisposition::Parsed,
+            parsed
+        );
+    }
+
+    let mut two_records = vec![
+        0, 1, 0x80, 0, // ID and response flag
+        0, 0, 0, 2, 0, 0, 0, 0, // ANCOUNT=2; other counts zero
+    ];
+    for address in [[192, 0, 2, 1], [192, 0, 2, 2]] {
+        two_records.extend_from_slice(&[
+            0, // root owner name
+            0, 1, // A
+            0, 1, // IN
+            0, 0, 0, 60, // TTL
+            0, 4, // RDLENGTH
+        ]);
+        two_records.extend_from_slice(&address);
+    }
+    let record_packet = make_normalized_udp_packet(53, 53535, two_records);
+    for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+        let limits = DnsLimitsBuilder::new()
+            .maximum_resource_records_per_message(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_dns_packet(&record_packet, &limits).disposition == DnsPacketDisposition::Parsed,
+            parsed
+        );
+    }
+}
+
+#[test]
 fn test_missing_network_layer_produces_no_fake_endpoints() {
     let mut packet = make_normalized_udp_packet(53535, 53, SIMPLE_QUERY_BYTES.to_vec());
     packet.network_layer = None;
@@ -571,6 +801,23 @@ fn test_edns_option_limits_exact_boundary() {
             .iter()
             .any(|d| d.kind == DnsDiagnosticKind::ResourceLimit)
     );
+
+    // Limit = N+1 -> same complete output; extra capacity must not change semantics.
+    let limits_3 = DnsLimitsBuilder::new()
+        .maximum_edns_options_per_message(3)
+        .build()
+        .unwrap();
+    let outcome_3 = parse_dns_packet(&pkt, &limits_3);
+    assert_eq!(outcome_3.disposition, DnsPacketDisposition::Parsed);
+    assert_eq!(
+        outcome_3.observations[0]
+            .edns
+            .as_ref()
+            .unwrap()
+            .options
+            .len(),
+        2
+    );
 }
 
 #[test]
@@ -596,6 +843,34 @@ proptest! {
         let limits = DnsLimits::default();
         let outcome = parse_dns_packet(&packet, &limits);
         prop_assert!(outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+        prop_assert_eq!(outcome.clone(), parse_dns_packet(&packet, &limits));
+        for observation in &outcome.observations {
+            prop_assert!(observation.questions.len() <= limits.maximum_questions_per_message);
+            prop_assert!(observation.records.len() <= limits.maximum_resource_records_per_message);
+            if let Some(edns) = &observation.edns {
+                prop_assert!(edns.options.len() <= limits.maximum_edns_options_per_message);
+            }
+            let retained_name_bytes: usize = observation
+                .questions
+                .iter()
+                .map(|question| question.name.labels().iter().map(Vec::len).sum::<usize>())
+                .chain(observation.records.iter().map(|record| {
+                    record.name.labels().iter().map(Vec::len).sum::<usize>()
+                }))
+                .chain(observation.records.iter().filter_map(|record| match &record.rdata {
+                    DnsRdataMetadata::Cname(name)
+                    | DnsRdataMetadata::Ns(name)
+                    | DnsRdataMetadata::Ptr(name) => {
+                        Some(name.labels().iter().map(Vec::len).sum::<usize>())
+                    }
+                    DnsRdataMetadata::Mx { exchange, .. } => {
+                        Some(exchange.labels().iter().map(Vec::len).sum::<usize>())
+                    }
+                    _ => None,
+                }))
+                .sum();
+            prop_assert!(retained_name_bytes <= limits.maximum_total_retained_name_bytes_per_message);
+        }
     }
 
     #[test]
@@ -604,5 +879,7 @@ proptest! {
         let limits = DnsLimits::default();
         let outcome = parse_dns_packet(&packet, &limits);
         prop_assert!(outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+        prop_assert!(outcome.observations.len() <= limits.maximum_messages_per_packet);
+        prop_assert_eq!(outcome.clone(), parse_dns_packet(&packet, &limits));
     }
 }

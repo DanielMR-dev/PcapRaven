@@ -430,19 +430,6 @@ impl ProtocolObservation {
         })
     }
 
-    /// Creates a new protocol observation, panicking if invariant validation fails.
-    ///
-    /// Preferred for test constructors where invariant consistency is statically known.
-    #[must_use]
-    pub fn new(
-        reference: ObservationReference,
-        flow_association: ObservationFlowAssociation,
-        data: ProtocolObservationData,
-    ) -> Self {
-        Self::try_new(reference, flow_association, data)
-            .expect("protocol observation invariant validation failed")
-    }
-
     /// Returns the structural observation reference.
     #[must_use]
     pub const fn reference(&self) -> ObservationReference {

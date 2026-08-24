@@ -2,9 +2,10 @@
 
 ## Current Phase
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, and Phase 16
-are complete. Phase 16 contributions implemented deterministic multi-format reporting architecture (Table, JSON, NDJSON, CSV), safe output file creation, and the unified `analyze` CLI command.
-Phase 17 (synthetic fixture corpus, golden report matrix, cross-crate integration, and end-to-end regression testing) is the current active phase. Phase 18 (fuzzing and robustness) is next.
+Phases 0 through 17, including the Phase 17.1 corpus/golden hardening gate, are
+complete. Phase 18 robustness, fuzzing, property testing, and performance
+verification is current; contributors must implement only explicitly delegated
+Phase 18 scope.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.
@@ -48,9 +49,9 @@ need and explicit review; they must not be introduced speculatively.
 
 ## Testing and Quality
 
-Phase 16 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, finding correlation, finding filtering, MITRE ATT&CK mapping, reporting, and CLI
+Phase 17 validation uses the reader, normalizer, flow reconstruction, DNS, HTTP, TLS, observation/evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, finding correlation, finding filtering, MITRE ATT&CK mapping, reporting, and CLI
 integration tests, baseline quality commands, fuzz-target builds, and architecture checker
-described in [Testing](docs/TESTING.md#phase-16-quality-gates). The pinned development
+described in [Testing](docs/TESTING.md#phase-17-quality-gates). The pinned development
 toolchain is separate from the Rust 1.85 MSRV. The libraries are self-contained;
 the CLI orchestrates streaming execution and human inspection output.
 

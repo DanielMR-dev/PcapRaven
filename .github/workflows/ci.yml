@@ -113,6 +113,15 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
+      - name: Test bounded verification support
+        run: python3 scripts/test_verification_support.py
+
+      - name: Verify synthetic fixture integrity
+        run: python3 scripts/generate_fixtures.py --check
+
+      - name: Verify canonical CLI goldens
+        run: python3 scripts/check_goldens.py
+
       - name: Run workspace tests
         run: cargo test --workspace --all-features --locked
 
@@ -136,7 +145,7 @@ jobs:
         run: rustup toolchain install 1.85.0 --profile minimal --no-self-update
 
       - name: Check workspace with MSRV
-        run: cargo +1.85.0 check --workspace --locked
+        run: cargo +1.85.0 check --workspace --all-targets --locked
 
       - name: Build workspace with MSRV
         run: cargo +1.85.0 build --workspace --locked
@@ -161,9 +170,35 @@ jobs:
       - name: Check workspace
         run: cargo check --workspace --locked
 
-  fuzz-target:
-    name: Linux fuzz-target build
+      - name: Verify reporting schema contract
+        run: cargo test -p pcapraven-reporting --test schema_contract --locked
+
+      - name: Verify canonical CLI golden set
+        run: cargo test -p pcapraven-cli --test golden --locked
+
+  fuzz-smoke:
+    name: Linux fuzz smoke (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: fuzz_pcap_reader
+            max_len: 4096
+          - target: fuzz_packet_normalizer
+            max_len: 8192
+          - target: fuzz_flow_reconstructor
+            max_len: 4096
+          - target: fuzz_dns_parser
+            max_len: 4096
+          - target: fuzz_http_parser
+            max_len: 8192
+          - target: fuzz_tls_parser
+            max_len: 32768
+          - target: fuzz_detection_engine
+            max_len: 4096
+          - target: fuzz_reporting
+            max_len: 8192
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -174,21 +209,20 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --version 0.13.2 --locked
 
-      - name: Build bounded PCAP reader fuzz target
-        run: cargo +nightly fuzz build fuzz_pcap_reader
+      - name: Run bounded fuzz smoke campaign
+        run: >-
+          cargo +nightly fuzz run "${{ matrix.target }}"
+          "fuzz/corpus/${{ matrix.target }}" --
+          -max_len=${{ matrix.max_len }}
+          -max_total_time=30
+          -timeout=5
+          -rss_limit_mb=1024
 
-      - name: Build bounded packet normalizer fuzz target
-        run: cargo +nightly fuzz build fuzz_packet_normalizer
-
-      - name: Build bounded flow reconstructor fuzz target
-        run: cargo +nightly fuzz build fuzz_flow_reconstructor
-
-      - name: Build bounded DNS parser fuzz target
-        run: cargo +nightly fuzz build fuzz_dns_parser
-
-      - name: Build bounded HTTP parser fuzz target
-        run: cargo +nightly fuzz build fuzz_http_parser
-
-      - name: Build bounded TLS parser fuzz target
-        run: cargo +nightly fuzz build fuzz_tls_parser
-
+      - name: Upload target crash artifacts on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pcapraven-fuzz-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: warn
+          retention-days: 7

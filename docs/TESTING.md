@@ -13,8 +13,10 @@ Phase 11 detection engine architecture tests, Phase 12 explainable periodic beac
 Phase 13 explainable DNS anomaly and possible tunneling detection tests,
 Phase 14 repeated low-volume flow and correlation tests,
 Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance tests,
-and Phase 16 deterministic reporting architecture and schema contract tests are complete.
-Phase 17 (synthetic fixture corpus, golden report matrix, and end-to-end regression testing) is the current active phase.
+Phase 16 deterministic reporting architecture and schema contract tests,
+and Phase 17 synthetic fixture corpus, golden report matrix, cross-crate integration,
+end-to-end regression testing, and mandatory Phase 17.1 hardening are complete.
+Phase 18 robustness and performance verification is current.
 
 ## Testing Pyramid
 
@@ -28,8 +30,8 @@ direction assignment, timestamp arithmetic, and TCP/UDP lifecycle state machines
 
 ### Fixture and Golden Tests
 
-Fixture tests will pass known captures or normalized inputs through one or more
-stages. Golden outputs will lock intentional diagnostics, normalized records,
+Fixture tests pass known captures or normalized inputs through one or more
+stages. Golden outputs lock intentional diagnostics, normalized records,
 findings, ordering, and serialized schemas. Golden changes require human review
 and an explanation; they must never be updated blindly merely to make tests
 pass.
@@ -43,7 +45,7 @@ paths are first-class cases.
 
 ### End-to-End Tests
 
-End-to-end tests will invoke the compiled CLI with synthetic captures and
+End-to-end tests invoke the compiled CLI with synthetic captures and
 verify exit status, stdout/stderr separation, output-file behavior, format
 validity, filters, quiet/verbose behavior, deterministic output, and hostile
 terminal text handling.
@@ -76,12 +78,17 @@ Implemented properties include:
 
 ### Fuzzing Strategy
 
-Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with six targets:
+Fuzzing uses an excluded `fuzz/` package and `libfuzzer-sys` with eight targets:
 `fuzz_pcap_reader` for capture-container parsing, `fuzz_packet_normalizer` for
 protocol normalization, `fuzz_flow_reconstructor` for flow reconstruction
 and traffic/temporal metric invariant validation, `fuzz_dns_parser` for
 bounded DNS wire parsing, `fuzz_http_parser` for bounded HTTP/1.x wire parsing,
-and `fuzz_tls_parser` for bounded TLS 1.2 / TLS 1.3 handshake parsing.
+`fuzz_tls_parser` for bounded TLS 1.2 / TLS 1.3 handshake parsing,
+`fuzz_detection_engine` for bounded normalized facts through built-in detectors
+and correlation, and `fuzz_reporting` for deterministic serialization,
+sanitization, strict machine-reference token validation, complete
+packet/flow/observation/evidence/source-finding reference closure, canonical
+source ordering, malformed JSON values, and writer failures.
 The targets call only public bounded APIs and do not access files or networks.
 The checked-in CI build commands are:
 
@@ -92,16 +99,18 @@ cargo +nightly fuzz build fuzz_flow_reconstructor
 cargo +nightly fuzz build fuzz_dns_parser
 cargo +nightly fuzz build fuzz_http_parser
 cargo +nightly fuzz build fuzz_tls_parser
+cargo +nightly fuzz build fuzz_detection_engine
+cargo +nightly fuzz build fuzz_reporting
 ```
 
-Long-running `cargo-fuzz` campaigns and additional structured targets remain
-future work. Planned targets include:
-
-- PCAP and PCAPNG container ingestion.
-- Link, network, and transport normalization.
-- Stateful bidirectional flow reconstruction.
-- DNS, HTTP/1.x, and TLS handshake parsers.
-- Report escaping and serializers for attacker-controlled text and values.
+Exactly two curated synthetic seeds are tracked under each
+`fuzz/corpus/<target>/` directory (16 total); their exact encodings, sizes, and
+provenance are inventoried in `ROBUSTNESS.md`. Newly mutated hash-named corpus
+entries and artifacts remain ignored and are removed after local smoke runs.
+Linux CI runs each target for 30 seconds with `-timeout=5`,
+`-rss_limit_mb=1024`, and target-specific maximum input lengths documented in
+`ROBUSTNESS.md`. The eight 600-second acceptance campaigns remain pending and
+cannot be inferred from build or smoke success.
 
 Fuzz harnesses must configure conservative memory, record, nesting, and work
 limits; avoid network and nondeterministic dependencies; and treat panics,
@@ -117,17 +126,28 @@ runs. Platform sanitizer coverage and exact budgets will be defined in Phase
 
 ## Fixture Policy
 
-The future fixture layout is:
+The canonical fixture and golden layout is:
 
 ```text
-fixtures/pcaps/benign/
-fixtures/pcaps/suspicious/
-fixtures/pcaps/malformed/
-fixtures/pcaps/edge-cases/
-fixtures/expected/
+tests/fixtures/pcaps/benign/
+tests/fixtures/pcaps/suspicious/
+tests/fixtures/pcaps/malformed/
+tests/fixtures/pcaps/edge_cases/
+tests/fixtures/pcaps/manifest.json
+tests/fixtures/pcaps/checksums.sha256
+tests/golden/{validate,flows,dns,http,tls,findings,analyze,stderr}/
 ```
 
-The full fixture corpus is deferred to Phase 17.
+The corpus is generated by `scripts/generate_fixtures.py --write`; routine
+verification uses the completely read-only `--check` mode. Each capture is at
+most 256 KiB and the aggregate corpus is at most 4 MiB. The canonical manifest
+uses schema version 1 and generator version 1, path-sorted entries, SHA-256,
+synthetic/MIT provenance, purpose, and expected behavior without environment metadata.
+Verification tree discovery, individual reads, and retained mismatch diagnostics
+have explicit hard caps. Exceeding a discovery cap fails verification and reports
+that additional entries were omitted. No canonical fixture, manifest, or golden
+bytes are read until structural discovery succeeds completely; byte identity and
+SHA-256 checks run only after that hard precondition.
 
 ### Categories
 
@@ -159,6 +179,14 @@ when introduced. Generated captures are reviewed as binary artifacts and kept
 as small as practical. Large or legally ambiguous samples are excluded rather
 than fetched during tests.
 
+Canonical golden bytes are checked read-only by `scripts/check_goldens.py`.
+For each scenario, an absent stdout or stderr golden path means that stream must
+be exactly empty; unexpected successful-command warnings therefore fail the gate.
+`scripts/stage_goldens.py --output <empty-directory>` may create review
+candidates only outside `tests/golden/`; it has no accept or blind-update mode.
+Candidates require manual semantic and frozen schema-v1.0 diff review before an
+intentional selected file is copied into the canonical tree.
+
 ## Regression Corpus
 
 Every security, parser, crash, hang, or incorrect-result defect should add the
@@ -181,27 +209,26 @@ cargo metadata --format-version 1 --no-deps --locked
 python3 scripts/check_workspace_architecture.py
 ```
 
-The separate CI fuzz build job verifies the excluded fuzz harnesses using the
-nightly toolchain and pinned `cargo-fuzz = 0.13.2`:
+The separate Linux CI fuzz matrix verifies the excluded fuzz harnesses using the
+nightly toolchain and pinned `cargo-fuzz = 0.13.2`. Each matrix entry runs:
 
 ```text
-cargo +nightly fuzz build fuzz_pcap_reader
-cargo +nightly fuzz build fuzz_packet_normalizer
-cargo +nightly fuzz build fuzz_flow_reconstructor
-cargo +nightly fuzz build fuzz_dns_parser
-cargo +nightly fuzz build fuzz_http_parser
+cargo +nightly fuzz run <target> fuzz/corpus/<target> -- \
+  -max_len=<target-limit> -max_total_time=30 -timeout=5 -rss_limit_mb=1024
 ```
 
 The CI job uses locked dependency resolution for workspace quality, metadata,
 test, and documentation invocations where Cargo supports it. The architecture
-checker also passes `--locked` and `--offline` to Cargo metadata. A separate
-locked MSRV job runs `cargo +1.85.0 check --workspace --locked`, `cargo +1.85.0 build
+checker also passes `--locked` and `--offline` to Cargo metadata for both the
+main workspace and excluded fuzz package. A separate locked MSRV job runs
+`cargo +1.85.0 check --workspace --all-targets --locked`, `cargo +1.85.0 build
 --workspace --locked`, and `cargo +1.85.0 test --workspace --locked`. A
 lightweight `cargo check --workspace --locked` runs across Linux, Windows, and
 macOS. The architecture checker rejects unexpected packages, roles, external
 dependencies, and dependency directions. The workspace lint policy rejects
-project `unsafe` code by default. The fuzz package is excluded from the seven
-package main workspace and is validated by its separate locked fuzz build command.
+project `unsafe` code by default. The fuzz package remains excluded from the
+seven-package main workspace and its exact dependencies and eight binary targets
+are validated separately by the architecture checker.
 
 ## Phase 0 Validation (completed)
 
@@ -385,7 +412,7 @@ Phase 12 validation and Phase 12.1 hardening confirm:
 
 Phase 13 validation and Phase 13.1 hardening confirm:
 
-- **DNS Anomaly and Tunneling Detector Implementations:** `DnsLongQueryNameDetector` (`dns.long_query_name`, v1.0.1, policy `Skip`, severity `Info`, confidence `Medium`) and `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, v1.0.1, policy `Skip`, severity `Low`, confidence `Medium`) implemented in `crates/pcapraven-detection/src/dns_anomaly.rs`.
+- **DNS Anomaly and Tunneling Detector Implementations:** `DnsLongQueryNameDetector` (`dns.long_query_name`, v1.0.1, policy `Skip`, severity `Info`, confidence `Medium`) and `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, v1.1.1, policy `Skip`, severity `Low`, confidence `Medium`) implemented in `crates/pcapraven-detection/src/dns_anomaly.rs`.
 - **Exact Label Octet Diversity Metric:** Computes `label_octet_diversity_ratio` using a fixed `[bool; 256]` bitmap with zero floats, zero heap allocations, and zero Shannon entropy approximations.
 - **Canonical DNS Query Classification:** Enforces strict query validation (`completeness.is_complete() && message_kind == DnsMessageKind::Query && flags.qr == false`). Responses and contradictory message states are safely ignored.
 - **Causally Coherent Evidence:** Finding threshold measurements derive strictly from matching questions and qualifying labels (`label.len() >= min_label_length`). Non-matching questions and short unrelated labels cannot inflate displayed evidence metrics.
@@ -400,11 +427,11 @@ Phase 14 validation confirms:
 
 - **Finding Domain Model Extension:** Added `source_finding_references: Vec<FindingReference>` to `FindingRecord` in `crates/pcapraven-domain/src/finding.rs` with `HARD_MAX_SOURCE_FINDING_REFERENCES = 256` and strict sort/uniqueness/capacity validation. Verified via `crates/pcapraven-domain/tests/finding.rs`.
 - **Repeated Low-Volume Flow Detector:** `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`, v1.0.0, policy `Skip`, severity `Low`, confidence `Medium`) implemented in `crates/pcapraven-detection/src/connection_behavior.rs`.
-- **Canonical Peer Aggregation:** Aggregates flows using port-agnostic `ConnectionPeerKey` (`peer_a <= peer_b`), bounded by `maximum_tracked_peers` ($1..=1\_000\_000$).
+- **Canonical Peer Aggregation:** Aggregates flows using port-agnostic `ConnectionPeerKey` (`peer_a <= peer_b`), bounded by `maximum_tracked_peer_groups` ($1..=1\_000\_000$).
 - **Flow Qualification & Exclusions:** Excludes flows with `AnalysisStopped`, `same_endpoint > 0`, `packet_count == 0`, and flows exceeding byte/packet caps.
-- **Ordered Factual Evidence:** Emits `EvidenceKind::FlowMeasurement` with 5 canonical measurements in strict alphabetical order (`flow_count`, `maximum_flow_bytes`, `maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`).
+- **Ordered Factual Evidence:** Emits `EvidenceKind::RatioComparison` with 6 canonical measurements in strict alphabetical order (`candidate_flow_count`, `candidate_flow_ratio`, `eligible_flow_instance_count`, `maximum_candidate_duration`, `maximum_candidate_packet_count`, `maximum_candidate_wire_bytes`).
 - **Cross-Detector Correlation Pipeline:** Implemented `FindingCorrelator` trait, `CorrelationRegistry`, `CorrelationDraftSink`, and `execute_detection_with_correlators` in `crates/pcapraven-detection/src/correlation.rs` and `engine.rs`.
-- **Multi-Signal C2 Correlator:** `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, v1.0.0, severity `Medium`, confidence `Medium`) correlates `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
+- **Multi-Signal C2 Correlator:** `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, v1.1.1, severity `Medium`, confidence `Medium`) correlates `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
 - **Comprehensive Integration Tests:** Unit and integration tests in `crates/pcapraven-detection/tests/connection_behavior.rs` and `crates/pcapraven-detection/tests/correlation.rs` verify all match rules, thresholds, flow exclusions, incomplete data handling, parameter validation, multi-signal matching, partial signal rejections, and capacity bounds.
 
 ## Phase 15 Severity, Confidence, MITRE ATT&CK Mapping Provenance, and Findings CLI Validation (completed)
@@ -426,6 +453,73 @@ Phase 16 validation confirms:
 - **CSV Analyze Rejection Contract:** Rejection of `pcapraven analyze --format csv` with Exit Code 2, preventing ambiguous flat projections of multi-layer hierarchical analysis data.
 - **Safe Output Files (`--output`):** Enforces `create_new(true)` atomic file creation, exiting with code 2 on collisions and keeping stdout clean.
 - **Unified Forensic Analysis CLI (`pcapraven analyze`):** Complete multi-layer analysis orchestrating capture metadata, flows, DNS, HTTP, TLS, analytical findings, and causal evidence.
+
+## Phase 17 Quality Gates
+
+Phase 17 and mandatory Gate 17.1 are complete. The gate verifies:
+
+- `tests/fixtures/pcaps/manifest.json` and `checksums.sha256` exactly match
+  deterministic in-memory generated bytes, with no missing/unexpected capture,
+  unknown category, provenance mismatch, or size-budget violation.
+- Every one of the 20 manifest fixtures is executed through the compiled CLI
+  with an exact expected exit state and behavior assertion, including malformed
+  failed-before-useful inputs and detector-specific suspicious fixtures.
+- The canonical scenario model covers commands/formats plus exact exit states
+  0, 1, 2, and 3. Present stdout/stderr goldens are compared as bytes and absent
+  paths require empty streams; golden verification never writes `tests/golden/`.
+- Supported multi-section PCAPNG, useful-then-truncated PCAP, no-useful corrupt
+  PCAP, canonical flow creation order, independent DNS detection beside local
+  HTTP degradation, CSV formula defense, HTTP secret non-retention, and exact
+  record/flow/flow-instance/observation budget limitations are regression tested.
+- Representative table, JSON, NDJSON, CSV, and filtered findings runs are
+  repeated with exact exit/stdout/stderr equality.
+- Linux CI runs the two read-only checks below. Ubuntu, Windows, and macOS run
+  locked workspace check, reporting `schema_contract`, and CLI `golden` tests
+  against one canonical golden set.
+
+```text
+python3 scripts/test_verification_support.py
+python3 scripts/generate_fixtures.py --check
+python3 scripts/check_goldens.py
+cargo test -p pcapraven-reporting --test schema_contract --locked
+cargo test -p pcapraven-cli --test corpus --locked
+cargo test -p pcapraven-cli --test golden --locked
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --all-features --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+cargo metadata --format-version 1 --no-deps --locked
+python3 scripts/check_workspace_architecture.py
+cargo +1.85.0 check --workspace --all-targets --locked
+cargo +1.85.0 build --workspace --locked
+cargo +1.85.0 test --workspace --locked
+cargo +nightly fuzz build
+python3 scripts/run_phase18_benchmarks.py --smoke
+```
+
+Phase 18 remains current. Its bounded fuzz, verifier-hardening, CI-smoke, and
+benchmark foundation is implemented; long-running fuzz campaigns, acceptance
+measurements, and final performance thresholds are not claimed complete.
+
+Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
+streams entries under explicit depth, examined-entry, file-count, and byte
+limits; charges entries before metadata inspection; rejects symlinks and
+non-regular nodes; validates every component from an explicit trusted repository
+root; and detects replacements observable through pre/open/post checks. Focused
+regressions place canonical files below a static symlinked ancestor and prove
+that file-open/read hooks and target scans are not reached. Fixture and golden
+checks must finish structural discovery and fail before manifest/golden reads or
+CLI scenario execution; golden candidate staging performs the fixture preflight
+before creating output or invoking the CLI. Unix device/inode checks represent
+observable identity, while Windows/non-Unix metadata tuples are only portable
+observable-state snapshots. Concurrent hostile local mutation of the trusted
+checkout remains outside the atomicity guarantee.
+
+DNS N-1/N/N+1 regressions cover compressed and uncompressed
+CNAME messages whose aggregate expanded question, owner, and RDATA names total
+39 wire bytes. This parser resource-accounting correction does not change DNS
+detector identifiers, detector versions, finding semantics, report schema, or
+golden report bytes.
 
 ## Dependency Audits
 
@@ -478,6 +572,21 @@ The excluded fuzz package uses exact `libfuzzer-sys = 0.4.13`, licensed
 `(MIT OR Apache-2.0) AND NCSA`. It is excluded from the production workspace and
 runtime.
 
+### `serde_json = 1.0.140` (Fuzz-only reuse)
+
+The excluded fuzz package reuses the exact already-locked reporting version
+with `default-features = false` and `features = ["alloc"]`. It validates emitted
+JSON/NDJSON records and exercises bounded malformed JSON values. This does not
+add a dependency to any runtime crate.
+
+### `csv = 1.3.1` (Fuzz-only reuse)
+
+The excluded fuzz package reuses exact `csv = 1.3.1` with
+`default-features = false` to parse emitted CSV structurally in the reporting
+harness. This is an already-locked reporting dependency, adds no runtime crate
+dependency, performs no network or telemetry activity, and retains its
+MIT/Apache-2.0 licensing.
+
 ## Test Quality Rules
 
 - Tests must be deterministic and offline by default.
@@ -489,36 +598,3 @@ runtime.
 - Machine output tests validate syntax, schema semantics, ordering, and stdout
   purity.
 - Tests may not hide panics or accept broad output merely to tolerate defects.
-
-## Phase 16 Quality Gates
-
-The full workspace verification commands for Phase 16 are:
-
-```text
-# 1. Format check
-cargo fmt --all -- --check
-
-# 2. Workspace lints
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-
-# 3. Full workspace tests
-cargo test --workspace --all-features --locked
-
-# 4. Reporting unit, integration, schema anchor, and property tests
-cargo test -p pcapraven-reporting --locked
-
-# 5. CLI end-to-end integration tests
-cargo test -p pcapraven-cli --locked
-
-# 6. Documentation build
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
-
-# 7. Architecture & dependency validation
-python3 scripts/check_workspace_architecture.py
-
-# 8. MSRV check
-cargo +1.85.0 check --workspace --all-targets --locked
-
-# 9. Excluded fuzz targets build
-cargo +nightly fuzz build
-```

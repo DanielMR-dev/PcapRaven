@@ -6,16 +6,25 @@ use pcapraven_domain::{
 };
 use pcapraven_protocols::{NormalizationLimitsBuilder, normalize_packet};
 
-fuzz_target!(|data: &[u8]| {
-    let limits = NormalizationLimitsBuilder::default()
+fn exercise(data: &[u8], linktype: u32, ordinal: u64, truncated: bool) {
+    let Ok(length) = u32::try_from(data.len()) else {
+        return;
+    };
+    let original = if truncated {
+        length.checked_add(1).unwrap_or(length)
+    } else {
+        length
+    };
+    let Ok(limits) = NormalizationLimitsBuilder::default()
         .maximum_retained_payload_bytes(1024)
         .maximum_diagnostics_per_packet(8)
         .maximum_ipv6_extension_headers(4)
         .maximum_ipv6_extension_bytes(512)
         .build()
-        .expect("valid fuzz limits");
-
-    let reference = PacketReference::new(0, None, None, data.len() as u32, data.len() as u32, false);
+    else {
+        return;
+    };
+    let reference = PacketReference::new(ordinal, None, None, length, original, truncated);
     let timestamp = PacketTimestamp::Available {
         seconds: 1_700_000_000,
         fractional_units: 0,
@@ -25,34 +34,31 @@ fuzz_target!(|data: &[u8]| {
         },
         offset_seconds: 0,
     };
-
-    // 1. Fuzz with standard LINKTYPE_ETHERNET = 1
-    let input_eth = PacketNormalizationInput::new(reference, timestamp, 1, data);
-    let outcome_eth = normalize_packet(&input_eth, &limits);
-
-    if let Some(payload) = &outcome_eth.packet.payload {
+    let input = PacketNormalizationInput::new(reference, timestamp, linktype, data);
+    let first = normalize_packet(&input, &limits);
+    let second = normalize_packet(&input, &limits);
+    assert_eq!(first, second);
+    assert!(first.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+    if let Some(payload) = &first.packet.payload {
         assert!(payload.len() <= limits.maximum_retained_payload_bytes);
     }
-    assert!(outcome_eth.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
-
-    // 2. Fuzz with arbitrary linktype if at least 4 bytes exist
-    if data.len() >= 4 {
-        let raw_linktype = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-        let remaining_data = &data[4..];
-        let ref_arb = PacketReference::new(
-            1,
-            None,
-            None,
-            remaining_data.len() as u32,
-            remaining_data.len() as u32,
-            false,
+    if let Some(pcapraven_domain::NetworkLayer::Ipv6(ipv6)) = &first.packet.network_layer {
+        assert!(ipv6.extension_headers_count <= limits.maximum_ipv6_extension_headers);
+        assert!(
+            usize::from(ipv6.extension_headers_length) <= limits.maximum_ipv6_extension_bytes
         );
-        let input_arb = PacketNormalizationInput::new(ref_arb, timestamp, raw_linktype, remaining_data);
-        let outcome_arb = normalize_packet(&input_arb, &limits);
+    }
+}
 
-        if let Some(payload) = &outcome_arb.packet.payload {
-            assert!(payload.len() <= limits.maximum_retained_payload_bytes);
-        }
-        assert!(outcome_arb.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
+fuzz_target!(|data: &[u8]| {
+    exercise(data, 1, 0, false);
+    exercise(data, 1, 1, true);
+    if data.len() >= 4 {
+        let (prefix, payload) = data.split_at(4);
+        let Ok(prefix) = <&[u8; 4]>::try_from(prefix) else {
+            return;
+        };
+        let raw_linktype = u32::from_le_bytes(*prefix);
+        exercise(payload, raw_linktype, 2, false);
     }
 });

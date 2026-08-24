@@ -679,6 +679,8 @@ fn test_csv_formula_injection_defense() {
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(128))]
+
     #[test]
     fn prop_csv_sanitizer_never_allows_unquoted_formula(s in "\\PC*") {
         let sanitized = sanitize_csv_cell(&s);
@@ -688,6 +690,81 @@ proptest! {
             prop_assert!(sanitized.starts_with('\''));
         } else {
             prop_assert_eq!(&sanitized, &s);
+        }
+    }
+
+    #[test]
+    fn phase18_validation_formats_are_repeatable_bounded_and_structurally_valid(
+        attacker_text in prop::collection::vec(any::<char>(), 0..64).prop_map(|chars| chars.into_iter().collect::<String>()),
+        wide_value in any::<u128>(),
+    ) {
+        let safe_text = EvidenceDescription::try_new(&attacker_text)
+            .map_or_else(|_| "rejected-control-or-empty".to_owned(), |value| value.as_str().to_owned());
+        let metadata = ValidationMetadataDto {
+            format: safe_text,
+            byte_order: "little_endian".to_owned(),
+            version_major: None,
+            version_minor: None,
+            linktype: None,
+            snaplen: None,
+            timestamp_resolution: None,
+            section_count: None,
+            interface_count: None,
+            usable_interfaces: None,
+            unusable_interfaces: None,
+        };
+        let summary = ValidationSummaryDto {
+            records_emitted: wide_value.to_string(),
+            total_diagnostics: u64::MAX.to_string(),
+            had_diagnostics: true,
+        };
+        let completion = ValidationCompletionDto {
+            status: "partial".to_owned(),
+            is_complete: false,
+            terminal_error: None,
+        };
+
+        for format in [ReportFormat::Table, ReportFormat::Json, ReportFormat::Ndjson, ReportFormat::Csv] {
+            let mut first = Vec::new();
+            let mut second = Vec::new();
+            report_validation(format, &metadata, &summary, &completion, &[], &mut first).unwrap();
+            report_validation(format, &metadata, &summary, &completion, &[], &mut second).unwrap();
+            prop_assert_eq!(&first, &second);
+            prop_assert!(first.len() <= 32 * 1024);
+
+            match format {
+                ReportFormat::Table => {
+                    prop_assert!(!first.contains(&0x1b));
+                }
+                ReportFormat::Json => {
+                    let value: serde_json::Value = serde_json::from_slice(&first).unwrap();
+                    prop_assert_eq!(value["schema_version"].as_str(), Some(REPORT_SCHEMA_VERSION));
+                    prop_assert_eq!(value["kind"].as_str(), Some("validation"));
+                    prop_assert_eq!(
+                        value["summary"]["records_emitted"].as_str(),
+                        Some(summary.records_emitted.as_str())
+                    );
+                    prop_assert!(value["metadata"]["linktype"].is_null());
+                    prop_assert!(value["completion"]["terminal_error"].is_null());
+                }
+                ReportFormat::Ndjson => {
+                    for line in first.split(|byte| *byte == b'\n').filter(|line| !line.is_empty()) {
+                        let value: serde_json::Value = serde_json::from_slice(line).unwrap();
+                        prop_assert_eq!(value["schema_version"].as_str(), Some(REPORT_SCHEMA_VERSION));
+                        prop_assert_eq!(value["kind"].as_str(), Some("validation"));
+                        prop_assert!(value["record_type"].is_string());
+                        prop_assert!(value["data"].is_object());
+                    }
+                }
+                ReportFormat::Csv => {
+                    let mut reader = csv::ReaderBuilder::new().from_reader(first.as_slice());
+                    let headers = reader.headers().unwrap().clone();
+                    prop_assert!(!headers.is_empty());
+                    for record in reader.records() {
+                        prop_assert_eq!(record.unwrap().len(), headers.len());
+                    }
+                }
+            }
         }
     }
 }

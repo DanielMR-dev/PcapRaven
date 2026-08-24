@@ -123,6 +123,11 @@ impl std::error::Error for DetectorConfigError {}
 /// Errors occurring during detector registration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DetectorRegistryError {
+    /// Built-in component metadata failed its static validation boundary.
+    InvalidStaticMetadata {
+        /// Name of the built-in component whose metadata was invalid.
+        component: &'static str,
+    },
     /// Registry capacity must be greater than zero.
     ZeroRegistryCapacity,
     /// Registry capacity exceeds hard maximum.
@@ -171,6 +176,12 @@ pub enum DetectorRegistryError {
 impl fmt::Display for DetectorRegistryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidStaticMetadata { component } => {
+                write!(
+                    f,
+                    "built-in component '{component}' has invalid static metadata"
+                )
+            }
             Self::ZeroRegistryCapacity => {
                 f.write_str("detector registry capacity must be greater than zero")
             }

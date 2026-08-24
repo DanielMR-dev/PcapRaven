@@ -134,12 +134,6 @@ impl DnsLongQueryNameDetector {
     /// Hard maximum label length limit (63 per RFC 1035).
     pub const MAX_LABEL_LENGTH_LIMIT: u64 = 63;
 
-    /// Creates and initializes a new long query name detector instance.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::try_new().expect("canonical detector metadata is valid")
-    }
-
     /// Fallibly creates and initializes a new long query name detector instance.
     pub fn try_new() -> Result<Self, FindingValidationError> {
         let id = DetectorId::try_new(Self::DETECTOR_ID)?;
@@ -157,12 +151,6 @@ impl DnsLongQueryNameDetector {
                 IncompleteDataPolicy::Skip,
             ),
         })
-    }
-}
-
-impl Default for DnsLongQueryNameDetector {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -652,12 +640,6 @@ impl DnsPossibleTunnelingDetector {
     /// Hard limit for maximum tracked DNS flows (1,000,000).
     pub const HARD_MAX_TRACKED_DNS_FLOWS: u64 = 1_000_000;
 
-    /// Creates and initializes a new possible tunneling detector instance.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::try_new().expect("canonical detector metadata is valid")
-    }
-
     /// Fallibly creates and initializes a new possible tunneling detector instance.
     pub fn try_new() -> Result<Self, FindingValidationError> {
         let id = DetectorId::try_new(Self::DETECTOR_ID)?;
@@ -694,12 +676,6 @@ impl DnsPossibleTunnelingDetector {
         .map_err(|_| FindingValidationError::EmptyFindingSummary)?;
 
         Ok(Self { metadata })
-    }
-}
-
-impl Default for DnsPossibleTunnelingDetector {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

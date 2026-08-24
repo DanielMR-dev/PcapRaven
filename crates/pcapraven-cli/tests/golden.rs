@@ -1,492 +1,348 @@
-//! End-to-end golden report comparison tests for PcapRaven CLI.
+//! Byte-exact CLI golden regression scenarios, including all four exit states.
 
-use std::fs;
-use std::path::PathBuf;
+mod support;
+
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use support::{TreeLimits, collect_regular_files_bounded, read_file_bounded};
 
-fn pcapraven_bin() -> PathBuf {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop(); // crates
-    path.pop(); // root
-    path.push("target");
-    path.push("debug");
-    path.push(if cfg!(windows) {
-        "pcapraven.exe"
-    } else {
-        "pcapraven"
-    });
-    if !path.exists() {
-        let exe = std::env::current_exe().expect("current exe");
-        let mut target_dir = exe.parent().expect("target dir");
-        if target_dir.ends_with("deps") {
-            target_dir = target_dir.parent().expect("parent of deps");
-        }
-        let fallback = target_dir.join(if cfg!(windows) {
-            "pcapraven.exe"
+#[derive(Debug)]
+struct Scenario {
+    name: String,
+    args: Vec<String>,
+    expected_exit: i32,
+    // `None` means the stream must be exactly empty.
+    stdout_golden: Option<String>,
+    // `None` means the stream must be exactly empty.
+    stderr_golden: Option<String>,
+}
+
+const MAX_GOLDEN_BYTES: usize = 4 * 1024 * 1024;
+const FIXTURE_RELATIVE_ROOT: &str = "tests/fixtures/pcaps";
+const GOLDEN_RELATIVE_ROOT: &str = "tests/golden";
+const CANONICAL_TREE_LIMITS: TreeLimits = TreeLimits {
+    maximum_depth: 8,
+    maximum_entries: 4096,
+    maximum_files: 1024,
+};
+
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("CLI crate is below the workspace root")
+        .to_path_buf()
+}
+
+fn fixture(relative: &str) -> String {
+    root()
+        .join(FIXTURE_RELATIVE_ROOT)
+        .join(relative)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn add_formats(
+    scenarios: &mut Vec<Scenario>,
+    command: &str,
+    capture: &str,
+    prefix: &str,
+    formats: &[&str],
+    extra: &[&str],
+) {
+    for output_format in formats {
+        let extension = if *output_format == "table" {
+            "table.txt"
         } else {
-            "pcapraven"
+            output_format
+        };
+        let mut args = vec![
+            command.to_string(),
+            "--format".to_string(),
+            output_format.to_string(),
+        ];
+        args.extend(extra.iter().map(ToString::to_string));
+        args.push(fixture(capture));
+        scenarios.push(Scenario {
+            name: format!("{prefix}-{output_format}"),
+            args,
+            expected_exit: 0,
+            stdout_golden: Some(format!("{prefix}.{extension}")),
+            stderr_golden: None,
         });
-        if fallback.exists() {
-            return fallback;
+    }
+}
+
+fn scenarios() -> Vec<Scenario> {
+    let mut result = Vec::new();
+    let all = ["table", "json", "ndjson", "csv"];
+    add_formats(
+        &mut result,
+        "validate",
+        "benign/clean_dns.pcap",
+        "validate/clean_dns",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "flows",
+        "benign/clean_tcp_flows.pcap",
+        "flows/clean_tcp_flows",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "dns",
+        "benign/clean_dns.pcap",
+        "dns/clean_dns",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "http",
+        "benign/clean_http.pcap",
+        "http/clean_http",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "tls",
+        "benign/clean_tls.pcap",
+        "tls/clean_tls",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "findings",
+        "suspicious/periodic_beaconing.pcap",
+        "findings/periodic_beaconing",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "findings",
+        "suspicious/dns_tunneling.pcap",
+        "findings/dns_tunneling",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "findings",
+        "suspicious/c2_multi_signal.pcap",
+        "findings/c2_multi_signal",
+        &all,
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "findings",
+        "suspicious/c2_multi_signal.pcap",
+        "findings/c2_multi_signal_mitre_filter",
+        &all,
+        &["--mitre", "T1071.004"],
+    );
+    add_formats(
+        &mut result,
+        "analyze",
+        "benign/clean_dns.pcap",
+        "analyze/clean_dns",
+        &["table", "json", "ndjson"],
+        &[],
+    );
+    add_formats(
+        &mut result,
+        "analyze",
+        "suspicious/c2_multi_signal.pcap",
+        "analyze/c2_multi_signal",
+        &["table", "json", "ndjson"],
+        &[],
+    );
+    let fixed = [
+        (
+            "multi-section",
+            vec!["validate", "--format", "json"],
+            "edge_cases/multi_section.pcapng",
+            0,
+            Some("validate/multi_section.json"),
+            None,
+        ),
+        (
+            "flow-close-order",
+            vec!["flows", "--format", "table"],
+            "edge_cases/flow_close_out_of_creation_order.pcap",
+            0,
+            Some("flows/flow_close_out_of_creation_order.table.txt"),
+            None,
+        ),
+        (
+            "local-http-partial-dns",
+            vec![
+                "findings",
+                "--format",
+                "table",
+                "--detector",
+                "dns.possible_tunneling",
+            ],
+            "edge_cases/local_http_partial_with_dns_detection.pcap",
+            3,
+            Some("findings/local_http_partial_with_dns_detection.table.txt"),
+            Some("stderr/local_http_partial_with_dns_detection.txt"),
+        ),
+        (
+            "useful-then-truncated",
+            vec!["analyze", "--format", "json"],
+            "malformed/useful_then_truncated_record.pcap",
+            3,
+            Some("analyze/useful_then_truncated_record.json"),
+            Some("stderr/useful_then_truncated_record.txt"),
+        ),
+        (
+            "corrupt-no-useful",
+            vec!["validate"],
+            "malformed/corrupt_packet.pcap",
+            1,
+            None,
+            Some("stderr/corrupt_packet.txt"),
+        ),
+        (
+            "analyze-csv-rejected",
+            vec!["analyze", "--format", "csv"],
+            "benign/clean_dns.pcap",
+            2,
+            None,
+            Some("stderr/analyze_csv_rejected.txt"),
+        ),
+        (
+            "csv-sentinels",
+            vec!["http", "--format", "csv"],
+            "edge_cases/csv_formula_sentinels.pcap",
+            0,
+            Some("http/csv_formula_sentinels.csv"),
+            None,
+        ),
+    ];
+    for (name, args, capture, expected_exit, stdout, stderr) in fixed {
+        let mut args: Vec<String> = args.into_iter().map(ToString::to_string).collect();
+        args.push(fixture(capture));
+        result.push(Scenario {
+            name: name.to_string(),
+            args,
+            expected_exit,
+            stdout_golden: stdout.map(ToString::to_string),
+            stderr_golden: stderr.map(ToString::to_string),
+        });
+    }
+    result
+}
+
+fn expected_bytes(relative: &str) -> Vec<u8> {
+    read_file_bounded(
+        &root(),
+        &Path::new(GOLDEN_RELATIVE_ROOT).join(relative),
+        MAX_GOLDEN_BYTES,
+    )
+    .unwrap_or_else(|error| panic!("failed to read golden {relative}: {error}"))
+}
+
+fn preflight_canonical_inputs(matrix: &[Scenario]) {
+    let workspace_root = root();
+    let fixture_root = workspace_root.join(FIXTURE_RELATIVE_ROOT);
+    let actual_fixtures = collect_regular_files_bounded(
+        &workspace_root,
+        Path::new(FIXTURE_RELATIVE_ROOT),
+        &["pcap", "pcapng"],
+        CANONICAL_TREE_LIMITS,
+    )
+    .expect("complete bounded fixture traversal before scenario execution");
+    for scenario in matrix {
+        let capture = scenario
+            .args
+            .last()
+            .map(Path::new)
+            .and_then(|path| path.strip_prefix(&fixture_root).ok())
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|| panic!("{} capture escaped fixture root", scenario.name));
+        assert!(
+            actual_fixtures.contains(&capture),
+            "{} capture is missing or non-regular: {capture}",
+            scenario.name
+        );
+    }
+
+    let actual_goldens = collect_regular_files_bounded(
+        &workspace_root,
+        Path::new(GOLDEN_RELATIVE_ROOT),
+        &["txt", "json", "ndjson", "csv"],
+        CANONICAL_TREE_LIMITS,
+    )
+    .expect("complete bounded golden traversal before expected-byte reads");
+    let expected_goldens: BTreeSet<String> = matrix
+        .iter()
+        .flat_map(|scenario| {
+            [
+                scenario.stdout_golden.as_ref(),
+                scenario.stderr_golden.as_ref(),
+            ]
+        })
+        .flatten()
+        .cloned()
+        .collect();
+    assert_eq!(
+        actual_goldens, expected_goldens,
+        "canonical golden inventory"
+    );
+}
+
+#[test]
+fn canonical_scenario_matrix_matches_exact_bytes_and_exit_states() {
+    let matrix = scenarios();
+    preflight_canonical_inputs(&matrix);
+    for scenario in matrix {
+        let output = Command::new(env!("CARGO_BIN_EXE_pcapraven"))
+            .args(&scenario.args)
+            .output()
+            .unwrap_or_else(|error| panic!("{} failed to execute: {error}", scenario.name));
+        assert_eq!(
+            output.status.code(),
+            Some(scenario.expected_exit),
+            "{} returned an unexpected exit state; stderr={:?}",
+            scenario.name,
+            output.stderr
+        );
+        match scenario.stdout_golden {
+            Some(path) => assert_eq!(
+                output.stdout,
+                expected_bytes(&path),
+                "{} stdout",
+                scenario.name
+            ),
+            None => assert!(
+                output.stdout.is_empty(),
+                "{} stdout must be empty",
+                scenario.name
+            ),
+        }
+        match scenario.stderr_golden {
+            Some(path) => assert_eq!(
+                output.stderr,
+                expected_bytes(&path),
+                "{} stderr",
+                scenario.name
+            ),
+            None => assert!(
+                output.stderr.is_empty(),
+                "{} stderr must be empty: {:?}",
+                scenario.name,
+                output.stderr
+            ),
         }
     }
-    path
-}
-
-fn root_path() -> PathBuf {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop(); // crates
-    path.pop(); // root
-    path
-}
-
-fn run_cli(args: &[&str]) -> (i32, String, String) {
-    let bin = pcapraven_bin();
-    let output = Command::new(&bin)
-        .args(args)
-        .output()
-        .unwrap_or_else(|e| panic!("failed to execute {}: {e}", bin.display()));
-
-    let code = output.status.code().unwrap_or(-1);
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    (code, stdout, stderr)
-}
-
-fn assert_golden_match(args: &[&str], golden_rel_path: &str) {
-    let (code, stdout, stderr) = run_cli(args);
-    assert_eq!(code, 0, "CLI execution failed for args {args:?}:\n{stderr}");
-
-    let golden_path = root_path()
-        .join("tests")
-        .join("golden")
-        .join(golden_rel_path);
-    assert!(
-        golden_path.exists(),
-        "golden file not found: {}",
-        golden_path.display()
-    );
-
-    let expected = fs::read_to_string(&golden_path)
-        .unwrap_or_else(|e| panic!("failed to read golden {}: {e}", golden_path.display()));
-
-    assert_eq!(
-        stdout,
-        expected,
-        "stdout did not match golden file {}\nDiff:\n--- STDOUT ---\n{stdout}\n--- EXPECTED ---\n{expected}",
-        golden_path.display()
-    );
-}
-
-// 1. Validate Goldens
-#[test]
-fn test_golden_validate_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["validate", "--format", "table", pcap.to_str().unwrap()],
-        "validate/clean_dns.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_validate_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["validate", "--format", "json", pcap.to_str().unwrap()],
-        "validate/clean_dns.json",
-    );
-}
-
-#[test]
-fn test_golden_validate_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["validate", "--format", "ndjson", pcap.to_str().unwrap()],
-        "validate/clean_dns.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_validate_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["validate", "--format", "csv", pcap.to_str().unwrap()],
-        "validate/clean_dns.csv",
-    );
-}
-
-// 2. Flows Goldens
-#[test]
-fn test_golden_flows_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tcp_flows.pcap");
-    assert_golden_match(
-        &["flows", "--format", "table", pcap.to_str().unwrap()],
-        "flows/clean_tcp_flows.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_flows_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tcp_flows.pcap");
-    assert_golden_match(
-        &["flows", "--format", "json", pcap.to_str().unwrap()],
-        "flows/clean_tcp_flows.json",
-    );
-}
-
-#[test]
-fn test_golden_flows_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tcp_flows.pcap");
-    assert_golden_match(
-        &["flows", "--format", "ndjson", pcap.to_str().unwrap()],
-        "flows/clean_tcp_flows.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_flows_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tcp_flows.pcap");
-    assert_golden_match(
-        &["flows", "--format", "csv", pcap.to_str().unwrap()],
-        "flows/clean_tcp_flows.csv",
-    );
-}
-
-// 3. DNS Goldens
-#[test]
-fn test_golden_dns_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["dns", "--format", "table", pcap.to_str().unwrap()],
-        "dns/clean_dns.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_dns_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["dns", "--format", "json", pcap.to_str().unwrap()],
-        "dns/clean_dns.json",
-    );
-}
-
-#[test]
-fn test_golden_dns_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["dns", "--format", "ndjson", pcap.to_str().unwrap()],
-        "dns/clean_dns.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_dns_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["dns", "--format", "csv", pcap.to_str().unwrap()],
-        "dns/clean_dns.csv",
-    );
-}
-
-// 4. HTTP Goldens
-#[test]
-fn test_golden_http_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_http.pcap");
-    assert_golden_match(
-        &["http", "--format", "table", pcap.to_str().unwrap()],
-        "http/clean_http.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_http_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_http.pcap");
-    assert_golden_match(
-        &["http", "--format", "json", pcap.to_str().unwrap()],
-        "http/clean_http.json",
-    );
-}
-
-#[test]
-fn test_golden_http_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_http.pcap");
-    assert_golden_match(
-        &["http", "--format", "ndjson", pcap.to_str().unwrap()],
-        "http/clean_http.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_http_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_http.pcap");
-    assert_golden_match(
-        &["http", "--format", "csv", pcap.to_str().unwrap()],
-        "http/clean_http.csv",
-    );
-}
-
-// 5. TLS Goldens
-#[test]
-fn test_golden_tls_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tls.pcap");
-    assert_golden_match(
-        &["tls", "--format", "table", pcap.to_str().unwrap()],
-        "tls/clean_tls.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_tls_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tls.pcap");
-    assert_golden_match(
-        &["tls", "--format", "json", pcap.to_str().unwrap()],
-        "tls/clean_tls.json",
-    );
-}
-
-#[test]
-fn test_golden_tls_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tls.pcap");
-    assert_golden_match(
-        &["tls", "--format", "ndjson", pcap.to_str().unwrap()],
-        "tls/clean_tls.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_tls_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_tls.pcap");
-    assert_golden_match(
-        &["tls", "--format", "csv", pcap.to_str().unwrap()],
-        "tls/clean_tls.csv",
-    );
-}
-
-// 6. Findings Goldens
-#[test]
-fn test_golden_findings_periodic_beaconing_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/periodic_beaconing.pcap");
-    assert_golden_match(
-        &["findings", "--format", "table", pcap.to_str().unwrap()],
-        "findings/periodic_beaconing.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_findings_periodic_beaconing_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/periodic_beaconing.pcap");
-    assert_golden_match(
-        &["findings", "--format", "json", pcap.to_str().unwrap()],
-        "findings/periodic_beaconing.json",
-    );
-}
-
-#[test]
-fn test_golden_findings_periodic_beaconing_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/periodic_beaconing.pcap");
-    assert_golden_match(
-        &["findings", "--format", "ndjson", pcap.to_str().unwrap()],
-        "findings/periodic_beaconing.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_findings_periodic_beaconing_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/periodic_beaconing.pcap");
-    assert_golden_match(
-        &["findings", "--format", "csv", pcap.to_str().unwrap()],
-        "findings/periodic_beaconing.csv",
-    );
-}
-
-#[test]
-fn test_golden_findings_dns_tunneling_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/dns_tunneling.pcap");
-    assert_golden_match(
-        &["findings", "--format", "table", pcap.to_str().unwrap()],
-        "findings/dns_tunneling.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_findings_dns_tunneling_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/dns_tunneling.pcap");
-    assert_golden_match(
-        &["findings", "--format", "json", pcap.to_str().unwrap()],
-        "findings/dns_tunneling.json",
-    );
-}
-
-#[test]
-fn test_golden_findings_dns_tunneling_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/dns_tunneling.pcap");
-    assert_golden_match(
-        &["findings", "--format", "ndjson", pcap.to_str().unwrap()],
-        "findings/dns_tunneling.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_findings_dns_tunneling_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/dns_tunneling.pcap");
-    assert_golden_match(
-        &["findings", "--format", "csv", pcap.to_str().unwrap()],
-        "findings/dns_tunneling.csv",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_multi_signal_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["findings", "--format", "table", pcap.to_str().unwrap()],
-        "findings/c2_multi_signal.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_multi_signal_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["findings", "--format", "json", pcap.to_str().unwrap()],
-        "findings/c2_multi_signal.json",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_multi_signal_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["findings", "--format", "ndjson", pcap.to_str().unwrap()],
-        "findings/c2_multi_signal.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_multi_signal_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["findings", "--format", "csv", pcap.to_str().unwrap()],
-        "findings/c2_multi_signal.csv",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_mitre_filter_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &[
-            "findings",
-            "--mitre",
-            "T1071.004",
-            "--format",
-            "table",
-            pcap.to_str().unwrap(),
-        ],
-        "findings/c2_multi_signal_mitre_filter.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_mitre_filter_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &[
-            "findings",
-            "--mitre",
-            "T1071.004",
-            "--format",
-            "json",
-            pcap.to_str().unwrap(),
-        ],
-        "findings/c2_multi_signal_mitre_filter.json",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_mitre_filter_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &[
-            "findings",
-            "--mitre",
-            "T1071.004",
-            "--format",
-            "ndjson",
-            pcap.to_str().unwrap(),
-        ],
-        "findings/c2_multi_signal_mitre_filter.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_findings_c2_mitre_filter_csv() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &[
-            "findings",
-            "--mitre",
-            "T1071.004",
-            "--format",
-            "csv",
-            pcap.to_str().unwrap(),
-        ],
-        "findings/c2_multi_signal_mitre_filter.csv",
-    );
-}
-
-// 7. Analyze Goldens
-#[test]
-fn test_golden_analyze_clean_dns_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["analyze", "--format", "table", pcap.to_str().unwrap()],
-        "analyze/clean_dns.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_analyze_clean_dns_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["analyze", "--format", "json", pcap.to_str().unwrap()],
-        "analyze/clean_dns.json",
-    );
-}
-
-#[test]
-fn test_golden_analyze_clean_dns_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/benign/clean_dns.pcap");
-    assert_golden_match(
-        &["analyze", "--format", "ndjson", pcap.to_str().unwrap()],
-        "analyze/clean_dns.ndjson",
-    );
-}
-
-#[test]
-fn test_golden_analyze_c2_multi_signal_table() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["analyze", "--format", "table", pcap.to_str().unwrap()],
-        "analyze/c2_multi_signal.table.txt",
-    );
-}
-
-#[test]
-fn test_golden_analyze_c2_multi_signal_json() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["analyze", "--format", "json", pcap.to_str().unwrap()],
-        "analyze/c2_multi_signal.json",
-    );
-}
-
-#[test]
-fn test_golden_analyze_c2_multi_signal_ndjson() {
-    let pcap = root_path().join("tests/fixtures/pcaps/suspicious/c2_multi_signal.pcap");
-    assert_golden_match(
-        &["analyze", "--format", "ndjson", pcap.to_str().unwrap()],
-        "analyze/c2_multi_signal.ndjson",
-    );
 }

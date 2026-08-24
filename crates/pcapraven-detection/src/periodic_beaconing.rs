@@ -115,12 +115,6 @@ impl PeriodicBeaconingDetector {
     /// Default minimum mean interval in seconds (1s).
     pub const DEFAULT_MIN_MEAN_INTERVAL_SECS: u64 = 1;
 
-    /// Creates and initializes a new periodic beaconing detector instance.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::try_new().expect("canonical detector metadata is valid")
-    }
-
     /// Fallibly creates and initializes a new periodic beaconing detector instance.
     pub fn try_new() -> Result<Self, pcapraven_domain::FindingValidationError> {
         let id = DetectorId::try_new(Self::DETECTOR_ID)?;
@@ -519,12 +513,6 @@ impl PeriodicBeaconingDetector {
         })?;
 
         Ok(Some(draft))
-    }
-}
-
-impl Default for PeriodicBeaconingDetector {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

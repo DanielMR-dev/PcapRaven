@@ -1,0 +1,3 @@
+packet_ordinal,transport,source_ip,source_port,destination_ip,destination_port,message_kind,version,method,target,status_code,host,content_type,content_length,transfer_encoding,server,user_agent,authorization_present,cookie_present,set_cookie_present,proxy_authorization_present,completeness
+0,tcp,192.0.2.10,49100,198.51.100.20,80,request,HTTP/1.1,GET,/formula,-,'=host.example,'+phase17/type,not_present,'-,'-,'@phase17-agent,false,false,false,false,complete
+1,tcp,198.51.100.20,80,192.0.2.10,49100,response,HTTP/1.1,'-,'-,200,'-,'-,0,'-,'-phase17-server,'-,false,false,false,false,complete

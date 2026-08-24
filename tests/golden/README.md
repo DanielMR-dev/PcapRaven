@@ -44,8 +44,13 @@ tests/golden/
 │   └── c2_multi_signal_mitre_filter.{table.txt, json, ndjson, csv}
 └── analyze/
     ├── clean_dns.{table.txt, json, ndjson}
-    └── c2_multi_signal.{table.txt, json, ndjson}
+    ├── c2_multi_signal.{table.txt, json, ndjson}
+    └── useful_then_truncated_record.json
 ```
+
+The matrix also includes `validate/multi_section.json`, canonical flow-creation
+ordering, local HTTP degradation with independent DNS detection, CSV formula
+sentinels, and selected frozen failure diagnostics under `stderr/`.
 
 *Note: `analyze` does not include CSV goldens because CSV export is intentionally rejected for multi-layer forensic analyses with Exit Code 2.*
 
@@ -55,4 +60,6 @@ tests/golden/
 
 1. **Never Update Blindly:** Golden outputs must never be updated merely to resolve failing tests.
 2. **Intentional Semantic Changes Only:** Any change to a golden file requires explicit justification, a clear explanation of what semantic fact changed, and verification that the change adheres to the frozen schema version (`v1.0`).
-3. **Regeneration:** Golden files can be deterministically updated via `python3 scripts/generate_goldens.py` after building the CLI binary.
+3. **Read-Only Verification First:** Run `python3 scripts/check_goldens.py`; it builds or locates the CLI, executes the canonical scenario matrix, and compares exit states and bytes without writing this directory. A missing stdout or stderr path in the scenario model means that stream must be exactly empty, never ignored.
+4. **Safe Candidate Staging:** `python3 scripts/stage_goldens.py --output <empty-directory>` creates candidates outside `tests/golden/` only. It refuses this canonical tree and has no accept/environment-variable/blind-update path.
+5. **Manual Acceptance:** Review semantic behavior, privacy, exit state, and frozen schema-v1.0 diffs before intentionally copying any selected candidate. PCAPNG goldens represent the supported real section/IDB/EPB/SPB subset; failure scenarios freeze exit states 1, 2, and 3 where applicable.

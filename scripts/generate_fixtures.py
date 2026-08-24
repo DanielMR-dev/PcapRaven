@@ -1,17 +1,41 @@
 #!/usr/bin/env python3
-"""Deterministic synthetic PCAP fixture corpus generator for PcapRaven Phase 17."""
+"""Deterministically write or read-only verify the synthetic Phase 17 corpus."""
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
 import struct
+import sys
 from pathlib import Path
 
-FIXTURES_DIR = Path("tests/fixtures/pcaps")
+sys.dont_write_bytecode = True
+
+from verification_support import (
+    BoundedDiagnostics,
+    FileSizeLimitExceeded,
+    discover_files,
+    read_file_bounded,
+)
+
+ROOT = Path(__file__).resolve().parent.parent
+FIXTURES_RELATIVE_ROOT = Path("tests/fixtures/pcaps")
+FIXTURES_DIR = ROOT / FIXTURES_RELATIVE_ROOT
 BENIGN_DIR = FIXTURES_DIR / "benign"
 SUSPICIOUS_DIR = FIXTURES_DIR / "suspicious"
 MALFORMED_DIR = FIXTURES_DIR / "malformed"
 EDGE_DIR = FIXTURES_DIR / "edge_cases"
+MANIFEST_PATH = FIXTURES_DIR / "manifest.json"
+CHECKSUMS_PATH = FIXTURES_DIR / "checksums.sha256"
+MAX_FIXTURE_BYTES = 256 * 1024
+MAX_CORPUS_BYTES = 4 * 1024 * 1024
+MAX_METADATA_BYTES = 1024 * 1024
+MAX_DISCOVERY_ENTRIES = 4096
+MAX_DISCOVERED_CAPTURE_FILES = 1024
+MAX_DISCOVERY_DEPTH = 8
+MAX_REPORTED_ERRORS = 50
+KNOWN_CATEGORIES = {"benign", "suspicious", "malformed", "edge_cases"}
 
 # Ethernet constants
 ETH_TYPE_IPV4 = 0x0800
@@ -365,41 +389,319 @@ def build_non_monotonic_timestamps() -> bytes:
     return p.to_bytes()
 
 
-def main() -> None:
-    BENIGN_DIR.mkdir(parents=True, exist_ok=True)
-    SUSPICIOUS_DIR.mkdir(parents=True, exist_ok=True)
-    MALFORMED_DIR.mkdir(parents=True, exist_ok=True)
-    EDGE_DIR.mkdir(parents=True, exist_ok=True)
+def _ng_block(block_type: int, body: bytes) -> bytes:
+    total_length = 12 + len(body)
+    if total_length % 4:
+        raise ValueError("PCAPNG block body must be 32-bit aligned")
+    return struct.pack("<II", block_type, total_length) + body + struct.pack("<I", total_length)
 
-    fixtures: dict[Path, bytes] = {
-        BENIGN_DIR / "clean_dns.pcap": build_clean_dns(),
-        BENIGN_DIR / "clean_http.pcap": build_clean_http(),
-        BENIGN_DIR / "clean_tls.pcap": build_clean_tls(),
-        BENIGN_DIR / "clean_tcp_flows.pcap": build_clean_tcp_flows(),
-        BENIGN_DIR / "clean_udp_flows.pcap": build_clean_udp_flows(),
-        SUSPICIOUS_DIR / "periodic_beaconing.pcap": build_periodic_beaconing(),
-        SUSPICIOUS_DIR / "dns_long_query.pcap": build_dns_long_query(),
-        SUSPICIOUS_DIR / "dns_tunneling.pcap": build_dns_tunneling(),
-        SUSPICIOUS_DIR / "repeated_low_volume.pcap": build_repeated_low_volume(),
-        SUSPICIOUS_DIR / "c2_multi_signal.pcap": build_c2_multi_signal(),
-        MALFORMED_DIR / "truncated_header.pcap": build_truncated_header(),
-        MALFORMED_DIR / "corrupt_packet.pcap": build_corrupt_packet(),
-        MALFORMED_DIR / "zero_length.pcap": build_zero_length(),
-        EDGE_DIR / "non_monotonic_timestamps.pcap": build_non_monotonic_timestamps(),
+
+def _pcapng_shb() -> bytes:
+    return _ng_block(0x0A0D0D0A, struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1))
+
+
+def _pcapng_idb() -> bytes:
+    end_option = struct.pack("<HH", 0, 0)
+    return _ng_block(1, struct.pack("<HHI", 1, 0, 65535) + end_option)
+
+
+def _padded(data: bytes) -> bytes:
+    return data + bytes((-len(data)) % 4)
+
+
+def _pcapng_epb(timestamp: int, packet: bytes) -> bytes:
+    body = struct.pack(
+        "<IIIII", 0, timestamp >> 32, timestamp & 0xFFFFFFFF, len(packet), len(packet)
+    )
+    return _ng_block(6, body + _padded(packet) + struct.pack("<HH", 0, 0))
+
+
+def _pcapng_spb(packet: bytes) -> bytes:
+    return _ng_block(3, struct.pack("<I", len(packet)) + _padded(packet))
+
+
+def build_multi_section_pcapng() -> bytes:
+    first = make_ethernet_frame(
+        MAC_B,
+        MAC_A,
+        ETH_TYPE_IPV4,
+        make_ipv4_packet(IP_CLIENT, IP_DNS, 17, make_udp_packet(53000, 53, make_dns_query(0x5101, "first.example"))),
+    )
+    second = make_ethernet_frame(
+        MAC_A,
+        MAC_B,
+        ETH_TYPE_IPV4,
+        make_ipv4_packet(IP_SERVER, IP_CLIENT, 17, make_udp_packet(7000, 7001, b"section-two")),
+    )
+    return (
+        _pcapng_shb()
+        + _pcapng_idb()
+        + _pcapng_epb(1_700_000_000_000_000, first)
+        + _pcapng_shb()
+        + _pcapng_idb()
+        + _pcapng_spb(second)
+    )
+
+
+def build_useful_then_truncated_record() -> bytes:
+    p = PcapBuilder()
+    packet = make_ethernet_frame(
+        MAC_B,
+        MAC_A,
+        ETH_TYPE_IPV4,
+        make_ipv4_packet(IP_CLIENT, IP_DNS, 17, make_udp_packet(53000, 53, make_dns_query(0x5201, "useful.example"))),
+    )
+    p.add_packet(1700000000, 0, packet)
+    return p.to_bytes() + struct.pack("<IIII", 1700000001, 0, 128, 128) + b"truncated"
+
+
+def build_flow_close_out_of_creation_order() -> bytes:
+    p = PcapBuilder()
+    flow0 = (48000, 8080)
+    flow1 = (48001, 8081)
+    for usec, ports, flags in [
+        (0, flow0, 0x02),
+        (1000, flow1, 0x02),
+        (2000, flow1, 0x04),
+        (3000, flow0, 0x04),
+    ]:
+        tcp = make_tcp_packet(ports[0], ports[1], 1, 0, flags)
+        frame = make_ethernet_frame(
+            MAC_B, MAC_A, ETH_TYPE_IPV4, make_ipv4_packet(IP_CLIENT, IP_SERVER, 6, tcp)
+        )
+        p.add_packet(1700000000, usec, frame)
+    return p.to_bytes()
+
+
+def build_local_http_partial_with_dns_detection() -> bytes:
+    p = PcapBuilder()
+    partial_http = b"GET / HTTP/1.1\r\nHost: example.com\r\nBroken"
+    tcp = make_tcp_packet(49000, 80, 1, 1, 0x18, partial_http)
+    p.add_packet(
+        1700000000,
+        0,
+        make_ethernet_frame(MAC_B, MAC_A, ETH_TYPE_IPV4, make_ipv4_packet(IP_CLIENT, IP_SERVER, 6, tcp)),
+    )
+    for i in range(10):
+        labels = [hashlib.sha256(f"local-{part}-{i}".encode()).hexdigest()[:48] for part in range(3)]
+        query = make_dns_query(0x5300 + i, ".".join(labels) + ".partial.example")
+        udp = make_udp_packet(57000, 53, query)
+        p.add_packet(
+            1700000001 + i,
+            0,
+            make_ethernet_frame(MAC_B, MAC_A, ETH_TYPE_IPV4, make_ipv4_packet(IP_CLIENT, IP_DNS, 17, udp)),
+        )
+    return p.to_bytes()
+
+
+def build_csv_formula_sentinels() -> bytes:
+    p = PcapBuilder()
+    request = (
+        b"GET /formula HTTP/1.1\r\n"
+        b"Host: =host.example\r\n"
+        b"Content-Type: +phase17/type\r\n"
+        b"User-Agent: @phase17-agent\r\n\r\n"
+    )
+    response = b"HTTP/1.1 200 OK\r\nServer: -phase17-server\r\nContent-Length: 0\r\n\r\n"
+    for usec, src, dst, src_port, dst_port, payload in [
+        (0, IP_CLIENT, IP_SERVER, 49100, 80, request),
+        (1000, IP_SERVER, IP_CLIENT, 80, 49100, response),
+    ]:
+        tcp = make_tcp_packet(src_port, dst_port, 1, 1, 0x18, payload)
+        p.add_packet(
+            1700000000,
+            usec,
+            make_ethernet_frame(MAC_B, MAC_A, ETH_TYPE_IPV4, make_ipv4_packet(src, dst, 6, tcp)),
+        )
+    return p.to_bytes()
+
+
+def build_http_privacy_sentinels() -> bytes:
+    p = PcapBuilder()
+    request = (
+        b"GET /privacy HTTP/1.1\r\nHost: privacy.example\r\n"
+        b"Authorization: PHASE18_AUTH_SECRET\r\n"
+        b"Proxy-Authorization: PHASE18_PROXY_AUTH_SECRET\r\n"
+        b"Cookie: PHASE18_COOKIE_SECRET\r\n\r\n"
+    )
+    response = (
+        b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n"
+        b"Set-Cookie: PHASE18_SET_COOKIE_SECRET\r\n\r\n"
+    )
+    for usec, src, dst, src_port, dst_port, payload in [
+        (0, IP_CLIENT, IP_SERVER, 49200, 80, request),
+        (1000, IP_SERVER, IP_CLIENT, 80, 49200, response),
+    ]:
+        tcp = make_tcp_packet(src_port, dst_port, 1, 1, 0x18, payload)
+        p.add_packet(
+            1700000000,
+            usec,
+            make_ethernet_frame(MAC_B, MAC_A, ETH_TYPE_IPV4, make_ipv4_packet(src, dst, 6, tcp)),
+        )
+    return p.to_bytes()
+
+
+def fixture_definitions() -> dict[str, tuple[bytes, str, str, str]]:
+    """Return path -> (bytes, purpose, expected behavior, container format)."""
+    return {
+        "benign/clean_dns.pcap": (build_clean_dns(), "Clean DNS query and response.", "Complete analysis with no findings.", "pcap"),
+        "benign/clean_http.pcap": (build_clean_http(), "Clean HTTP/1.1 request and response.", "Complete HTTP observations with no findings.", "pcap"),
+        "benign/clean_tcp_flows.pcap": (build_clean_tcp_flows(), "Two clean TCP flows.", "Canonical complete flow output.", "pcap"),
+        "benign/clean_tls.pcap": (build_clean_tls(), "Clean TLS ClientHello metadata.", "Complete visible TLS observation.", "pcap"),
+        "benign/clean_udp_flows.pcap": (build_clean_udp_flows(), "Two clean UDP flows.", "Complete bounded flow output.", "pcap"),
+        "edge_cases/csv_formula_sentinels.pcap": (build_csv_formula_sentinels(), "Retained HTTP text beginning with CSV formula triggers.", "CSV prefixes dangerous cells while JSON and NDJSON preserve factual text.", "pcap"),
+        "edge_cases/flow_close_out_of_creation_order.pcap": (build_flow_close_out_of_creation_order(), "Flows close in reverse creation order.", "Final flow order remains flow:0 then flow:1.", "pcap"),
+        "edge_cases/http_privacy_sentinels.pcap": (build_http_privacy_sentinels(), "Sensitive HTTP header non-retention sentinels.", "Presence flags are retained and secret values never appear in output.", "pcap"),
+        "edge_cases/local_http_partial_with_dns_detection.pcap": (build_local_http_partial_with_dns_detection(), "Partial HTTP beside independent suspicious DNS behavior.", "Analysis is partial and the DNS detector still emits its finding.", "pcap"),
+        "edge_cases/multi_section.pcapng": (build_multi_section_pcapng(), "Two supported PCAPNG sections with section-local interfaces.", "Both section records validate and analyze deterministically.", "pcapng"),
+        "edge_cases/non_monotonic_timestamps.pcap": (build_non_monotonic_timestamps(), "Decreasing packet timestamps.", "Temporal degradation is represented without negative duration.", "pcap"),
+        "malformed/corrupt_packet.pcap": (build_corrupt_packet(), "Truncated first packet record.", "No useful record; every command exits 1.", "pcap"),
+        "malformed/truncated_header.pcap": (build_truncated_header(), "Truncated PCAP global header.", "Fails before useful records with exit 1.", "pcap"),
+        "malformed/useful_then_truncated_record.pcap": (build_useful_then_truncated_record(), "Useful packet followed by a truncated record.", "Produces a useful partial result with capture_truncated and exit 3.", "pcap"),
+        "malformed/zero_length.pcap": (build_zero_length(), "Empty capture input.", "Fails before useful records with exit 1.", "pcap"),
+        "suspicious/c2_multi_signal.pcap": (build_c2_multi_signal(), "Synthetic correlated DNS timing signals.", "Emits periodic, DNS tunneling, and correlated findings.", "pcap"),
+        "suspicious/dns_long_query.pcap": (build_dns_long_query(), "Single long diverse DNS query.", "Emits dns.long_query_name.", "pcap"),
+        "suspicious/dns_tunneling.pcap": (build_dns_tunneling(), "Repeated long diverse DNS queries.", "Emits dns.possible_tunneling.", "pcap"),
+        "suspicious/periodic_beaconing.pcap": (build_periodic_beaconing(), "Regular directional packet timing.", "Emits behavior.periodic_beaconing.", "pcap"),
+        "suspicious/repeated_low_volume.pcap": (build_repeated_low_volume(), "Repeated short low-volume flows.", "Emits behavior.repeated_low_volume_flows.", "pcap"),
     }
 
-    checksum_lines: list[str] = []
-    for path, data in sorted(fixtures.items(), key=lambda x: str(x[0])):
-        path.write_bytes(data)
-        sha = hashlib.sha256(data).hexdigest()
-        rel_path = path.relative_to(FIXTURES_DIR)
-        checksum_lines.append(f"{sha}  {rel_path}")
-        print(f"Wrote {path} ({len(data)} bytes, sha256={sha[:8]}...)")
 
-    checksum_file = FIXTURES_DIR / "checksums.sha256"
-    checksum_file.write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
-    print(f"Generated {len(fixtures)} fixtures and updated {checksum_file}")
+def expected_metadata(fixtures: dict[str, tuple[bytes, str, str, str]]) -> tuple[bytes, bytes]:
+    entries = []
+    checksum_lines = []
+    for rel_path in sorted(fixtures):
+        data, purpose, expected_behavior, container_format = fixtures[rel_path]
+        category = rel_path.split("/", 1)[0]
+        digest = hashlib.sha256(data).hexdigest()
+        entries.append({
+            "id": rel_path.rsplit(".", 1)[0].replace("/", "."),
+            "path": rel_path,
+            "category": category,
+            "container_format": container_format,
+            "sha256": digest,
+            "synthetic": True,
+            "license": "MIT",
+            "purpose": purpose,
+            "expected_behavior": expected_behavior,
+        })
+        checksum_lines.append(f"{digest}  {rel_path}")
+    manifest = {"schema_version": 1, "generator_version": 1, "fixtures": entries}
+    return (
+        (json.dumps(manifest, indent=2, ensure_ascii=True) + "\n").encode("utf-8"),
+        ("\n".join(checksum_lines) + "\n").encode("utf-8"),
+    )
+
+
+def validate_definitions(fixtures: dict[str, tuple[bytes, str, str, str]]) -> list[str]:
+    errors = []
+    aggregate = 0
+    for rel_path, (data, purpose, expected_behavior, container_format) in fixtures.items():
+        category = rel_path.split("/", 1)[0]
+        if category not in KNOWN_CATEGORIES:
+            errors.append(f"unknown category for {rel_path}: {category}")
+        if container_format not in {"pcap", "pcapng"} or not rel_path.endswith(f".{container_format}"):
+            errors.append(f"container metadata mismatch for {rel_path}")
+        if not purpose or not expected_behavior:
+            errors.append(f"missing descriptive metadata for {rel_path}")
+        if len(data) > MAX_FIXTURE_BYTES:
+            errors.append(f"fixture exceeds {MAX_FIXTURE_BYTES} bytes: {rel_path}")
+        aggregate += len(data)
+    if aggregate > MAX_CORPUS_BYTES:
+        errors.append(f"aggregate corpus exceeds {MAX_CORPUS_BYTES} bytes")
+    return errors
+
+
+def check(fixtures: dict[str, tuple[bytes, str, str, str]]) -> int:
+    errors = BoundedDiagnostics(MAX_REPORTED_ERRORS)
+    errors.extend(validate_definitions(fixtures))
+    expected_paths = set(fixtures)
+    discovery = discover_files(
+        ROOT,
+        FIXTURES_RELATIVE_ROOT,
+        lambda path: path.suffix.lower() in {".pcap", ".pcapng"},
+        errors,
+        maximum_entries=MAX_DISCOVERY_ENTRIES,
+        maximum_files=MAX_DISCOVERED_CAPTURE_FILES,
+        maximum_depth=MAX_DISCOVERY_DEPTH,
+        label="fixture",
+    )
+    actual_paths = set(discovery.paths)
+    for missing in sorted(expected_paths):
+        if missing not in actual_paths:
+            errors.add(f"missing or non-regular fixture: {missing}")
+    for unexpected in sorted(actual_paths - expected_paths):
+        errors.add(f"unexpected fixture: {unexpected}")
+    if not discovery.complete or errors.has_errors:
+        errors.emit()
+        return 1
+
+    actual_aggregate = 0
+    for rel_path in sorted(expected_paths):
+        try:
+            actual = read_file_bounded(
+                ROOT, FIXTURES_RELATIVE_ROOT / rel_path, MAX_FIXTURE_BYTES
+            )
+        except FileSizeLimitExceeded as error:
+            errors.add(f"cannot hash canonical fixture {rel_path}: {error}")
+            continue
+        except OSError as error:
+            errors.add(f"cannot read canonical fixture {rel_path}: {error}")
+            continue
+        actual_aggregate += len(actual)
+        expected = fixtures[rel_path][0]
+        if actual != expected:
+            errors.add(f"fixture byte mismatch: {rel_path}")
+        if hashlib.sha256(actual).hexdigest() != hashlib.sha256(expected).hexdigest():
+            errors.add(f"fixture SHA-256 mismatch: {rel_path}")
+    if actual_aggregate > MAX_CORPUS_BYTES:
+        errors.add(f"committed aggregate corpus exceeds {MAX_CORPUS_BYTES} bytes")
+    manifest, checksums = expected_metadata(fixtures)
+    for path, expected in [(MANIFEST_PATH, manifest), (CHECKSUMS_PATH, checksums)]:
+        try:
+            actual = read_file_bounded(
+                ROOT, path.relative_to(ROOT), MAX_METADATA_BYTES
+            )
+        except (OSError, FileSizeLimitExceeded) as error:
+            errors.add(f"cannot read metadata file {path.relative_to(ROOT)}: {error}")
+            continue
+        if actual != expected:
+            errors.add(f"non-canonical metadata: {path.relative_to(ROOT)}")
+    if errors.has_errors:
+        errors.emit()
+        return 1
+    print(f"verified {len(fixtures)} synthetic fixtures, manifest, and SHA-256 checksums")
+    return 0
+
+
+def write(fixtures: dict[str, tuple[bytes, str, str, str]]) -> int:
+    errors = validate_definitions(fixtures)
+    if errors:
+        for error in errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    for directory in (BENIGN_DIR, SUSPICIOUS_DIR, MALFORMED_DIR, EDGE_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
+    for rel_path, (data, _, _, _) in sorted(fixtures.items()):
+        path = FIXTURES_DIR / rel_path
+        path.write_bytes(data)
+        print(f"wrote {path.relative_to(ROOT)} ({len(data)} bytes)")
+    manifest, checksums = expected_metadata(fixtures)
+    MANIFEST_PATH.write_bytes(manifest)
+    CHECKSUMS_PATH.write_bytes(checksums)
+    print("wrote canonical fixture manifest and checksums; golden files were not touched")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true", help="read-only verification")
+    mode.add_argument("--write", action="store_true", help="regenerate synthetic fixtures and metadata")
+    args = parser.parse_args()
+    fixtures = fixture_definitions()
+    return check(fixtures) if args.check else write(fixtures)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

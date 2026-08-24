@@ -6,7 +6,11 @@ use pcapraven_domain::{
     PacketTimestamp, PacketTimestampResolution, PacketTruncationReason, TcpFlags, TransportLayer,
     UnsupportedLayerReason,
 };
-use pcapraven_protocols::{NormalizationLimits, NormalizationLimitsBuilder, normalize_packet};
+use pcapraven_protocols::{
+    MAX_ALLOWED_DIAGNOSTICS_PER_PACKET, MAX_ALLOWED_IPV6_EXTENSION_BYTES,
+    MAX_ALLOWED_IPV6_EXTENSION_HEADERS, MAX_ALLOWED_RETAINED_PAYLOAD_BYTES, NormalizationLimits,
+    NormalizationLimitsBuilder, normalize_packet,
+};
 use proptest::prelude::*;
 
 fn default_reference() -> PacketReference {
@@ -632,6 +636,44 @@ fn bounds_retained_payload_bytes_strictly() {
 }
 
 #[test]
+fn phase18_payload_retention_covers_n_minus_1_n_n_plus_1() {
+    const LIMIT: usize = 30;
+    for payload_length in [LIMIT - 1, LIMIT, LIMIT + 1] {
+        let payload = vec![0x42_u8; payload_length];
+        let mut frame = make_eth_header([0; 6], [0; 6], 0x0800);
+        frame.extend_from_slice(&make_ipv4_header(
+            [10, 0, 0, 1],
+            [10, 0, 0, 2],
+            17,
+            8 + payload.len(),
+            &[],
+            0,
+            false,
+        ));
+        frame.extend_from_slice(&make_udp_header(1000, 2000, payload.len()));
+        frame.extend_from_slice(&payload);
+        let limits = NormalizationLimitsBuilder::default()
+            .maximum_retained_payload_bytes(LIMIT)
+            .build()
+            .unwrap();
+        let outcome = normalize_packet(&make_input(&frame), &limits);
+        assert_eq!(
+            outcome.packet.payload.as_ref().map_or(0, Vec::len),
+            payload_length.min(LIMIT)
+        );
+        assert_eq!(
+            matches!(
+                outcome.packet.completeness,
+                PacketCompleteness::Partial {
+                    reason: PacketTruncationReason::PayloadBudgetExceeded
+                }
+            ),
+            payload_length > LIMIT
+        );
+    }
+}
+
+#[test]
 fn bounds_diagnostics_per_packet_strictly() {
     let mut limits = default_limits();
     limits.maximum_diagnostics_per_packet = 1;
@@ -759,34 +801,105 @@ fn ipv6_extension_count_and_byte_limits_boundary() {
             .any(|d| d.kind == NormalizationDiagnosticKind::ResourceLimit
                 && d.layer == NormalizationDiagnosticLayer::Ipv6Extension)
     );
+
+    for (limit, complete) in [(2, false), (3, true), (4, true)] {
+        let limits = NormalizationLimitsBuilder::default()
+            .maximum_ipv6_extension_headers(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            normalize_packet(&make_input(&frame), &limits)
+                .packet
+                .completeness
+                .is_complete(),
+            complete
+        );
+    }
+    for (limit, complete) in [(23, false), (24, true), (25, true)] {
+        let limits = NormalizationLimitsBuilder::default()
+            .maximum_ipv6_extension_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            normalize_packet(&make_input(&frame), &limits)
+                .packet
+                .completeness
+                .is_complete(),
+            complete
+        );
+    }
 }
 
 #[test]
 fn limits_builder_validates_hard_caps() {
+    for value in [
+        MAX_ALLOWED_RETAINED_PAYLOAD_BYTES - 1,
+        MAX_ALLOWED_RETAINED_PAYLOAD_BYTES,
+    ] {
+        assert!(
+            NormalizationLimitsBuilder::default()
+                .maximum_retained_payload_bytes(value)
+                .build()
+                .is_ok()
+        );
+    }
     assert!(
         NormalizationLimitsBuilder::default()
-            .maximum_retained_payload_bytes(64 * 1024 * 1024)
-            .build()
-            .is_ok()
-    );
-
-    assert!(
-        NormalizationLimitsBuilder::default()
-            .maximum_retained_payload_bytes(64 * 1024 * 1024 + 1)
+            .maximum_retained_payload_bytes(MAX_ALLOWED_RETAINED_PAYLOAD_BYTES + 1)
             .build()
             .is_err()
     );
 
+    for value in [
+        MAX_ALLOWED_DIAGNOSTICS_PER_PACKET - 1,
+        MAX_ALLOWED_DIAGNOSTICS_PER_PACKET,
+    ] {
+        assert!(
+            NormalizationLimitsBuilder::default()
+                .maximum_diagnostics_per_packet(value)
+                .build()
+                .is_ok()
+        );
+    }
     assert!(
         NormalizationLimitsBuilder::default()
-            .maximum_diagnostics_per_packet(1024)
+            .maximum_diagnostics_per_packet(MAX_ALLOWED_DIAGNOSTICS_PER_PACKET + 1)
             .build()
-            .is_ok()
+            .is_err()
     );
 
+    for value in [
+        MAX_ALLOWED_IPV6_EXTENSION_HEADERS - 1,
+        MAX_ALLOWED_IPV6_EXTENSION_HEADERS,
+    ] {
+        assert!(
+            NormalizationLimitsBuilder::default()
+                .maximum_ipv6_extension_headers(value)
+                .build()
+                .is_ok()
+        );
+    }
     assert!(
         NormalizationLimitsBuilder::default()
-            .maximum_diagnostics_per_packet(1025)
+            .maximum_ipv6_extension_headers(MAX_ALLOWED_IPV6_EXTENSION_HEADERS + 1)
+            .build()
+            .is_err()
+    );
+
+    for value in [
+        MAX_ALLOWED_IPV6_EXTENSION_BYTES - 1,
+        MAX_ALLOWED_IPV6_EXTENSION_BYTES,
+    ] {
+        assert!(
+            NormalizationLimitsBuilder::default()
+                .maximum_ipv6_extension_bytes(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        NormalizationLimitsBuilder::default()
+            .maximum_ipv6_extension_bytes(MAX_ALLOWED_IPV6_EXTENSION_BYTES + 1)
             .build()
             .is_err()
     );
@@ -801,6 +914,12 @@ proptest! {
         let outcome = normalize_packet(&input, &limits);
         if let Some(payload) = &outcome.packet.payload {
             prop_assert!(payload.len() <= limits.maximum_retained_payload_bytes);
+        }
+        if let Some(NetworkLayer::Ipv6(ipv6)) = &outcome.packet.network_layer {
+            prop_assert!(ipv6.extension_headers_count <= limits.maximum_ipv6_extension_headers);
+            prop_assert!(
+                usize::from(ipv6.extension_headers_length) <= limits.maximum_ipv6_extension_bytes
+            );
         }
         prop_assert!(outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
     }

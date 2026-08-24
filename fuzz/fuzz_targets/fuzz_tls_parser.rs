@@ -37,7 +37,7 @@ fuzz_target!(|data: &[u8]| {
 
     // 1. Fuzz TCP on port 443 (Client direction)
     let tcp_client_packet = NormalizedPacket {
-        reference: pkt_ref.clone(),
+        reference: pkt_ref,
         timestamp: PacketTimestamp::Unavailable,
         link_layer: Some(eth),
         network_layer: Some(NetworkLayer::Ipv4(ip)),
@@ -93,7 +93,7 @@ fuzz_target!(|data: &[u8]| {
 
     // 2. Fuzz TCP on port 443 (Server direction)
     let tcp_server_packet = NormalizedPacket {
-        reference: pkt_ref.clone(),
+        reference: pkt_ref,
         timestamp: PacketTimestamp::Unavailable,
         link_layer: Some(eth),
         network_layer: Some(NetworkLayer::Ipv4(ip)),
@@ -124,6 +124,8 @@ fuzz_target!(|data: &[u8]| {
             }
         }
     }
+    assert_eq!(client_outcome, parse_tls_packet(&tcp_client_packet, &limits));
+    assert_eq!(server_outcome, parse_tls_packet(&tcp_server_packet, &limits));
 
     // 3. Fuzz without network layer
     let no_net_packet = NormalizedPacket {
@@ -181,5 +183,16 @@ fuzz_target!(|data: &[u8]| {
                 assert!(ch.key_share_groups.len() <= tight_limits.maximum_key_share_entries);
             }
         }
+    }
+
+    let mut hello = vec![22, 3, 3, 0, 43, 1, 0, 0, 39, 3, 3];
+    hello.extend_from_slice(b"PHASE18_TLS_RANDOM_NONRETENTION!");
+    hello.resize(43, b'R');
+    hello.extend_from_slice(&[0, 0, 2, 0x13, 0x01, 1, 0, 0, 0]);
+    let mut privacy_packet = tcp_client_packet.clone();
+    privacy_packet.payload = Some(hello);
+    let privacy = parse_tls_packet(&privacy_packet, &limits);
+    for observation in &privacy.observations {
+        assert!(!format!("{observation:?}").contains("PHASE18_TLS_RANDOM_NONRETENTION"));
     }
 });

@@ -12,6 +12,16 @@ use pcapraven_domain::{
     Severity, TransportProtocol,
 };
 
+trait TestConstructor {
+    fn new() -> Self;
+}
+
+impl TestConstructor for RepeatedLowVolumeFlowDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
 fn sample_packet(ordinal: u64) -> PacketReference {
     PacketReference::new(ordinal, None, None, 64, 64, false)
 }

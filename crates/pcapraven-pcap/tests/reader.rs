@@ -400,6 +400,153 @@ fn invalid_limits_are_rejected_before_reader_construction() {
 }
 
 #[test]
+fn phase18_all_reader_limit_hard_caps_accept_n_minus_1_and_n_but_reject_n_plus_1() {
+    const BYTE_CAP: usize = 64 * 1024 * 1024;
+
+    for value in [BYTE_CAP - 1, BYTE_CAP] {
+        assert!(
+            ReaderLimits::builder()
+                .initial_buffer_size(value)
+                .maximum_buffer_size(BYTE_CAP)
+                .maximum_block_size(BYTE_CAP)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            ReaderLimits::builder()
+                .maximum_buffer_size(value)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            ReaderLimits::builder()
+                .maximum_buffer_size(BYTE_CAP)
+                .maximum_block_size(value)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            ReaderLimits::builder()
+                .maximum_buffer_size(BYTE_CAP)
+                .maximum_block_size(BYTE_CAP)
+                .maximum_packet_bytes(value)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            ReaderLimits::builder()
+                .maximum_retained_packet_bytes(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        ReaderLimits::builder()
+            .initial_buffer_size(BYTE_CAP + 1)
+            .maximum_buffer_size(BYTE_CAP)
+            .maximum_block_size(BYTE_CAP)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_buffer_size(BYTE_CAP + 1)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_buffer_size(BYTE_CAP)
+            .maximum_block_size(BYTE_CAP + 1)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_buffer_size(BYTE_CAP)
+            .maximum_block_size(BYTE_CAP)
+            .maximum_packet_bytes(BYTE_CAP + 1)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_retained_packet_bytes(BYTE_CAP + 1)
+            .build()
+            .is_err()
+    );
+
+    for value in [65_535, 65_536] {
+        assert!(
+            ReaderLimits::builder()
+                .maximum_interfaces_per_section(value)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            ReaderLimits::builder()
+                .maximum_sections(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        ReaderLimits::builder()
+            .maximum_interfaces_per_section(65_537)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_sections(65_537)
+            .build()
+            .is_err()
+    );
+
+    for value in [999_999, 1_000_000] {
+        assert!(
+            ReaderLimits::builder()
+                .maximum_diagnostics(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        ReaderLimits::builder()
+            .maximum_diagnostics(1_000_001)
+            .build()
+            .is_err()
+    );
+
+    for value in [9_999_999, 10_000_000] {
+        assert!(
+            ReaderLimits::builder()
+                .maximum_records(value)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            ReaderLimits::builder()
+                .maximum_blocks(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        ReaderLimits::builder()
+            .maximum_records(10_000_001)
+            .build()
+            .is_err()
+    );
+    assert!(
+        ReaderLimits::builder()
+            .maximum_blocks(10_000_001)
+            .build()
+            .is_err()
+    );
+}
+
+#[test]
 fn malformed_pcapng_boundaries_and_timestamp_metadata_are_bounded() {
     let packet = [1u8, 2, 3];
     let valid = pcapng(
@@ -1027,6 +1174,88 @@ impl CompletionErrorKind for CaptureCompletion {
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(128))]
+
+    #[test]
+    fn phase18_generated_container_matrix_is_deterministic_bounded_and_progresses(
+        use_pcapng in any::<bool>(),
+        big_endian in any::<bool>(),
+        alternate_resolution in any::<bool>(),
+        second_section in any::<bool>(),
+        second_interface in any::<bool>(),
+        record_count in 0usize..=4,
+        cut in 0usize..700,
+    ) {
+        let order = if big_endian { ByteOrder::Big } else { ByteOrder::Little };
+        let packets: Vec<Vec<u8>> = (0..record_count)
+            .map(|index| vec![u8::try_from(index).unwrap_or_default(); index + 1])
+            .collect();
+        let input = if use_pcapng {
+            let resolution = Some(if alternate_resolution { 0x8a } else { 6 });
+            let mut blocks = vec![idb(order, 1, 128, resolution, Some(-1))];
+            if second_interface {
+                blocks.push(idb(order, 101, 128, resolution, None));
+            }
+            for (index, packet) in packets.iter().enumerate() {
+                let interface = if second_interface && index % 2 == 1 { 1 } else { 0 };
+                blocks.push(epb(
+                    order,
+                    interface,
+                    u64::try_from(index).unwrap_or_default(),
+                    packet,
+                    u32::try_from(packet.len()).unwrap_or_default(),
+                ));
+            }
+            let mut bytes = pcapng(order, &blocks);
+            if second_section {
+                bytes.extend_from_slice(&pcapng(
+                    order,
+                    &[idb(order, 1, 128, resolution, None), spb(order, &[0xaa], 1)],
+                ));
+            }
+            bytes
+        } else {
+            let records: Vec<_> = packets
+                .iter()
+                .enumerate()
+                .map(|(index, packet)| {
+                    (
+                        u32::try_from(index).unwrap_or_default(),
+                        u32::try_from(index).unwrap_or_default(),
+                        packet.as_slice(),
+                        u32::try_from(packet.len()).unwrap_or_default(),
+                    )
+                })
+                .collect();
+            pcap(order, alternate_resolution, 128, 1, &records)
+        };
+        let retained = cut.min(input.len());
+        let truncated = &input[..retained];
+        let limits = ReaderLimits::builder()
+            .initial_buffer_size(8)
+            .maximum_buffer_size(1024)
+            .maximum_block_size(512)
+            .maximum_packet_bytes(128)
+            .maximum_retained_packet_bytes(512)
+            .maximum_interfaces_per_section(4)
+            .maximum_sections(4)
+            .maximum_records(8)
+            .maximum_blocks(16)
+            .maximum_diagnostics(8)
+            .build()
+            .expect("property limits are valid");
+        let first = read_capture(TinyReader::new(truncated.to_vec(), 1), limits);
+        let second = read_capture(TinyReader::new(truncated.to_vec(), 7), limits);
+        prop_assert_eq!(&first, &second);
+        prop_assert!(first.records.len() <= 8);
+        prop_assert!(first.diagnostics.len() <= 8);
+        prop_assert!(first.metadata.sections.len() <= 4);
+        prop_assert!(first.metadata.sections.iter().all(|section| section.interfaces.len() <= 4));
+        let total_retained: usize = first.records.iter().map(|record| record.packet.len()).sum();
+        prop_assert!(total_retained <= 512);
+        prop_assert!(first.records.windows(2).all(|window| window[0].ordinal < window[1].ordinal));
+    }
+
     #[test]
     fn arbitrary_finite_input_is_panic_free_and_bounded(bytes in prop::collection::vec(any::<u8>(), 0..256)) {
         let limits = ReaderLimits::builder()
