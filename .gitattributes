@@ -1,0 +1,10 @@
+# Keep repository text artifacts byte-stable across supported platforms.
+* text=auto eol=lf
+
+# Capture and protocol-wire fixtures are byte-sensitive inputs, not text.
+*.pcap binary
+*.pcapng binary
+*.bin binary
+*.http binary
+*.tls binary
+fuzz/corpus/** binary

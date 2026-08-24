@@ -181,7 +181,11 @@ when introduced. Generated captures are reviewed as binary artifacts and kept
 as small as practical. Large or legally ambiguous samples are excluded rather
 than fetched during tests.
 
-Canonical golden bytes are checked read-only by `scripts/check_goldens.py`.
+Canonical golden text files are stored and checked out with LF (`\n`) line
+endings on every supported platform. The repository `.gitattributes` policy
+preserves this checkout contract, while capture and protocol-wire fixtures are
+excluded from text conversion. Canonical golden bytes are checked read-only by
+`scripts/check_goldens.py`.
 For each scenario, an absent stdout or stderr golden path means that stream must
 be exactly empty; unexpected successful-command warnings therefore fail the gate.
 `scripts/stage_goldens.py --output <empty-directory>` may create review

@@ -36,6 +36,7 @@ pending. Phase 18 remains in progress and Phase 19 remains future work.
 | `AGENTS.md` | Authoritative AI-agent engineering and review workflow. |
 | `MANIFEST.md` | Repository structure, current inventory, and phase status. |
 | `.gitignore` | Rust build, editor, operating-system, and local-environment ignores. |
+| `.gitattributes` | Cross-platform LF checkout policy for repository text and binary protocol/capture fixture exclusions. |
 | `Cargo.toml` | Virtual Edition 2024 workspace, package metadata, lints, and internal path dependencies. |
 | `Cargo.lock` | Cargo-generated locked dependency graph for the seven-package main workspace. |
 | `rust-toolchain.toml` | Exact pinned stable development toolchain and components. |
