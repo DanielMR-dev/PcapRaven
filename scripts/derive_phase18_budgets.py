@@ -361,6 +361,10 @@ def derive_budget_document(
             isinstance(source_hash, str) and SHA256_PATTERN.fullmatch(source_hash) is not None,
             f"source measurement hash run {index} must be a 64-character lowercase hexadecimal SHA-256",
         )
+    _require(
+        len(set(source_hashes)) == EXPECTED_RUN_COUNT,
+        "the three baseline inputs must be distinct source measurements; duplicate SHA-256 values are not independent runs",
+    )
     first = measurements[0]
     first_environment = first["environment"]
     first_git_sha = first_environment["git_sha"]

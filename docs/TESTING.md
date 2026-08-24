@@ -109,8 +109,9 @@ provenance are inventoried in `ROBUSTNESS.md`. Newly mutated hash-named corpus
 entries and artifacts remain ignored and are removed after local smoke runs.
 Linux CI runs each target for 30 seconds with `-timeout=5`,
 `-rss_limit_mb=1024`, and target-specific maximum input lengths documented in
-`ROBUSTNESS.md`. The eight 600-second acceptance campaigns remain pending and
-cannot be inferred from build or smoke success.
+`ROBUSTNESS.md`. The eight 600-second Phase 18.1 acceptance campaigns completed
+and passed; that result is recorded in `ROBUSTNESS.md` and cannot be inferred
+from build or smoke success alone.
 
 Fuzz harnesses must configure conservative memory, record, nesting, and work
 limits; avoid network and nondeterministic dependencies; and treat panics,
@@ -498,8 +499,10 @@ python3 scripts/run_phase18_benchmarks.py --smoke
 ```
 
 Phase 18 remains current. Its bounded fuzz, verifier-hardening, CI-smoke, and
-benchmark foundation is implemented; long-running fuzz campaigns, acceptance
-measurements, and final performance thresholds are not claimed complete.
+benchmark foundation is implemented. Phase 18.1 full fuzz acceptance campaigns
+are complete; Phase 18.2 replacement baseline/budget work remains pending after
+candidate evidence was invalidated during review. Phase 18.3 final performance
+acceptance remains pending.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte
@@ -521,7 +524,7 @@ CNAME messages whose aggregate expanded question, owner, and RDATA names total
 detector identifiers, detector versions, finding semantics, report schema, or
 golden report bytes.
 
-## Phase 18.2 Performance Methodology (premeasurement)
+## Phase 18.2 Performance Methodology and Pending Baseline
 
 The dependency-free benchmark tooling is covered by
 `scripts/test_phase18_performance.py`, which verifies the finite smoke matrix,
@@ -537,9 +540,11 @@ for each scenario, exactly three sequential clean-revision runs, a predeclared
 15% run-to-run stability limit, and predeclared integer 125% absolute and
 growth budget margins. `scripts/derive_phase18_budgets.py` accepts exactly
 three complete full-run JSON documents and rejects smoke, dirty, mixed-revision,
-incomplete, inconsistent, or unstable input. Official measurements and final
-performance acceptance remain separate Phase 18.2 evidence and Phase 18.3
-work, respectively.
+incomplete, inconsistent, duplicate, or unstable input. The earlier candidate
+evidence was invalidated during review and is not used as baseline evidence.
+The replacement three-run baseline and derived budgets must be collected from a
+single clean revision before they are tracked. Phase 18.3 final performance
+acceptance remains pending.
 
 ## Dependency Audits
 

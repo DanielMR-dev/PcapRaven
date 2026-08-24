@@ -2,17 +2,17 @@
 
 ## Status
 
-Phase 18.1 fuzz acceptance is complete. Phase 18.2 now freezes the benchmark
-methodology and budget derivation policy; the three-run baseline and frozen
-budget artifact are still pending on this branch. No final performance
-acceptance or Phase 18 completion is claimed. The later Phase 18.3 gate remains
-separate.
+Phase 18.1 fuzz acceptance is complete. Phase 18.2 benchmark methodology and
+budget derivation policy are frozen, but the official replacement baseline and
+budget artifact are pending. An earlier candidate dataset was invalidated
+during review and must not be reused. Final performance acceptance has not been
+executed; Phase 18.3 remains separate and pending.
 
-The eventual Phase 18.2 result has three distinct states:
+The current Phase 18 state has three distinct states:
 
 ```text
-Performance baseline: ESTABLISHED
-Performance budgets: FROZEN
+Performance baseline: PENDING REPLACEMENT MEASUREMENT
+Performance budgets: PENDING REPLACEMENT MEASUREMENT
 Final acceptance execution: PENDING (Phase 18.3)
 ```
 
@@ -76,9 +76,10 @@ complete run written outside the repository. Official evidence must not be
 redirected into the checkout because the output file would make the measured
 Git worktree dirty.
 
-## Frozen Pre-Measurement Policy
+## Frozen Measurement and Budget Policy
 
-This policy is committed before observing official baseline numbers:
+This policy was committed before any official baseline numbers are observed and
+will be applied unchanged to the replacement baseline:
 
 - Collect exactly three independent, sequential full executions from one exact
   clean Git revision. Never mix revisions, discard an unfavorable run, or rerun
@@ -100,8 +101,19 @@ This policy is committed before observing official baseline numbers:
 
 All calculations use integer nanoseconds, basis points, and exact integer
 ceiling division. The full matrix produces 24 absolute median budgets and 13
-meaningful scaled growth budgets. These are regression budgets, not measured
-acceptance results; Phase 18.3 must execute a later independent comparison.
+meaningful scaled growth budgets. These are frozen regression budgets, not
+measured acceptance results; Phase 18.3 must execute a later independent
+comparison.
+
+## Phase 18.2 Baseline Status
+
+The official replacement baseline has not yet been collected. The earlier
+candidate evidence was invalidated during review after the derivation tool was
+found to accept duplicate input measurements as independent runs. It is not a
+valid baseline and must not be used to derive or execute acceptance budgets.
+The replacement process will collect exactly three complete runs from one
+clean revision before producing the tracked budget artifact. Phase 18.3 final
+performance acceptance remains separate and pending.
 
 ## Baseline Environment Contract
 
@@ -114,7 +126,9 @@ affinity, cache state, thermal state, power state, and background load were not
 controlled unless separately evidenced.
 
 Growth ratios provide supplementary scaling evidence; they do not make absolute
-cross-machine timings automatically comparable.
+cross-machine timings automatically comparable. The actual baseline machine and
+toolchain provenance will be recorded only after the replacement measurement is
+collected.
 
 ## Source-Level Complexity Audit
 
@@ -138,23 +152,10 @@ No production optimization is authorized merely to improve a benchmark number.
 
 ## Evidence Artifacts
 
-After the three-run baseline is validated, the tracked evidence will be:
-
-```text
-docs/performance/phase18-2-baseline-run-1.json
-docs/performance/phase18-2-baseline-run-2.json
-docs/performance/phase18-2-baseline-run-3.json
-docs/performance/phase18-2-budgets.json
-```
-
-`scripts/derive_phase18_budgets.py` accepts exactly those three full JSON
-measurements, rejects smoke/dirty/mixed/incomplete/inconsistent inputs, checks
-the frozen 15% stability limit, and writes one deterministic budget document to
-stdout. The budget artifact will include source measurement SHA-256 values,
-baseline environment identity, all 24 scenario budgets, and an explicit
-statement that budgets are frozen for Phase 18.3 but have not yet been executed
-as the final acceptance gate.
-
-Until those artifacts exist and are reviewed, baseline and budget status remain
-pending. Phase 18.3 remains the only place where final performance acceptance
-may be declared.
+No canonical Phase 18.2 baseline or budget artifacts are currently tracked.
+The prior candidate evidence was invalidated during review and retained outside
+the repository for audit; it must not be mixed with the replacement runs. After
+three valid clean-revision runs pass the frozen stability rule, the raw runs and
+derived budget document will be added under `docs/performance/`. Phase 18.3
+remains the only place where final performance acceptance may be executed or
+declared.

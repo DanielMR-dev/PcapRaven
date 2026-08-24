@@ -253,14 +253,17 @@ including 1,000- and 10,000-record scales for every reporting format. The
 pre-measurement methodology freezes three sequential full runs, one warmup and
 five measured samples per scenario, a 15% run-to-run stability ceiling, and
 integer-only 125% absolute/growth budget formulas. Focused benchmark-tool tests
-and Linux CI smoke verification are in place. Official baseline measurements,
-budget derivation, and the tracked evidence artifacts remain pending; this
-phase does not declare final performance acceptance.
+and Linux CI smoke verification are in place. A candidate dataset was
+invalidated during review after duplicate input measurements were accepted as
+independent runs; the official replacement baseline and budget artifact remain
+pending. Phase 18.2 does not declare final performance acceptance.
 
 ### Phase 18.3 - Final Phase 18 acceptance gate
 
-Pending the separately reviewed comparison of a later clean-revision
-measurement against the frozen Phase 18.2 budgets.
+PENDING / NEXT: separately reviewed comparison of a later clean-revision
+measurement against the frozen Phase 18.2 budgets. Phase 18 remains in
+progress until this gate is completed. Phase 19 remains future work and is out
+of scope for Phase 18.2.
 
 ## Phase 19 - Security hardening, documentation, packaging and v1.0.0
 

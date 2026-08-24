@@ -237,6 +237,21 @@ class Phase18BudgetValidationTests(unittest.TestCase):
         documents[2]["environment"]["git_sha"] = "b" * 40
         self.assert_cli_rejects(documents)
 
+    def test_duplicate_measurement_inputs_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="pcapraven-phase18-tests-") as temporary:
+            path = Path(temporary) / "run.json"
+            path.write_text(json.dumps(self.measurements[0]), encoding="utf-8")
+            process = subprocess.run(
+                [sys.executable, str(DERIVE_PATH), str(path), str(path), str(path)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(process.returncode, 0)
+            self.assertEqual(process.stdout, "")
+            self.assertIn("duplicate SHA-256", process.stderr)
+
     def test_invalid_git_revision_shape_is_rejected(self) -> None:
         documents = deepcopy(self.measurements)
         documents[0]["environment"]["git_sha"] = "not-a-revision"

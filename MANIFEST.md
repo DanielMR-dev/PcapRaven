@@ -20,7 +20,12 @@ Phase 14 explainable repeated low-volume flow behavior and deterministic cross-d
 Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection,
 Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command, and
 Phase 17 synthetic fixture corpus, schema freeze verification, golden reports matrix, cross-crate integration, end-to-end regression testing, and the mandatory Phase 17.1 hardening gate are complete.
-Phase 18 property testing, fuzzing, robustness, and performance verification is current; Part B verification campaigns are not yet claimed complete. Phase 19 remains future work.
+Phase 18 property testing, fuzzing, robustness, and performance verification is
+current. Phase 18.1 full fuzz acceptance campaigns are complete; Phase 18.2
+benchmark methodology is in place, while the replacement baseline and budgets
+remain pending after candidate evidence was invalidated during review. Phase
+18.3 final performance acceptance is pending. Phase 18 remains in progress and
+Phase 19 remains future work.
 
 ## Tracked Current Inventory
 
@@ -43,7 +48,7 @@ Phase 18 property testing, fuzzing, robustness, and performance verification is 
 | `scripts/golden_scenarios.py` | Canonical platform-independent CLI golden scenario matrix. |
 | `scripts/check_goldens.py` | Read-only canonical CLI exit/stdout/stderr golden checker with hard fixture/golden structural preflight before reads or execution. |
 | `scripts/stage_goldens.py` | Safe explicit-output candidate staging tool that preflights fixture inputs and refuses `tests/golden/`. |
-| `scripts/run_phase18_benchmarks.py` | Dependency-free bounded release-CLI semantic scenario benchmark and separate smoke tool with five-run integer nanosecond summaries, growth ratios, and environment provenance. |
+| `scripts/run_phase18_benchmarks.py` | Dependency-free bounded release-CLI semantic scenario benchmark and separate smoke tool with one warmup, five measured samples, integer nanosecond summaries, growth ratios, and environment provenance. |
 | `scripts/derive_phase18_budgets.py` | Dependency-free strict validator and integer-only derivation tool for the three-run Phase 18.2 baseline budget document. |
 | `scripts/test_phase18_performance.py` | Focused dependency-free regression tests for the Phase 18.2 benchmark matrix, growth groups, budget arithmetic, and invalid-input rejection. |
 | `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and eight-target bounded Linux fuzz-smoke CI. |
@@ -71,8 +76,8 @@ Phase 18 property testing, fuzzing, robustness, and performance verification is 
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
-| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, corpus policy, smoke profile, invariants, and pending acceptance campaign ledger. |
-| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, environment fields, and pending acceptance placeholders. |
+| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and pending Phase 18.2/18.3 performance status. |
+| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline environment contract, and pending replacement baseline/budget state. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
 | `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
