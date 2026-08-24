@@ -242,11 +242,10 @@ analysis completeness, resource-limit semantics, and privacy regressions.
 Expand `proptest`, `cargo-fuzz`, regression corpus, resource-limit tests,
 long-running campaigns, worst-case performance analysis, and practical
 benchmarks. Resolve crashes, hangs, unbounded behavior, and material performance
-risks before release hardening. The Part B foundation now includes exactly eight
-bounded fuzz targets, curated synthetic seeds, Linux smoke CI, verifier
-hardening, and a release-CLI benchmark tool. The required 600-second campaigns,
-acceptance measurements, and final Phase 18 gate remain pending and are not
-claimed complete.
+risks before release hardening. Phase 18.1 completed the full eight 600-second
+fuzz acceptance campaigns across all public-API fuzz targets with zero crashes,
+hangs, or memory leaks. Phase 18.2 performance acceptance measurements and the
+final Phase 18 gate remain pending and are not claimed complete.
 
 ## Phase 19 - Security hardening, documentation, packaging and v1.0.0
 

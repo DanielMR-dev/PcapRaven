@@ -1174,6 +1174,33 @@ impl<'a> CaptureReader<'a> {
 
         loop {
             let location = self.current_location();
+            let data = self.parser.data();
+            if data.is_empty() {
+                if self.parser.reader_exhausted() {
+                    self.finished = true;
+                    return Ok(None);
+                }
+                if let Err(error) = self.handle_incomplete(location) {
+                    return Err(self.set_terminal(error));
+                }
+                continue;
+            }
+            match preflight(&self.state, data, &self.limits, location) {
+                Ok(Preflight::Ready { .. }) => {}
+                Ok(Preflight::Need(_)) => {
+                    if self.parser.reader_exhausted() {
+                        let error = CaptureReaderError::Incomplete { location };
+                        return Err(self.set_terminal(error));
+                    }
+                    if let Err(error) = self.handle_incomplete(location) {
+                        return Err(self.set_terminal(error));
+                    }
+                    continue;
+                }
+                Err(error) => {
+                    return Err(self.set_terminal(error));
+                }
+            }
             let available_data = self.parser.data().len();
             let consumed = self.parser.consumed();
             let next = self.parser.next();
@@ -2271,13 +2298,10 @@ fn preflight(
 ) -> Result<Preflight, CaptureReaderError> {
     match *state {
         ReaderState::Legacy {
-            header_seen,
+            header_seen: _,
             byte_order,
             modified,
         } => {
-            if !header_seen {
-                return Ok(Preflight::Need(PCAP_HEADER_SIZE));
-            }
             let header_size = if modified { 24 } else { 16 };
             if data.len() < header_size {
                 return Ok(Preflight::Need(header_size));

@@ -807,26 +807,22 @@ fn ipv6_extension_count_and_byte_limits_boundary() {
             .maximum_ipv6_extension_headers(limit)
             .build()
             .unwrap();
-        assert_eq!(
-            normalize_packet(&make_input(&frame), &limits)
-                .packet
-                .completeness
-                .is_complete(),
-            complete
-        );
+        let out = normalize_packet(&make_input(&frame), &limits);
+        assert_eq!(out.packet.completeness.is_complete(), complete);
+        if let Some(NetworkLayer::Ipv6(ip)) = &out.packet.network_layer {
+            assert!(ip.extension_headers_count <= limit);
+        }
     }
     for (limit, complete) in [(23, false), (24, true), (25, true)] {
         let limits = NormalizationLimitsBuilder::default()
             .maximum_ipv6_extension_bytes(limit)
             .build()
             .unwrap();
-        assert_eq!(
-            normalize_packet(&make_input(&frame), &limits)
-                .packet
-                .completeness
-                .is_complete(),
-            complete
-        );
+        let out = normalize_packet(&make_input(&frame), &limits);
+        assert_eq!(out.packet.completeness.is_complete(), complete);
+        if let Some(NetworkLayer::Ipv6(ip)) = &out.packet.network_layer {
+            assert!(usize::from(ip.extension_headers_length) <= limit);
+        }
     }
 }
 

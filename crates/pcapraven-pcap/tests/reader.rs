@@ -1079,6 +1079,18 @@ fn reader_limits_builder_validates_maximum_retained_packet_bytes() {
     );
 }
 
+#[test]
+fn phase18_pcapng_short_block_length_handled_without_panic() {
+    let mut bytes = shb(ByteOrder::Little);
+    // Append a block with invalid short length (4 bytes instead of minimum 12 bytes).
+    bytes.extend_from_slice(&1u32.to_le_bytes()); // IDB block type
+    bytes.extend_from_slice(&4u32.to_le_bytes()); // Block length = 4
+    let limits = default_limits();
+    let outcome = read_capture(&bytes[..], limits);
+    assert!(!outcome.is_complete());
+    assert!(outcome.records.is_empty());
+}
+
 #[derive(Clone)]
 struct TinyReader {
     bytes: Vec<u8>,
