@@ -254,9 +254,13 @@ pre-measurement methodology freezes three sequential full runs, one warmup and
 five measured samples per scenario, a 15% run-to-run stability ceiling, and
 integer-only 125% absolute/growth budget formulas. Focused benchmark-tool tests
 and Linux CI smoke verification are in place. A candidate dataset was
-invalidated during review after duplicate input measurements were accepted as
-independent runs; the official replacement baseline and budget artifact remain
-pending. Phase 18.2 does not declare final performance acceptance.
+replaced after review hardened duplicate-input rejection. Three complete
+baseline runs were collected from clean revision
+`cd98fa6164ce0a6473386e9dca841cd57c599427`; all 24 scenarios met the stability
+ceiling, with a maximum spread of 1,158 basis points for
+`reporting_csv_1000`. The 24 absolute median budgets and 13 meaningful growth
+budgets are frozen in the tracked Phase 18.2 evidence artifacts. Phase 18.2 is
+complete; it does not declare final performance acceptance.
 
 ### Phase 18.3 - Final Phase 18 acceptance gate
 

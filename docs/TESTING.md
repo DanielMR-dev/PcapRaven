@@ -122,8 +122,9 @@ progress and output invariants.
 Crashes and hangs are minimized, triaged, fixed, and promoted to the regression
 corpus. Corpus files must follow the fixture privacy and provenance policy.
 Long-running campaigns supplement, but do not replace, deterministic CI smoke
-runs. Platform sanitizer coverage and exact budgets will be defined in Phase
-18 based on supported toolchains.
+runs. Platform sanitizer coverage is part of the current Phase 18 robustness
+contract. Phase 18.2 performance budgets are frozen for Phase 18.3, while the
+final Phase 18.3 acceptance remains pending.
 
 ## Fixture Policy
 
@@ -500,9 +501,8 @@ python3 scripts/run_phase18_benchmarks.py --smoke
 
 Phase 18 remains current. Its bounded fuzz, verifier-hardening, CI-smoke, and
 benchmark foundation is implemented. Phase 18.1 full fuzz acceptance campaigns
-are complete; Phase 18.2 replacement baseline/budget work remains pending after
-candidate evidence was invalidated during review. Phase 18.3 final performance
-acceptance remains pending.
+and Phase 18.2 performance baseline/budget work are complete; Phase 18.3 final
+performance acceptance remains pending.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte
@@ -524,7 +524,7 @@ CNAME messages whose aggregate expanded question, owner, and RDATA names total
 detector identifiers, detector versions, finding semantics, report schema, or
 golden report bytes.
 
-## Phase 18.2 Performance Methodology and Pending Baseline
+## Phase 18.2 Performance Methodology and Baseline Evidence
 
 The dependency-free benchmark tooling is covered by
 `scripts/test_phase18_performance.py`, which verifies the finite smoke matrix,
@@ -540,11 +540,13 @@ for each scenario, exactly three sequential clean-revision runs, a predeclared
 15% run-to-run stability limit, and predeclared integer 125% absolute and
 growth budget margins. `scripts/derive_phase18_budgets.py` accepts exactly
 three complete full-run JSON documents and rejects smoke, dirty, mixed-revision,
-incomplete, inconsistent, duplicate, or unstable input. The earlier candidate
-evidence was invalidated during review and is not used as baseline evidence.
-The replacement three-run baseline and derived budgets must be collected from a
-single clean revision before they are tracked. Phase 18.3 final performance
-acceptance remains pending.
+incomplete, inconsistent, duplicate, or unstable input. The official three-run
+baseline was collected from clean revision
+`cd98fa6164ce0a6473386e9dca841cd57c599427`; all 24 scenarios met the frozen
+stability ceiling, with a maximum spread of 1,158 basis points. The raw runs
+and the derived 24 absolute / 13 meaningful growth budgets are tracked under
+`docs/performance/`. The budgets are frozen for Phase 18.3, but the final
+performance acceptance comparison has not been executed.
 
 ## Dependency Audits
 

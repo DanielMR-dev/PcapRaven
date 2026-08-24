@@ -223,9 +223,8 @@ other outputs.
 
 Algorithm choices must consider worst-case behavior, not only average captures.
 The Phase 18 bounded fuzz/benchmark foundation and complexity audit are
-documented in `ROBUSTNESS.md` and `PERFORMANCE.md`. Phase 18.2 methodology is
-frozen, but its replacement clean-revision baseline and bounded regression
-budgets remain pending after candidate evidence was invalidated during review;
+documented in `ROBUSTNESS.md` and `PERFORMANCE.md`. Phase 18.2 established the
+clean-revision performance baseline and froze its bounded regression budgets;
 the separately reviewed Phase 18.3 final acceptance remains pending.
 Boundedness may not be weakened to improve results.
 

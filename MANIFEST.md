@@ -21,11 +21,9 @@ Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, 
 Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command, and
 Phase 17 synthetic fixture corpus, schema freeze verification, golden reports matrix, cross-crate integration, end-to-end regression testing, and the mandatory Phase 17.1 hardening gate are complete.
 Phase 18 property testing, fuzzing, robustness, and performance verification is
-current. Phase 18.1 full fuzz acceptance campaigns are complete; Phase 18.2
-benchmark methodology is in place, while the replacement baseline and budgets
-remain pending after candidate evidence was invalidated during review. Phase
-18.3 final performance acceptance is pending. Phase 18 remains in progress and
-Phase 19 remains future work.
+current. Phase 18.1 full fuzz acceptance campaigns and Phase 18.2 performance
+baseline/budget work are complete; Phase 18.3 final performance acceptance is
+pending. Phase 18 remains in progress and Phase 19 remains future work.
 
 ## Tracked Current Inventory
 
@@ -76,8 +74,13 @@ Phase 19 remains future work.
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
-| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and pending Phase 18.2/18.3 performance status. |
-| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline environment contract, and pending replacement baseline/budget state. |
+| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and Phase 18.3 performance acceptance status. |
+| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline environment, frozen budgets, and pending Phase 18.3 acceptance. |
+| `docs/performance/` | Tracked Phase 18.2 raw baseline measurements and frozen budget evidence. |
+| `docs/performance/phase18-2-baseline-run-1.json` | Raw full baseline measurement run 1 for the clean Phase 18.2 measurement revision. |
+| `docs/performance/phase18-2-baseline-run-2.json` | Raw full baseline measurement run 2 for the clean Phase 18.2 measurement revision. |
+| `docs/performance/phase18-2-baseline-run-3.json` | Raw full baseline measurement run 3 for the clean Phase 18.2 measurement revision. |
+| `docs/performance/phase18-2-budgets.json` | Machine-readable Phase 18.2 budgets frozen for later Phase 18.3 acceptance; final acceptance not executed. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
 | `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |

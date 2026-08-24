@@ -2,17 +2,17 @@
 
 ## Status
 
-Phase 18.1 fuzz acceptance is complete. Phase 18.2 benchmark methodology and
-budget derivation policy are frozen, but the official replacement baseline and
-budget artifact are pending. An earlier candidate dataset was invalidated
-during review and must not be reused. Final performance acceptance has not been
-executed; Phase 18.3 remains separate and pending.
+Phase 18.1 fuzz acceptance and Phase 18.2 performance baseline/budget work are
+complete. Three full baseline runs and the machine-readable budget artifact are
+established from clean revision
+`cd98fa6164ce0a6473386e9dca841cd57c599427`. Final performance acceptance has
+not been executed; Phase 18.3 remains separate and pending.
 
 The current Phase 18 state has three distinct states:
 
 ```text
-Performance baseline: PENDING REPLACEMENT MEASUREMENT
-Performance budgets: PENDING REPLACEMENT MEASUREMENT
+Performance baseline: ESTABLISHED
+Performance budgets: FROZEN
 Final acceptance execution: PENDING (Phase 18.3)
 ```
 
@@ -78,8 +78,8 @@ Git worktree dirty.
 
 ## Frozen Measurement and Budget Policy
 
-This policy was committed before any official baseline numbers are observed and
-will be applied unchanged to the replacement baseline:
+This policy was committed before any official baseline numbers were observed
+and was applied unchanged to the three replacement runs:
 
 - Collect exactly three independent, sequential full executions from one exact
   clean Git revision. Never mix revisions, discard an unfavorable run, or rerun
@@ -105,15 +105,30 @@ meaningful scaled growth budgets. These are frozen regression budgets, not
 measured acceptance results; Phase 18.3 must execute a later independent
 comparison.
 
-## Phase 18.2 Baseline Status
+## Phase 18.2 Baseline Results
 
-The official replacement baseline has not yet been collected. The earlier
-candidate evidence was invalidated during review after the derivation tool was
-found to accept duplicate input measurements as independent runs. It is not a
-valid baseline and must not be used to derive or execute acceptance budgets.
-The replacement process will collect exactly three complete runs from one
-clean revision before producing the tracked budget artifact. Phase 18.3 final
-performance acceptance remains separate and pending.
+The official baseline consists of exactly three sequential full benchmark runs
+from clean revision `cd98fa6164ce0a6473386e9dca841cd57c599427`. Every run
+reports `mode = benchmark`, the same release benchmark implementation, 24
+scenarios, one warmup, and five measured samples per scenario. All three runs
+report the same Git SHA and `git_dirty = false`.
+
+Baseline stability satisfied the frozen ceiling for all 24 scenarios. The
+largest observed run-to-run median spread was **1,158 basis points** for
+`reporting_csv_1000`, below the 1,500-basis-point (15%) limit. No baseline run
+or scenario was discarded.
+
+| Family | Scenarios | Reference median range (ns) | Maximum spread (bp) |
+| --- | ---: | ---: | ---: |
+| Validation | 3 | 1,138,072–4,066,935 | 740 |
+| Flows | 3 | 2,910,334–114,310,015 | 455 |
+| DNS | 2 | 5,610,245–44,282,184 | 441 |
+| Analyze | 8 | 7,370,879–266,752,884 | 710 |
+| Reporting | 8 | 10,441,663–178,820,717 | 1,158 |
+
+The budget derivation produced 24 absolute median budgets and 13 meaningful
+scaled growth budgets. These results establish the baseline and freeze the
+budgets; they do not execute or declare the Phase 18.3 final acceptance gate.
 
 ## Baseline Environment Contract
 
@@ -126,9 +141,29 @@ affinity, cache state, thermal state, power state, and background load were not
 controlled unless separately evidenced.
 
 Growth ratios provide supplementary scaling evidence; they do not make absolute
-cross-machine timings automatically comparable. The actual baseline machine and
-toolchain provenance will be recorded only after the replacement measurement is
-collected.
+cross-machine timings automatically comparable.
+
+The official baseline environment recorded by run 1 was:
+
+| Field | Value |
+| --- | --- |
+| OS | Linux |
+| Kernel | `6.18.33.2-microsoft-standard-WSL2` |
+| Architecture/platform | `x86_64`; `Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43` |
+| CPU | AMD Ryzen 5 5600G with Radeon Graphics |
+| Logical CPUs | 12 |
+| Total memory | 16,698,191,872 bytes |
+| Available memory | 10,510,102,528 bytes |
+| Rust compiler | `rustc 1.97.1 (8bab26f4f 2026-07-14)` |
+| Active Rust toolchain | `1.97.1-x86_64-unknown-linux-gnu` (overridden by `rust-toolchain.toml`) |
+| Cargo | `cargo 1.97.1 (c980f4866 2026-06-30)` |
+| Python | `3.14.4` |
+| Build profile | `release` |
+| Power/governor | Unreported; power state was not controlled |
+| Limitations | Whole-process timings include CLI startup and filesystem cache effects; CPU affinity, power state, thermal state, and background load are uncontrolled. |
+
+The complete provenance, including the full `rustc` version output, remains in
+each raw measurement artifact.
 
 ## Source-Level Complexity Audit
 
@@ -152,10 +187,31 @@ No production optimization is authorized merely to improve a benchmark number.
 
 ## Evidence Artifacts
 
-No canonical Phase 18.2 baseline or budget artifacts are currently tracked.
-The prior candidate evidence was invalidated during review and retained outside
-the repository for audit; it must not be mixed with the replacement runs. After
-three valid clean-revision runs pass the frozen stability rule, the raw runs and
-derived budget document will be added under `docs/performance/`. Phase 18.3
-remains the only place where final performance acceptance may be executed or
-declared.
+The validated, tracked evidence is:
+
+```text
+docs/performance/phase18-2-baseline-run-1.json
+docs/performance/phase18-2-baseline-run-2.json
+docs/performance/phase18-2-baseline-run-3.json
+docs/performance/phase18-2-budgets.json
+```
+
+`scripts/derive_phase18_budgets.py` accepted exactly the three full replacement
+measurements, rejected smoke/dirty/mixed/duplicate/incomplete/inconsistent
+inputs, checked the frozen 15% stability limit, and wrote the deterministic
+budget document. The budget artifact includes source measurement SHA-256
+values, baseline environment identity, all 24 scenario budgets, and an explicit
+statement that budgets are frozen for Phase 18.3 but have not yet been executed
+as the final acceptance gate.
+
+SHA-256 checksums of the tracked evidence are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `phase18-2-baseline-run-1.json` | `cd4622f9ed0c240b5a0c5bd8d1b3d96df90128940a4154bc4e9fb13070d6c145` |
+| `phase18-2-baseline-run-2.json` | `ef58cf5e29c2792147939ba23708be8d3c7a58eae517afeb2c2e43ae72766462` |
+| `phase18-2-baseline-run-3.json` | `57e1b576146828f6a20ac0753509dbb8046d8c51758500862aaa41765276cbd4` |
+| `phase18-2-budgets.json` | `d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1` |
+
+Baseline and budget status are now established and frozen. Phase 18.3 remains
+the only place where final performance acceptance may be executed or declared.
