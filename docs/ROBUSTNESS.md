@@ -6,8 +6,10 @@ Phase 18.1 has executed and completed all eight required 600-second full fuzz
 acceptance campaigns. All eight public-API fuzz targets passed without crashes,
 panics, hangs, uncontrolled memory growth, or invariant violations. All discovered
 boundary edge cases were triaged, fixed in safe Rust, and hardened with deterministic
-regression test coverage. Subsequent Phase 18.2 performance acceptance and
-Phase 19 release packaging remain separate and pending.
+regression test coverage. Phase 18.2 performance baseline and acceptance
+budgets are complete and tracked in `PERFORMANCE.md` and `docs/performance/`.
+Phase 18.3 final performance acceptance remains separate and pending; Phase 19
+release packaging remains future work.
 
 ## Threat Model and Invariants
 

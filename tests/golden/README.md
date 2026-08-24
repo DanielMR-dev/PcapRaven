@@ -6,6 +6,8 @@ This directory contains the canonical golden output files for PcapRaven Phase 17
 
 The golden suite verifies that PcapRaven CLI commands produce exact, deterministic, byte-for-byte consistent outputs across all supported subcommands and serialization formats (`table`, `json`, `ndjson`, `csv`).
 
+Canonical golden text files are stored and checked out with LF (`\n`) line endings on every supported platform. Golden verification is byte-exact, so platform checkout conversion must not change their bytes.
+
 ---
 
 ## Directory Structure

@@ -109,8 +109,9 @@ provenance are inventoried in `ROBUSTNESS.md`. Newly mutated hash-named corpus
 entries and artifacts remain ignored and are removed after local smoke runs.
 Linux CI runs each target for 30 seconds with `-timeout=5`,
 `-rss_limit_mb=1024`, and target-specific maximum input lengths documented in
-`ROBUSTNESS.md`. The eight 600-second acceptance campaigns remain pending and
-cannot be inferred from build or smoke success.
+`ROBUSTNESS.md`. The eight 600-second Phase 18.1 acceptance campaigns completed
+and passed; that result is recorded in `ROBUSTNESS.md` and cannot be inferred
+from build or smoke success alone.
 
 Fuzz harnesses must configure conservative memory, record, nesting, and work
 limits; avoid network and nondeterministic dependencies; and treat panics,
@@ -121,8 +122,9 @@ progress and output invariants.
 Crashes and hangs are minimized, triaged, fixed, and promoted to the regression
 corpus. Corpus files must follow the fixture privacy and provenance policy.
 Long-running campaigns supplement, but do not replace, deterministic CI smoke
-runs. Platform sanitizer coverage and exact budgets will be defined in Phase
-18 based on supported toolchains.
+runs. Platform sanitizer coverage is part of the current Phase 18 robustness
+contract. Phase 18.2 performance budgets are frozen for Phase 18.3, while the
+final Phase 18.3 acceptance remains pending.
 
 ## Fixture Policy
 
@@ -179,7 +181,11 @@ when introduced. Generated captures are reviewed as binary artifacts and kept
 as small as practical. Large or legally ambiguous samples are excluded rather
 than fetched during tests.
 
-Canonical golden bytes are checked read-only by `scripts/check_goldens.py`.
+Canonical golden text files are stored and checked out with LF (`\n`) line
+endings on every supported platform. The repository `.gitattributes` policy
+preserves this checkout contract, while capture and protocol-wire fixtures are
+excluded from text conversion. Canonical golden bytes are checked read-only by
+`scripts/check_goldens.py`.
 For each scenario, an absent stdout or stderr golden path means that stream must
 be exactly empty; unexpected successful-command warnings therefore fail the gate.
 `scripts/stage_goldens.py --output <empty-directory>` may create review
@@ -498,8 +504,9 @@ python3 scripts/run_phase18_benchmarks.py --smoke
 ```
 
 Phase 18 remains current. Its bounded fuzz, verifier-hardening, CI-smoke, and
-benchmark foundation is implemented; long-running fuzz campaigns, acceptance
-measurements, and final performance thresholds are not claimed complete.
+benchmark foundation is implemented. Phase 18.1 full fuzz acceptance campaigns
+and Phase 18.2 performance baseline/budget work are complete; Phase 18.3 final
+performance acceptance remains pending.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte
@@ -520,6 +527,30 @@ CNAME messages whose aggregate expanded question, owner, and RDATA names total
 39 wire bytes. This parser resource-accounting correction does not change DNS
 detector identifiers, detector versions, finding semantics, report schema, or
 golden report bytes.
+
+## Phase 18.2 Performance Methodology and Baseline Evidence
+
+The dependency-free benchmark tooling is covered by
+`scripts/test_phase18_performance.py`, which verifies the finite smoke matrix,
+the exact 24-scenario full matrix, all required workload scales, meaningful
+two-scale reporting growth groups, integer-only budget arithmetic, and strict
+rejection of invalid baseline measurements. Linux quality CI runs this focused
+test and the separate `--smoke` benchmark invocation. CI does not run the full
+benchmark as a performance gate and does not treat runner timing as canonical
+baseline evidence.
+
+The full benchmark methodology requires one warmup and five measured samples
+for each scenario, exactly three sequential clean-revision runs, a predeclared
+15% run-to-run stability limit, and predeclared integer 125% absolute and
+growth budget margins. `scripts/derive_phase18_budgets.py` accepts exactly
+three complete full-run JSON documents and rejects smoke, dirty, mixed-revision,
+incomplete, inconsistent, duplicate, or unstable input. The official three-run
+baseline was collected from clean revision
+`cd98fa6164ce0a6473386e9dca841cd57c599427`; all 24 scenarios met the frozen
+stability ceiling, with a maximum spread of 1,158 basis points. The raw runs
+and the derived 24 absolute / 13 meaningful growth budgets are tracked under
+`docs/performance/`. The budgets are frozen for Phase 18.3, but the final
+performance acceptance comparison has not been executed.
 
 ## Dependency Audits
 

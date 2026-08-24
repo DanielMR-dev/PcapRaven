@@ -244,8 +244,30 @@ long-running campaigns, worst-case performance analysis, and practical
 benchmarks. Resolve crashes, hangs, unbounded behavior, and material performance
 risks before release hardening. Phase 18.1 completed the full eight 600-second
 fuzz acceptance campaigns across all public-API fuzz targets with zero crashes,
-hangs, or memory leaks. Phase 18.2 performance acceptance measurements and the
-final Phase 18 gate remain pending and are not claimed complete.
+hangs, or memory leaks.
+
+### Phase 18.2 - Performance baseline and acceptance budgets
+
+The dependency-free release benchmark now has a corrected 24-scenario matrix,
+including 1,000- and 10,000-record scales for every reporting format. The
+pre-measurement methodology freezes three sequential full runs, one warmup and
+five measured samples per scenario, a 15% run-to-run stability ceiling, and
+integer-only 125% absolute/growth budget formulas. Focused benchmark-tool tests
+and Linux CI smoke verification are in place. A candidate dataset was
+replaced after review hardened duplicate-input rejection. Three complete
+baseline runs were collected from clean revision
+`cd98fa6164ce0a6473386e9dca841cd57c599427`; all 24 scenarios met the stability
+ceiling, with a maximum spread of 1,158 basis points for
+`reporting_csv_1000`. The 24 absolute median budgets and 13 meaningful growth
+budgets are frozen in the tracked Phase 18.2 evidence artifacts. Phase 18.2 is
+complete; it does not declare final performance acceptance.
+
+### Phase 18.3 - Final Phase 18 acceptance gate
+
+PENDING / NEXT: separately reviewed comparison of a later clean-revision
+measurement against the frozen Phase 18.2 budgets. Phase 18 remains in
+progress until this gate is completed. Phase 19 remains future work and is out
+of scope for Phase 18.2.
 
 ## Phase 19 - Security hardening, documentation, packaging and v1.0.0
 

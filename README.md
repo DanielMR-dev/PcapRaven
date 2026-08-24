@@ -24,7 +24,10 @@ exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspe
 **Phase 15: Severity, confidence, finding filtering, and MITRE ATT&CK mapping provenance**,
 **Phase 16: Deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI**,
 and **Phase 17: Synthetic fixture corpus, golden reports, and integration/E2E regression testing**
-are complete. Phase 18 robustness, fuzzing, property testing, and performance verification is current; this status does not imply those verification campaigns are complete.
+are complete. Phase 18.1 full fuzz acceptance and Phase 18.2 performance
+baseline/budget work are complete. Phase 18 remains in progress because the
+separate Phase 18.3 final performance acceptance gate is pending; this status
+does not claim final Phase 18 acceptance or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
