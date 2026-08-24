@@ -64,10 +64,25 @@ fuzz_target!(|data: &[u8]| {
         if obs.completeness.is_complete() {
             assert!(obs.header_section_bytes <= limits.maximum_header_section_bytes);
         }
-        if let Some(ref h) = obs.headers.host {
-            assert!(h.len() <= limits.maximum_selected_field_value_bytes);
-            let s = h.display_escaped();
-            assert!(!s.bytes().any(|b| (b < 0x20 && b != 0x09) || b == 0x7F));
+        for selected in [
+            obs.headers.host.as_ref(),
+            obs.headers.user_agent.as_ref(),
+            obs.headers.server.as_ref(),
+            obs.headers.content_type.as_ref(),
+            obs.headers.transfer_encoding.as_ref(),
+            obs.headers.connection.as_ref(),
+            obs.headers.upgrade.as_ref(),
+        ] {
+            let Some(value) = selected else {
+                continue;
+            };
+            assert!(value.len() <= limits.maximum_selected_field_value_bytes);
+            let rendered = value.display_escaped();
+            assert!(
+                !rendered
+                    .bytes()
+                    .any(|byte| (byte < 0x20 && byte != 0x09) || byte == 0x7f)
+            );
         }
     }
 
@@ -96,6 +111,8 @@ fuzz_target!(|data: &[u8]| {
     let resp_outcome = parse_http_packet(&tcp_resp_packet, &limits);
     assert!(resp_outcome.diagnostics.len() <= limits.maximum_diagnostics_per_packet);
     assert!(resp_outcome.observations.len() <= 1);
+    assert_eq!(req_outcome, parse_http_packet(&tcp_req_packet, &limits));
+    assert_eq!(resp_outcome, parse_http_packet(&tcp_resp_packet, &limits));
 
     // 3. Fuzz without network layer
     let no_net_packet = NormalizedPacket {
@@ -143,5 +160,41 @@ fuzz_target!(|data: &[u8]| {
                 assert!(obs.header_section_bytes <= tight_limits.maximum_header_section_bytes);
             }
         }
+    }
+
+    let mut sensitive_payload = b"GET / HTTP/1.1\r\nHost: privacy.example\r\nAuthorization: PHASE18_SECRET_".to_vec();
+    for byte in data.iter().take(32) {
+        sensitive_payload.extend_from_slice(format!("{byte:02x}").as_bytes());
+    }
+    sensitive_payload.extend_from_slice(
+        b"\r\nProxy-Authorization: PHASE18_PROXY_SECRET\r\nCookie: PHASE18_COOKIE_SECRET\r\n\r\n",
+    );
+    let mut sensitive_packet = tcp_req_packet.clone();
+    sensitive_packet.payload = Some(sensitive_payload);
+    let sensitive = parse_http_packet(&sensitive_packet, &limits);
+    for observation in &sensitive.observations {
+        assert!(observation.headers.has_authorization);
+        assert!(observation.headers.has_proxy_authorization);
+        assert!(observation.headers.has_cookie);
+        let debug = format!("{observation:?}");
+        assert!(!debug.contains("PHASE18_SECRET_"));
+        assert!(!debug.contains("PHASE18_PROXY_SECRET"));
+        assert!(!debug.contains("PHASE18_COOKIE_SECRET"));
+    }
+
+    let mut set_cookie_payload =
+        b"HTTP/1.1 200 OK\r\nSet-Cookie: PHASE18_SET_COOKIE_SECRET_".to_vec();
+    for byte in data.iter().take(32) {
+        set_cookie_payload.extend_from_slice(format!("{byte:02x}").as_bytes());
+    }
+    set_cookie_payload.extend_from_slice(b"; Secure; HttpOnly\r\n\r\n");
+    let mut set_cookie_packet = tcp_resp_packet.clone();
+    set_cookie_packet.payload = Some(set_cookie_payload);
+    let set_cookie = parse_http_packet(&set_cookie_packet, &limits);
+    for observation in &set_cookie.observations {
+        assert!(observation.headers.has_set_cookie);
+        let debug = format!("{observation:?}");
+        assert!(!debug.contains("PHASE18_SET_COOKIE_SECRET_"));
+        assert!(!debug.contains("HttpOnly"));
     }
 });

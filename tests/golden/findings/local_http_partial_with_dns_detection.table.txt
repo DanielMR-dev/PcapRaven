@@ -1,0 +1,11 @@
+Findings (1)
+================================================================================
+[find:10] Possible DNS tunneling pattern (Low, Medium)
+  Detector:     dns.possible_tunneling@v1.1.1
+  Summary:      Repeated DNS query observations within this flow contain unusually long, high-octet-diversity names in a proportion (9/10) meeting configured aggregate thresholds
+  Rationale:    Flow contains 10 DNS query observation(s), of which 9 (9/10) exhibit long QNAME wire length (max 164 octets), long labels (max 48 octets), and high label octet diversity (max 1/3). The pattern is consistent with possible DNS data tunneling or encoded exfiltration channels, but can also arise from benign generated identifiers, telemetry, cache keys, service discovery, security products, or application-specific opaque labels.
+  Subject:      flows=[Flow(1)]
+  Evidence:     evi:10
+  MITRE ATT&CK:
+    - T1071.004 (Application Layer Protocol: DNS) [TA0011 (Command and Control)] via detector:dns.possible_tunneling@v1.1.1
+      Rationale: The detector identified repeated DNS query observations with unusually long, high-octet-diversity names consistent with structured data transmission over DNS. This mapping describes an analytical relationship with network protocol characteristics defined in ATT&CK T1071.004, not confirmed malware or external attribution.

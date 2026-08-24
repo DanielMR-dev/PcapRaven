@@ -71,7 +71,7 @@ All enum values in JSON and NDJSON serialize as lowercase `snake_case` string to
 - `protocol`: Transport protocol (`"tcp"` or `"udp"`).
 - `endpoint_a` / `endpoint_b`: Address and port string endpoints.
 - `first_packet` / `last_packet`: Capture record ordinal strings.
-- `end_reason`: Flow end reason token (`"end_of_input"`, `"analysis_stopped"`, `"tcp_fin_rst"`, `"idle_timeout"`).
+- `end_reason`: Flow end reason token (`"end_of_input"`, `"analysis_stopped"`, `"tcp_reset"`, `"tcp_new_initial_syn"`, `"idle_timeout"`).
 - `traffic`: Directional traffic metrics across 4 buckets (`total`, `a_to_b`, `b_to_a`, `same_endpoint`), each containing `packet_count`, `captured_bytes`, `wire_bytes`, and `truncated_packet_count` as decimal strings.
 - `temporal`: Contains `first_packet_timestamp`, `last_packet_timestamp`, `duration` (with `numerator`, `denominator`, and `display`), `timestamp_coverage`, and inter-arrival statistics (`overall`, `a_to_b`, `b_to_a`, `same_endpoint`).
 
@@ -86,7 +86,7 @@ For `analyze`, observations preserve exact identity and flow associations:
 
 ### 4.5 Evidence Records (`EvidenceRecordDto`)
 Preserves complete provenance:
-- `id`: Evidence reference string (`"ev:0"`).
+- `id`: Evidence reference string (`"evi:0"`).
 - `kind`: Evidence kind string.
 - `description`: Human-readable factual description.
 - `packet_references`: List of referenced capture record ordinals (`["0", "1"]`).

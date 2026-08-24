@@ -13,6 +13,10 @@ pcapraven-domain = { path = "../crates/pcapraven-domain", version = "0.0.0" }
 pcapraven-pcap = { path = "../crates/pcapraven-pcap", version = "0.0.0" }
 pcapraven-protocols = { path = "../crates/pcapraven-protocols", version = "0.0.0" }
 pcapraven-flows = { path = "../crates/pcapraven-flows", version = "0.0.0" }
+pcapraven-detection = { path = "../crates/pcapraven-detection", version = "0.0.0" }
+pcapraven-reporting = { path = "../crates/pcapraven-reporting", version = "0.0.0" }
+serde_json = { version = "=1.0.140", default-features = false, features = ["alloc"] }
+csv = { version = "=1.3.1", default-features = false }
 
 [[bin]]
 name = "fuzz_pcap_reader"
@@ -56,3 +60,16 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "fuzz_detection_engine"
+path = "fuzz_targets/fuzz_detection_engine.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_reporting"
+path = "fuzz_targets/fuzz_reporting.rs"
+test = false
+doc = false
+bench = false

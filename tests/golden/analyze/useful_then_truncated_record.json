@@ -1,0 +1,183 @@
+{
+  "schema_version": "v1.0",
+  "kind": "analysis",
+  "metadata": {
+    "format": "pcap",
+    "byte_order": "little_endian",
+    "version_major": 2,
+    "version_minor": 4,
+    "linktype": 1,
+    "snaplen": 65535,
+    "timestamp_resolution": "10^6 units/s (1000000 Hz)",
+    "section_count": null,
+    "interface_count": null,
+    "usable_interfaces": null,
+    "unusable_interfaces": null
+  },
+  "summary": {
+    "total_packets": "1",
+    "total_flows": "1",
+    "total_dns_observations": "1",
+    "total_http_observations": "0",
+    "total_tls_observations": "0",
+    "total_findings": "0",
+    "total_evidence_records": "0"
+  },
+  "completion": {
+    "status": "partial",
+    "limitations": [
+      "capture_truncated"
+    ]
+  },
+  "filter": null,
+  "flows": [
+    {
+      "id": "Flow(0)",
+      "ordinal": "0",
+      "protocol": "udp",
+      "endpoint_a": "192.0.2.10:53000",
+      "endpoint_b": "203.0.113.53:53",
+      "first_packet": "0",
+      "last_packet": "0",
+      "end_reason": "analysis_stopped",
+      "traffic": {
+        "total": {
+          "packet_count": "1",
+          "captured_bytes": "74",
+          "wire_bytes": "74",
+          "truncated_packet_count": "0"
+        },
+        "a_to_b": {
+          "packet_count": "1",
+          "captured_bytes": "74",
+          "wire_bytes": "74",
+          "truncated_packet_count": "0"
+        },
+        "b_to_a": {
+          "packet_count": "0",
+          "captured_bytes": "0",
+          "wire_bytes": "0",
+          "truncated_packet_count": "0"
+        },
+        "same_endpoint": {
+          "packet_count": "0",
+          "captured_bytes": "0",
+          "wire_bytes": "0",
+          "truncated_packet_count": "0"
+        }
+      },
+      "temporal": {
+        "status": "available",
+        "unavailable_reason": null,
+        "duration": {
+          "numerator": "0",
+          "denominator": "1",
+          "display": "0s"
+        },
+        "timestamp_coverage": {
+          "available_timestamps": "1",
+          "unavailable_timestamps": "0",
+          "invalid_timestamps": "0",
+          "non_monotonic_transitions": "0"
+        },
+        "first_packet_timestamp": {
+          "seconds": "1700000000",
+          "fractional_units": "0",
+          "units_per_second": "1000000",
+          "offset_seconds": "0"
+        },
+        "last_packet_timestamp": {
+          "seconds": "1700000000",
+          "fractional_units": "0",
+          "units_per_second": "1000000",
+          "offset_seconds": "0"
+        },
+        "overall_inter_arrival": {
+          "interval_sample_count": "0",
+          "discontinuity_count": "0",
+          "min_interval": null,
+          "max_interval": null,
+          "mean_interval": null,
+          "successive_delta_sample_count": "0",
+          "mean_absolute_successive_interval_delta": null
+        },
+        "a_to_b_inter_arrival": {
+          "interval_sample_count": "0",
+          "discontinuity_count": "0",
+          "min_interval": null,
+          "max_interval": null,
+          "mean_interval": null,
+          "successive_delta_sample_count": "0",
+          "mean_absolute_successive_interval_delta": null
+        },
+        "b_to_a_inter_arrival": {
+          "interval_sample_count": "0",
+          "discontinuity_count": "0",
+          "min_interval": null,
+          "max_interval": null,
+          "mean_interval": null,
+          "successive_delta_sample_count": "0",
+          "mean_absolute_successive_interval_delta": null
+        },
+        "same_endpoint_inter_arrival": {
+          "interval_sample_count": "0",
+          "discontinuity_count": "0",
+          "min_interval": null,
+          "max_interval": null,
+          "mean_interval": null,
+          "successive_delta_sample_count": "0",
+          "mean_absolute_successive_interval_delta": null
+        }
+      }
+    }
+  ],
+  "observations": [
+    {
+      "id": "obs:0:dns:0",
+      "protocol": "dns",
+      "packet_reference": "0",
+      "completeness": "complete",
+      "association": {
+        "status": "associated",
+        "flow_reference": "Flow(0)",
+        "direction": "a_to_b",
+        "exclusion_reason": null
+      },
+      "data": {
+        "dns": {
+          "packet_ordinal": "0",
+          "transport": "udp",
+          "source_ip": "192.0.2.10",
+          "source_port": 53000,
+          "destination_ip": "203.0.113.53",
+          "destination_port": 53,
+          "transaction_id": 20993,
+          "message_kind": "query",
+          "opcode": 0,
+          "authoritative_answer": false,
+          "truncation": false,
+          "recursion_desired": true,
+          "recursion_available": false,
+          "response_code": 0,
+          "questions": [
+            {
+              "name": "useful.example",
+              "qtype": 1,
+              "qtype_name": "A",
+              "qclass": 1
+            }
+          ],
+          "answers": [],
+          "authorities": [],
+          "additionals": [],
+          "edns": null,
+          "completeness": "complete"
+        },
+        "http": null,
+        "tls": null
+      }
+    }
+  ],
+  "evidence": [],
+  "findings": []
+}

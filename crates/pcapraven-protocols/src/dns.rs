@@ -624,15 +624,6 @@ impl<'a> DnsWireReader<'a> {
                 ));
             }
 
-            self.retained_name_bytes = self.retained_name_bytes.saturating_add(label_len);
-            if self.retained_name_bytes > self.limits.maximum_total_retained_name_bytes_per_message
-            {
-                return Err(DnsParseError::new(
-                    DnsDiagnosticKind::ResourceLimit,
-                    "exceeded total retained name bytes limit for message",
-                ));
-            }
-
             labels.push(label);
             curr_offset = end;
 
@@ -641,12 +632,29 @@ impl<'a> DnsWireReader<'a> {
             }
         }
 
-        DnsName::from_labels(labels).ok_or_else(|| {
+        let name = DnsName::from_labels(labels).ok_or_else(|| {
             DnsParseError::new(
                 DnsDiagnosticKind::Malformed,
                 "invalid constructed domain name",
             )
-        })
+        })?;
+        let retained_name_bytes = self
+            .retained_name_bytes
+            .checked_add(name.wire_length())
+            .ok_or_else(|| {
+                DnsParseError::new(
+                    DnsDiagnosticKind::ResourceLimit,
+                    "total retained DNS name byte accounting overflow",
+                )
+            })?;
+        if retained_name_bytes > self.limits.maximum_total_retained_name_bytes_per_message {
+            return Err(DnsParseError::new(
+                DnsDiagnosticKind::ResourceLimit,
+                "exceeded total retained name bytes limit for message",
+            ));
+        }
+        self.retained_name_bytes = retained_name_bytes;
+        Ok(name)
     }
 
     fn parse_question(&mut self) -> Result<DnsQuestion, DnsParseError> {

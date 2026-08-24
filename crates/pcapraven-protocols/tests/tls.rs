@@ -3,7 +3,14 @@ use pcapraven_domain::{
     PacketReference, PacketTimestamp, TcpFlags, TcpMetadata, TlsDiagnosticKind, TlsHandshakeKind,
     TlsObservationCompleteness, TlsVersion, TransportLayer,
 };
-use pcapraven_protocols::{TlsLimits, TlsLimitsBuilder, TlsPacketDisposition, parse_tls_packet};
+use pcapraven_protocols::{
+    HARD_MAX_ALPN_PROTOCOLS, HARD_MAX_CIPHER_SUITES_PER_CLIENT_HELLO,
+    HARD_MAX_DIAGNOSTICS_PER_PACKET, HARD_MAX_EXTENSIONS_PER_HELLO,
+    HARD_MAX_HANDSHAKE_MESSAGE_BYTES, HARD_MAX_HANDSHAKE_MESSAGES_PER_PACKET,
+    HARD_MAX_KEY_SHARE_ENTRIES, HARD_MAX_RECORDS_PER_PACKET, HARD_MAX_SERVER_NAME_BYTES,
+    HARD_MAX_SIGNATURE_ALGORITHMS, HARD_MAX_SUPPORTED_GROUPS, HARD_MAX_SUPPORTED_VERSIONS,
+    HARD_MAX_TOTAL_ALPN_BYTES, TlsLimits, TlsLimitsBuilder, TlsPacketDisposition, parse_tls_packet,
+};
 use proptest::prelude::*;
 
 fn make_tls_packet(src_port: u16, dst_port: u16, payload: Vec<u8>) -> NormalizedPacket {
@@ -325,6 +332,49 @@ fn test_limits_builder_validation() {
 }
 
 #[test]
+fn phase18_all_tls_limit_hard_caps_accept_n_minus_1_and_n_but_reject_n_plus_1() {
+    macro_rules! assert_boundary {
+        ($setter:ident, $maximum:expr) => {{
+            let maximum = $maximum;
+            assert!(TlsLimitsBuilder::new().$setter(maximum - 1).build().is_ok());
+            assert!(TlsLimitsBuilder::new().$setter(maximum).build().is_ok());
+            assert!(
+                TlsLimitsBuilder::new()
+                    .$setter(maximum + 1)
+                    .build()
+                    .is_err()
+            );
+        }};
+    }
+
+    assert_boundary!(maximum_records_per_packet, HARD_MAX_RECORDS_PER_PACKET);
+    assert_boundary!(
+        maximum_handshake_messages_per_packet,
+        HARD_MAX_HANDSHAKE_MESSAGES_PER_PACKET
+    );
+    assert_boundary!(
+        maximum_handshake_message_bytes,
+        HARD_MAX_HANDSHAKE_MESSAGE_BYTES
+    );
+    assert_boundary!(
+        maximum_cipher_suites_per_client_hello,
+        HARD_MAX_CIPHER_SUITES_PER_CLIENT_HELLO
+    );
+    assert_boundary!(maximum_extensions_per_hello, HARD_MAX_EXTENSIONS_PER_HELLO);
+    assert_boundary!(maximum_supported_versions, HARD_MAX_SUPPORTED_VERSIONS);
+    assert_boundary!(maximum_supported_groups, HARD_MAX_SUPPORTED_GROUPS);
+    assert_boundary!(maximum_signature_algorithms, HARD_MAX_SIGNATURE_ALGORITHMS);
+    assert_boundary!(maximum_alpn_protocols, HARD_MAX_ALPN_PROTOCOLS);
+    assert_boundary!(maximum_total_alpn_bytes, HARD_MAX_TOTAL_ALPN_BYTES);
+    assert_boundary!(maximum_server_name_bytes, HARD_MAX_SERVER_NAME_BYTES);
+    assert_boundary!(maximum_key_share_entries, HARD_MAX_KEY_SHARE_ENTRIES);
+    assert_boundary!(
+        maximum_diagnostics_per_packet,
+        HARD_MAX_DIAGNOSTICS_PER_PACKET
+    );
+}
+
+#[test]
 fn test_synthetic_tls_fixtures() {
     let fixtures = [
         ("client_hello_tls13.tls", TlsPacketDisposition::Parsed),
@@ -426,6 +476,154 @@ fn build_client_hello_msg(ciphers: &[u16], extensions: &[u8]) -> Vec<u8> {
     msg.push(msg_len as u8);
     msg.extend_from_slice(&msg_body);
     msg
+}
+
+fn build_extension(extension_type: u16, data: &[u8]) -> Vec<u8> {
+    let mut extension = Vec::new();
+    extension.extend_from_slice(&extension_type.to_be_bytes());
+    extension.extend_from_slice(&(data.len() as u16).to_be_bytes());
+    extension.extend_from_slice(data);
+    extension
+}
+
+fn parse_client_hello_with_limits(
+    ciphers: &[u16],
+    extensions: &[u8],
+    limits: &TlsLimits,
+) -> pcapraven_protocols::TlsPacketOutcome {
+    let message = build_client_hello_msg(ciphers, extensions);
+    let packet = make_tls_packet(54321, 443, build_tls_record(22, 0x0303, &message));
+    parse_tls_packet(&packet, limits)
+}
+
+#[test]
+fn phase18_tls_record_handshake_and_hello_vectors_cover_n_minus_1_n_n_plus_1() {
+    let message = build_client_hello_msg(&[0x1301], &[]);
+    let mut two_records = Vec::new();
+    for _ in 0..2 {
+        two_records.extend_from_slice(&build_tls_record(22, 0x0303, &message));
+    }
+    let packet = make_tls_packet(54321, 443, two_records);
+    for (limit, expected_observations, limited) in [(1, 1, true), (2, 2, false), (3, 2, false)] {
+        let limits = TlsLimitsBuilder::new()
+            .maximum_records_per_packet(limit)
+            .build()
+            .unwrap();
+        let outcome = parse_tls_packet(&packet, &limits);
+        assert_eq!(outcome.observations.len(), expected_observations);
+        assert_eq!(
+            outcome
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.kind == TlsDiagnosticKind::ResourceLimit),
+            limited
+        );
+    }
+
+    let body_length = message.len() - 4;
+    for (limit, parsed) in [
+        (body_length - 1, false),
+        (body_length, true),
+        (body_length + 1, true),
+    ] {
+        let limits = TlsLimitsBuilder::new()
+            .maximum_handshake_message_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_client_hello_with_limits(&[0x1301], &[], &limits).disposition
+                == TlsPacketDisposition::Parsed,
+            parsed
+        );
+    }
+
+    for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+        let limits = TlsLimitsBuilder::new()
+            .maximum_cipher_suites_per_client_hello(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_client_hello_with_limits(&[0x1301, 0x1302], &[], &limits).disposition
+                == TlsPacketDisposition::Parsed,
+            parsed
+        );
+    }
+
+    let supported_versions = build_extension(43, &[4, 0x03, 0x04, 0x03, 0x03]);
+    let supported_groups = build_extension(10, &[0, 4, 0, 0x1d, 0, 0x17]);
+    let signature_algorithms = build_extension(13, &[0, 4, 0x04, 0x03, 0x08, 0x04]);
+    let alpn = build_extension(16, &[0, 4, 1, b'a', 1, b'b']);
+    let mut two_extensions = supported_versions.clone();
+    two_extensions.extend_from_slice(&supported_groups);
+
+    for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+        let limits = TlsLimitsBuilder::new()
+            .maximum_extensions_per_hello(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_client_hello_with_limits(&[0x1301], &two_extensions, &limits).disposition
+                == TlsPacketDisposition::Parsed,
+            parsed
+        );
+    }
+
+    for (extension, configure) in [
+        (
+            supported_versions.as_slice(),
+            TlsLimitsBuilder::maximum_supported_versions
+                as fn(TlsLimitsBuilder, usize) -> TlsLimitsBuilder,
+        ),
+        (
+            supported_groups.as_slice(),
+            TlsLimitsBuilder::maximum_supported_groups,
+        ),
+        (
+            signature_algorithms.as_slice(),
+            TlsLimitsBuilder::maximum_signature_algorithms,
+        ),
+        (alpn.as_slice(), TlsLimitsBuilder::maximum_alpn_protocols),
+    ] {
+        for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+            let limits = configure(TlsLimitsBuilder::new(), limit).build().unwrap();
+            assert_eq!(
+                parse_client_hello_with_limits(&[0x1301], extension, &limits).disposition
+                    == TlsPacketDisposition::Parsed,
+                parsed
+            );
+        }
+    }
+
+    for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+        let limits = TlsLimitsBuilder::new()
+            .maximum_total_alpn_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_client_hello_with_limits(&[0x1301], &alpn, &limits).disposition
+                == TlsPacketDisposition::Parsed,
+            parsed
+        );
+    }
+
+    let hostname = b"abc";
+    let mut sni_data = Vec::new();
+    sni_data.extend_from_slice(&6_u16.to_be_bytes());
+    sni_data.push(0);
+    sni_data.extend_from_slice(&3_u16.to_be_bytes());
+    sni_data.extend_from_slice(hostname);
+    let sni = build_extension(0, &sni_data);
+    for (limit, parsed) in [(2, false), (3, true), (4, true)] {
+        let limits = TlsLimitsBuilder::new()
+            .maximum_server_name_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_client_hello_with_limits(&[0x1301], &sni, &limits).disposition
+                == TlsPacketDisposition::Parsed,
+            parsed
+        );
+    }
 }
 
 fn build_server_hello_msg(

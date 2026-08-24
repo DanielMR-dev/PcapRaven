@@ -13,8 +13,13 @@ foundation, Phase 11 detection engine architecture, Phase 12 explainable periodi
 detection, Phase 13 explainable DNS anomaly and possible tunneling detection,
 Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation,
 Phase 15 severity and confidence classification, finding filtering, and MITRE ATT&CK mapping provenance,
-and Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output file creation, and unified `analyze` CLI are complete.
-Phase 17 (synthetic fixture corpus, golden report matrix, and end-to-end regression testing) is the current active phase.
+Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output file creation, unified `analyze` CLI,
+and Phase 17 synthetic fixture corpus, golden report matrix, and end-to-end regression testing are complete.
+Fixture generation, golden staging/checking, the excluded eight-target fuzz
+package, and benchmark tooling are development-only and do not change the
+seven-package runtime architecture. The architecture checker audits the fuzz
+package separately. Phase 18 robustness and performance verification is current
+and remains outside runtime crate responsibilities.
 
 ## Architectural Principles
 
@@ -99,6 +104,9 @@ Phase 2 uses `pcap-parser = 0.17.0` as a normal dependency with default,
 `data`, and `serialize` features disabled. The parser dependency is kept behind
 the capture crate boundary. `proptest = 1.11.0` is dev-only for capture tests.
 The excluded `fuzz/` package is not part of the seven-package production graph.
+Its independent manifest uses exact audited fuzz-only dependencies, including
+`libfuzzer-sys = 0.4.13`, `serde_json = 1.0.140`, and `csv = 1.3.1`; the latter
+two have default features disabled and validate emitted reports only.
 
 ## Phase 3 Protocol Normalization Boundary
 
@@ -227,6 +235,10 @@ data (`NormalizedPacket`), and `pcapraven-domain` defines the capture-independen
 - **Decompression Invariants:** Enforces strict backward-only pointer rules (`target_offset < pointer_location_offset`),
   eliminating compression self-loops, cycle recursion, and forward pointers. Pointer traversal is bounded by
   `maximum_name_pointer_hops`.
+- **Aggregate Name Accounting:** `maximum_total_retained_name_bytes_per_message` charges the complete expanded wire length of every
+  successfully decoded question name, resource-record owner, and name-bearing CNAME/NS/PTR/MX RDATA value,
+  including label-length octets and the root octet. Checked accounting occurs before the owning question or
+  record is retained; exceeding the message budget produces a resource-limit partial outcome.
 - **Framing:** UDP single message processing and TCP 2-byte length-prefixed framing up to `maximum_messages_per_packet`
   without cross-packet TCP stream reassembly.
 - **Record Decoding:** Decodes standard RR types (A, AAAA, CNAME, NS, PTR, MX) with strict RDLENGTH validation
@@ -367,9 +379,9 @@ over exact directional flow temporal metrics:
 
 `pcapraven-detection` implements explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation:
 
-- **Canonical Peer Grouping:** `ConnectionPeerKey` groups flows by transport and port-agnostic peer IP pair (`peer_a <= peer_b`), bounded by `maximum_tracked_peers`.
+- **Canonical Peer Grouping:** `ConnectionPeerKey` groups flows by transport and port-agnostic peer IP pair (`peer_a <= peer_b`), bounded by `maximum_tracked_peer_groups`.
 - **Flow Qualification & Exclusions:** Excludes flows with `AnalysisStopped`, `same_endpoint > 0`, `packet_count == 0`, and flows exceeding byte/packet caps.
-- **Factual Traffic Evidence:** Emits `EvidenceKind::FlowMeasurement` with 5 ordered measurements (`flow_count`, `maximum_flow_bytes`, `maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`).
+- **Factual Traffic Evidence:** Emits `EvidenceKind::RatioComparison` with 6 ordered measurements (`candidate_flow_count`, `candidate_flow_ratio`, `eligible_flow_instance_count`, `maximum_candidate_duration`, `maximum_candidate_packet_count`, `maximum_candidate_wire_bytes`).
 - **Finding Correlator Pipeline:** `execute_detection_with_correlators` executes registered correlators post-primary-evaluation, reusing primary `EvidenceReference`s and recording $\ge 2$ `source_finding_references`.
 - **Multi-Signal C2 Correlator:** `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`) matches co-occurring periodic beaconing and possible DNS tunneling on the same flow without allocating new evidence.
 

@@ -46,6 +46,24 @@ EXPECTED = {
 }
 
 EXPECTED_NAMES = set(EXPECTED)
+EXPECTED_FUZZ_INTERNAL = {
+    "pcapraven-domain",
+    "pcapraven-pcap",
+    "pcapraven-protocols",
+    "pcapraven-flows",
+    "pcapraven-detection",
+    "pcapraven-reporting",
+}
+EXPECTED_FUZZ_TARGETS = {
+    "fuzz_pcap_reader",
+    "fuzz_packet_normalizer",
+    "fuzz_flow_reconstructor",
+    "fuzz_dns_parser",
+    "fuzz_http_parser",
+    "fuzz_tls_parser",
+    "fuzz_detection_engine",
+    "fuzz_reporting",
+}
 EXPECTED_TEST_TARGETS = {
     "pcapraven-domain": {"observation_evidence", "finding"},
     "pcapraven-pcap": {"reader"},
@@ -194,6 +212,142 @@ def validate_root_manifest(repository_root: Path) -> str | None:
         return "workspace manifest has no workspace table"
     if not has_exact_string(workspace.get("resolver"), "3"):
         return "workspace resolver is not 3"
+    return None
+
+
+def validate_fuzz_package(repository_root: Path) -> str | None:
+    fuzz_manifest_path = repository_root / "fuzz" / "Cargo.toml"
+    try:
+        with fuzz_manifest_path.open("rb") as manifest_file:
+            manifest = tomllib.load(manifest_file)
+    except (OSError, tomllib.TOMLDecodeError):
+        return "fuzz manifest could not be parsed"
+
+    package = manifest.get("package")
+    if type(package) is not dict:
+        return "fuzz manifest has no package table"
+    if not has_exact_string(package.get("name"), "pcapraven-fuzz"):
+        return "fuzz package has an unexpected name"
+    if not has_exact_string(package.get("version"), "0.0.0"):
+        return "fuzz package does not use version 0.0.0"
+    if not has_exact_string(package.get("edition"), "2024"):
+        return "fuzz package does not use Edition 2024"
+    if package.get("publish") is not False:
+        return "fuzz package is publishable"
+    package_metadata = package.get("metadata")
+    if type(package_metadata) is not dict or package_metadata.get("cargo-fuzz") is not True:
+        return "fuzz package is not marked as cargo-fuzz metadata"
+
+    dependencies = manifest.get("dependencies")
+    if type(dependencies) is not dict:
+        return "fuzz package has no dependency table"
+    expected_dependency_names = EXPECTED_FUZZ_INTERNAL | {
+        "csv",
+        "libfuzzer-sys",
+        "serde_json",
+    }
+    if set(dependencies) != expected_dependency_names:
+        return "fuzz package dependency set is unexpected"
+    for dependency_name in sorted(EXPECTED_FUZZ_INTERNAL):
+        declaration = dependencies.get(dependency_name)
+        if type(declaration) is not dict:
+            return f"fuzz dependency {dependency_name} has an invalid declaration"
+        if declaration.get("version") != "0.0.0":
+            return f"fuzz dependency {dependency_name} has an unexpected version"
+        if set(declaration) != {"path", "version"}:
+            return f"fuzz dependency {dependency_name} has unexpected fields"
+        expected_path = (repository_root / "crates" / dependency_name).resolve()
+        actual_path = canonical_path(repository_root / "fuzz", declaration.get("path"))
+        if actual_path != expected_path:
+            return f"fuzz dependency {dependency_name} has an unexpected path"
+    if dependencies.get("libfuzzer-sys") != {"version": "=0.4.13"}:
+        return "fuzz package libfuzzer-sys declaration is not exact 0.4.13"
+    if dependencies.get("serde_json") != {
+        "version": "=1.0.140",
+        "default-features": False,
+        "features": ["alloc"],
+    }:
+        return "fuzz package serde_json declaration is not the audited exact form"
+    if dependencies.get("csv") != {
+        "version": "=1.3.1",
+        "default-features": False,
+    }:
+        return "fuzz package csv declaration is not the audited exact form"
+
+    bins = manifest.get("bin")
+    if type(bins) is not list or len(bins) != len(EXPECTED_FUZZ_TARGETS):
+        return "fuzz package does not declare exactly eight binary targets"
+    actual_targets = set()
+    for target in bins:
+        if type(target) is not dict:
+            return "fuzz package has an invalid binary target"
+        name = target.get("name")
+        if type(name) is not str or name not in EXPECTED_FUZZ_TARGETS:
+            return "fuzz package has an unexpected binary target"
+        if name in actual_targets:
+            return "fuzz package has duplicate binary targets"
+        actual_targets.add(name)
+        if target.get("path") != f"fuzz_targets/{name}.rs":
+            return f"fuzz target {name} has an unexpected path"
+        if any(target.get(field) is not False for field in ("test", "doc", "bench")):
+            return f"fuzz target {name} enables a non-fuzz Cargo mode"
+        if set(target) != {"name", "path", "test", "doc", "bench"}:
+            return f"fuzz target {name} has unexpected declaration fields"
+    if actual_targets != EXPECTED_FUZZ_TARGETS:
+        return "fuzz package binary target set is incomplete"
+
+    command = [
+        "cargo",
+        "metadata",
+        "--manifest-path",
+        str(fuzz_manifest_path),
+        "--format-version",
+        "1",
+        "--no-deps",
+        "--locked",
+        "--offline",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=repository_root,
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+    except OSError:
+        return "fuzz cargo metadata could not be executed"
+    if result.returncode != 0:
+        return "fuzz cargo metadata failed"
+    try:
+        metadata = json.loads(result.stdout)
+    except (TypeError, json.JSONDecodeError):
+        return "fuzz cargo metadata returned invalid JSON"
+    if type(metadata) is not dict or type(metadata.get("packages")) is not list:
+        return "fuzz cargo metadata returned an unexpected shape"
+    fuzz_packages = [
+        candidate
+        for candidate in metadata["packages"]
+        if type(candidate) is dict and candidate.get("name") == "pcapraven-fuzz"
+    ]
+    if len(fuzz_packages) != 1:
+        return "fuzz cargo metadata does not contain exactly one fuzz package"
+    fuzz_package = fuzz_packages[0]
+    metadata_dependencies = fuzz_package.get("dependencies")
+    if type(metadata_dependencies) is not list:
+        return "fuzz cargo metadata has no dependency list"
+    if {dependency.get("name") for dependency in metadata_dependencies if type(dependency) is dict} != expected_dependency_names:
+        return "fuzz cargo metadata dependency set is unexpected"
+    metadata_targets = fuzz_package.get("targets")
+    if type(metadata_targets) is not list:
+        return "fuzz cargo metadata has no target list"
+    target_names = {
+        target.get("name")
+        for target in metadata_targets
+        if type(target) is dict and target.get("kind") == ["bin"]
+    }
+    if target_names != EXPECTED_FUZZ_TARGETS:
+        return "fuzz cargo metadata binary target set is unexpected"
     return None
 
 
@@ -495,13 +649,17 @@ def main() -> int:
                 f"{name} dependency mismatch (actual: {actual}; expected: {wanted})"
             )
 
+    fuzz_error = validate_fuzz_package(repository_root)
+    if fuzz_error is not None:
+        return report_failure(fuzz_error)
+
     expected_external_names = {
         dependency_name
         for dependencies in EXPECTED_EXTERNAL.values()
         for dependency_name in dependencies
     }
     print(
-        "workspace architecture: OK (7 packages; audited external dependencies: "
+        "workspace architecture: OK (7 packages plus excluded 8-target fuzz package; audited external dependencies: "
         + ", ".join(sorted(expected_external_names))
         + ")"
     )

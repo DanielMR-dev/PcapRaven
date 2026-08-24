@@ -12,6 +12,34 @@ use pcapraven_detection::periodic_beaconing::PeriodicBeaconingDetector;
 use pcapraven_detection::*;
 use pcapraven_domain::*;
 
+trait TestConstructor {
+    fn new() -> Self;
+}
+
+impl TestConstructor for PeriodicBeaconingDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
+impl TestConstructor for DnsLongQueryNameDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
+impl TestConstructor for DnsPossibleTunnelingDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
+impl TestConstructor for PossibleC2MultiSignalCorrelator {
+    fn new() -> Self {
+        Self::try_new().expect("test correlator metadata is valid")
+    }
+}
+
 fn sample_packet(ordinal: u64) -> PacketReference {
     PacketReference::new(ordinal, None, None, 64, 64, false)
 }
@@ -106,11 +134,12 @@ fn create_dns_query_obs(
         direction: FlowDirection::AToB,
     };
 
-    ProtocolObservation::new(
+    ProtocolObservation::try_new(
         ObservationReference::new(pkt_ordinal, ProtocolKind::Dns, obs_ordinal as u32),
         flow_assoc,
         ProtocolObservationData::Dns(dns_obs),
     )
+    .expect("test observation is valid")
 }
 
 #[test]

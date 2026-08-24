@@ -7,9 +7,9 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, and Phase 16 are complete.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, and Phase 17 are complete.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 (synthetic fixture corpus, golden report matrix, cross-crate integration, and end-to-end regression testing) is the current active phase. Phase 18 (fuzzing and robustness) is next.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is current.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -231,16 +231,22 @@ and CLI format tests in `crates/pcapraven-cli/tests/cli.rs`.
 
 ## Phase 17 - Fixture corpus + golden/integration/E2E tests
 
-Establish the documented synthetic, sanitized, redistributable fixture tree and
-provenance records. Complete golden, cross-crate integration, and CLI end-to-end
-coverage for supported behavior and partial failures.
+Established the documented synthetic, sanitized, redistributable fixture tree,
+manifest-backed SHA-256 provenance, read-only integrity checks, reviewed golden
+matrix, cross-crate integration, and CLI end-to-end coverage for supported
+behavior and partial failures. The Phase 17.1 gate hardened fixture/golden safety,
+analysis completeness, resource-limit semantics, and privacy regressions.
 
 ## Phase 18 - Property testing, fuzzing, robustness and performance
 
 Expand `proptest`, `cargo-fuzz`, regression corpus, resource-limit tests,
 long-running campaigns, worst-case performance analysis, and practical
 benchmarks. Resolve crashes, hangs, unbounded behavior, and material performance
-risks before release hardening.
+risks before release hardening. The Part B foundation now includes exactly eight
+bounded fuzz targets, curated synthetic seeds, Linux smoke CI, verifier
+hardening, and a release-CLI benchmark tool. The required 600-second campaigns,
+acceptance measurements, and final Phase 18 gate remain pending and are not
+claimed complete.
 
 ## Phase 19 - Security hardening, documentation, packaging and v1.0.0
 

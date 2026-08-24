@@ -293,7 +293,7 @@ Phase 12 implements explainable periodic beaconing detection over exact directio
 
 Phase 13 implements explainable DNS anomaly and possible tunneling detection over normalized DNS observations in `pcapraven-detection`.
 - `pcapraven-detection` implements `DnsLongQueryNameDetector` (`dns.long_query_name`, version `1.0.1`, policy `Skip`, severity `Info`, confidence `Medium`, evidence kind `ProtocolObservation`).
-- `pcapraven-detection` implements `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, version `1.0.1`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `RatioComparison`).
+- `pcapraven-detection` implements `DnsPossibleTunnelingDetector` (`dns.possible_tunneling`, version `1.1.1`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `RatioComparison`).
 - `pcapraven-detection` implements `label_octet_diversity_ratio` as a pure helper function:
   - Exact rational formula: `distinct label octets / label length` (`EvidenceRatio`).
   - Fixed-size `[bool; 256]` bitmap memory without heap allocations.
@@ -318,11 +318,11 @@ Phase 13 implements explainable DNS anomaly and possible tunneling detection ove
 Phase 14 implements explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`.
 - `pcapraven-domain` extends `FindingRecord` with `source_finding_references: Vec<FindingReference>`, enforced by `HARD_MAX_SOURCE_FINDING_REFERENCES = 256` and strict sort/uniqueness/capacity validation. Verified in `crates/pcapraven-domain/tests/finding.rs`.
 - `pcapraven-detection` implements `RepeatedLowVolumeFlowDetector` (`behavior.repeated_low_volume_flows`, version `1.0.0`, policy `Skip`, severity `Low`, confidence `Medium`, evidence kind `FlowMeasurement`).
-- Aggregates flows using port-agnostic `ConnectionPeerKey` (`TransportProtocol`, `peer_a <= peer_b` where ports are excluded), bounded by `maximum_tracked_peers` ($1..=1\_000\_000$).
+- Aggregates flows using port-agnostic `ConnectionPeerKey` (`TransportProtocol`, `peer_a <= peer_b` where ports are excluded), bounded by `maximum_tracked_peer_groups` ($1..=1\_000\_000$).
 - Enforces flow eligibility: excludes flows with `AnalysisStopped`, `same_endpoint > 0`, `packet_count == 0`, and flows exceeding byte/packet caps.
-- Emits structured evidence with 5 factual measurements in strict alphabetical order: `flow_count`, `maximum_flow_bytes`, `maximum_flow_packets`, `total_aggregate_bytes`, `total_aggregate_packets`.
+- Emits structured evidence with 6 factual measurements in strict alphabetical order: `candidate_flow_count`, `candidate_flow_ratio`, `eligible_flow_instance_count`, `maximum_candidate_duration`, `maximum_candidate_packet_count`, `maximum_candidate_wire_bytes`.
 - Implements finding correlation pipeline in `crates/pcapraven-detection/src/correlation.rs` and `engine.rs` (`FindingCorrelator` trait, `CorrelationRegistry`, `CorrelationDraftSink`, `execute_detection_with_correlators`).
-- Implements `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, version `1.0.0`, severity `Medium`, confidence `Medium`) correlating `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
+- Implements `PossibleC2MultiSignalCorrelator` (`behavior.possible_c2_multi_signal`, version `1.1.1`, severity `Medium`, confidence `Medium`) correlating `behavior.periodic_beaconing` + `dns.possible_tunneling` on the same flow, reusing existing evidence without redundant allocations.
 - Full verification: integration tests in `crates/pcapraven-detection/tests/connection_behavior.rs` and `crates/pcapraven-detection/tests/correlation.rs`, detector documentation in `docs/detectors/CONNECTION_C2_BEHAVIOR.md`, and skills in `.agents/skills/connection-behavior-detection/SKILL.md` and `.agents/skills/finding-correlation/SKILL.md`.
 - Severity/confidence assignment, CLI filtering, and MITRE ATT&CK mappings (Phase 15), formal reporting (Phase 16), and fixture corpus/golden testing (Phase 17) are documented below.
   That historical gate is superseded by the current Phase 15 gate below.
@@ -364,13 +364,22 @@ Phase 16.1 freezes the machine reporting schema (`v1.0`) and hardens analysis co
 
 Phase 17 establishes the documented synthetic, sanitized, redistributable PCAP/PCAPNG fixture corpus, generates golden output matrices across all commands and formats, and delivers cross-crate integration and end-to-end regression testing.
 - Top-level reproducible synthetic corpus under `tests/fixtures/pcaps/`.
-- Documented fixture provenance and SHA-256 checksums in `tests/fixtures/pcaps/README.md` and `tests/fixtures/pcaps/checksums.sha256`.
+- Canonical schema-v1/generator-v1 manifest and true SHA-256 checksums in `tests/fixtures/pcaps/manifest.json` and `checksums.sha256`.
 - Exact golden output matrices under `tests/golden/` across commands and formats (`table`, `json`, `ndjson`, `csv`).
 - Comprehensive cross-crate integration tests in `crates/pcapraven-cli/tests/corpus.rs` and golden regression tests in `crates/pcapraven-cli/tests/golden.rs`.
-- Phase 18 and later capabilities remain strictly out of scope.
+- Read-only fixture/golden checks, safe candidate staging, exact exit states,
+  supported multi-section PCAPNG, partial-result/resource-limit regressions,
+  CSV injection, HTTP privacy, and deterministic repeatability form mandatory
+  Gate 17.1.
 
+## Phase 18 Gate (current)
 
-
-
-
-
+Phase 18 expands property testing, bounded fuzz campaigns, robustness analysis,
+and practical performance verification. The Part B foundation requires exactly
+eight bounded targets, curated synthetic seeds with generated fuzz noise ignored,
+an architecture audit of the excluded fuzz package, 30-second Linux CI smoke
+runs with explicit length/timeout/RSS limits, bounded fixture/golden verification,
+writer failure tests, and a dependency-free release-CLI benchmark tool. The
+eight 600-second campaigns and acceptance benchmark results must remain pending
+until actually run. Implement only delegated Phase 18 scope and do not begin
+Phase 19 release work.

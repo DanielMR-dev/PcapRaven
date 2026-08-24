@@ -19,8 +19,9 @@ explainable periodic beaconing detection in `pcapraven-detection`, Phase 13 adds
 explainable DNS anomaly and possible tunneling detection in `pcapraven-detection`, Phase 14 adds
 explainable repeated low-volume flow behavior detection and deterministic cross-detector finding correlation in `pcapraven-detection`,
 Phase 15 adds severity/confidence classification, finding filtering, and MITRE ATT&CK mapping provenance,
-and Phase 16 adds deterministic reporting architecture (Table, JSON, NDJSON, CSV), CSV formula injection defenses, safe output file lifecycle, and unified forensic analysis (`analyze`).
-Synthetic fixture corpus generation, golden reports, and end-to-end regression testing (Phase 17) are current.
+Phase 16 adds deterministic reporting architecture (Table, JSON, NDJSON, CSV), CSV formula injection defenses, safe output file lifecycle, and unified forensic analysis (`analyze`),
+and Phase 17 adds the manifest-backed synthetic fixture corpus, golden reports,
+and end-to-end regression testing. Phase 18 robustness and performance verification is current.
 
 ## Assets
 
@@ -40,9 +41,31 @@ The following are untrusted:
 - File names, paths, metadata, and output paths supplied by users or automation.
 - Protocol text displayed in terminals, logs, CSV, JSON, or other reports.
 - Capture provenance and claims that a capture is benign or sanitized.
+- Fixture manifests, checksums, generated binary artifacts, and proposed golden updates.
 
 Configuration, dependencies, build inputs, and fixtures also require review;
 they are not trusted merely because they are stored locally.
+
+Fixture poisoning can hide parser or detector regressions by changing a capture
+without updating its stated semantics. Blind golden acceptance can freeze a
+security defect or schema drift as expected behavior. The Phase 17.1 controls
+therefore require deterministic in-memory fixture generation, canonical SHA-256
+manifest/checksum comparison, rejection of missing or unexpected captures,
+read-only golden checking, and candidate staging outside `tests/golden/` for
+manual semantic and schema-v1.0 review. Neither verification tool downloads data
+or writes canonical fixtures/goldens.
+
+Canonical fixture and golden verification APIs take the repository root and a
+relative path separately. Every component below that root is checked as a
+non-symlink directory before a regular file can be opened. Structural discovery
+is a hard precondition: symlink, non-regular-node, metadata, depth, entry-count,
+or file-count failures stop canonical reads and CLI scenario execution. Golden
+candidate staging applies the same fixture preflight before invoking the CLI.
+Unix Python reads use directory-descriptor-relative `O_NOFOLLOW` opens where the
+standard library supports them; portable Python and safe Rust use bounded
+pre/open/post observable-state checks. Non-Unix metadata snapshots are not true
+file identity, and verification assumes no concurrent hostile local mutation of
+the trusted checkout; replacement detected at a comparison point is rejected.
 
 ## Threat Actors and Capabilities
 
@@ -110,7 +133,9 @@ The Phase 7 DNS, Phase 8 HTTP, and Phase 9 TLS parsers in `pcapraven-protocols` 
 
 - **DNS:** Enforce strict backward-pointer decompression rules (`target_offset < pointer_location_offset`),
   eliminating self-loops, forward pointer corruption, and cyclical recursion. Bound pointer traversal hops
-  and total retained name bytes per message. Strict RDLENGTH consumption verification for standard records.
+  and aggregate expanded name bytes per message. The aggregate charges label-length octets and the root octet
+  for every decoded question, record owner, and name-bearing CNAME/NS/PTR/MX RDATA value before its owning
+  question or record is retained. Strict RDLENGTH consumption verification applies to standard records.
 - **HTTP:** Enforce packet-local start-line and header parsing without cross-packet TCP stream reassembly,
   body retention, chunked body decoding, or decompression. Require canonical CRLF line endings (bare CR/LF rejected),
   reject whitespace before colon, reject obs-fold line folding, enforce mandatory Host header on HTTP/1.1 requests,
@@ -197,8 +222,10 @@ must handle disk-full and broken-pipe conditions without panic or corruption of
 other outputs.
 
 Algorithm choices must consider worst-case behavior, not only average captures.
-Benchmarks and fuzzing in Phase 18 will establish practical budgets without
-weakening the boundedness requirement.
+The Phase 18 bounded fuzz/benchmark foundation and complexity audit are
+documented in `ROBUSTNESS.md` and `PERFORMANCE.md`. Long acceptance campaigns
+and final measured budgets remain pending; boundedness may not be weakened to
+improve results.
 
 ## Partial and Malformed Captures
 
@@ -215,8 +242,8 @@ continuation would make results misleading.
 
 - Escape or encode control characters and delimiters for each output format.
 - Never emit terminal escape sequences derived from capture content.
-- Prevent spreadsheet formula interpretation in CSV text fields according to a
-  documented CSV policy before that reporter ships.
+- Prevent spreadsheet formula interpretation in CSV text fields according to
+  the implemented leading-trigger prefix policy.
 - Validate output paths and make overwrite behavior explicit.
 - Do not include raw payloads, secrets, or sensitive metadata in logs by
   default.
@@ -274,6 +301,11 @@ Real captures are sensitive even in test environments. The fixture rules in
 [Testing](TESTING.md#fixture-policy) require synthetic or demonstrably
 sanitized, redistributable inputs. Agents and contributors must not inspect or
 move unrelated captures, credentials, or files outside the repository.
+Every canonical capture is generated locally, listed in
+`tests/fixtures/pcaps/manifest.json` with MIT provenance and expected behavior,
+and verified against both generated bytes and `checksums.sha256` before use.
+Static symlinked ancestors below the explicit repository root are rejected
+before external target bytes can be opened.
 
 ## Out of Scope Guarantees
 

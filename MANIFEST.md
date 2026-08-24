@@ -19,8 +19,8 @@ Phase 13 explainable DNS anomaly and possible tunneling detection,
 Phase 14 explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation,
 Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, finding filtering, and findings CLI inspection,
 Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command, and
-Phase 17 synthetic fixture corpus, schema freeze verification, golden reports matrix, cross-crate integration, and end-to-end regression testing are complete.
-Phase 18 (property testing, fuzzing, robustness, and performance) and later capabilities remain future work.
+Phase 17 synthetic fixture corpus, schema freeze verification, golden reports matrix, cross-crate integration, end-to-end regression testing, and the mandatory Phase 17.1 hardening gate are complete.
+Phase 18 property testing, fuzzing, robustness, and performance verification is current; Part B verification campaigns are not yet claimed complete. Phase 19 remains future work.
 
 ## Tracked Current Inventory
 
@@ -37,17 +37,40 @@ Phase 18 (property testing, fuzzing, robustness, and performance) and later capa
 | `Cargo.lock` | Cargo-generated locked dependency graph for the seven-package main workspace. |
 | `rust-toolchain.toml` | Exact pinned stable development toolchain and components. |
 | `scripts/check_workspace_architecture.py` | Dependency-free Cargo-metadata package, internal-graph, and audited-dependency checker. |
-| `scripts/generate_fixtures.py` | Standalone deterministic generator for synthetic PCAP/PCAPNG fixture corpus. |
-| `scripts/generate_goldens.py` | Standalone generator for canonical CLI golden output matrix. |
-| `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and bounded fuzz-target build CI. |
+| `scripts/verification_support.py` | Shared trusted-root-relative component validation, streaming bounded discovery, Unix descriptor-anchored no-follow reads, portable observable-state checks, and bounded diagnostics. |
+| `scripts/test_verification_support.py` | Focused adversarial self-tests for discovery/read bounds, fail-before-read ordering, static symlink-ancestor rejection without target consumption, metadata failures, and observable replacement. |
+| `scripts/generate_fixtures.py` | Root-independent deterministic synthetic PCAP/PCAPNG writer and read-only integrity checker. |
+| `scripts/golden_scenarios.py` | Canonical platform-independent CLI golden scenario matrix. |
+| `scripts/check_goldens.py` | Read-only canonical CLI exit/stdout/stderr golden checker with hard fixture/golden structural preflight before reads or execution. |
+| `scripts/stage_goldens.py` | Safe explicit-output candidate staging tool that preflights fixture inputs and refuses `tests/golden/`. |
+| `scripts/run_phase18_benchmarks.py` | Dependency-free bounded release-CLI semantic scenario benchmark and separate smoke tool with five-run integer nanosecond summaries, growth ratios, and environment provenance. |
+| `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and eight-target bounded Linux fuzz-smoke CI. |
 | `tests/fixtures/pcaps/README.md` | Provenance and inventory documentation for synthetic PCAP fixture corpus. |
+| `tests/fixtures/pcaps/manifest.json` | Canonical schema-v1/generator-v1 path-sorted fixture provenance, behavior, and SHA-256 manifest. |
 | `tests/fixtures/pcaps/checksums.sha256` | SHA-256 integrity checksums for synthetic PCAP fixture corpus. |
+| `tests/fixtures/pcaps/edge_cases/multi_section.pcapng` | Supported two-section PCAPNG with section-local interfaces and EPB/SPB records. |
+| `tests/fixtures/pcaps/malformed/useful_then_truncated_record.pcap` | Useful packet followed by a physically truncated packet record. |
+| `tests/fixtures/pcaps/edge_cases/flow_close_out_of_creation_order.pcap` | Flow lifecycle ordering regression capture. |
+| `tests/fixtures/pcaps/edge_cases/local_http_partial_with_dns_detection.pcap` | Independent partial HTTP and suspicious DNS detection regression capture. |
+| `tests/fixtures/pcaps/edge_cases/csv_formula_sentinels.pcap` | Retained HTTP CSV formula-trigger sentinel capture. |
+| `tests/fixtures/pcaps/edge_cases/http_privacy_sentinels.pcap` | HTTP sensitive-header non-retention sentinel capture. |
 | `tests/golden/README.md` | Documentation and golden update policy for CLI golden reports matrix. |
+| `tests/golden/validate/multi_section.json` | Frozen supported multi-section PCAPNG validation output. |
+| `tests/golden/flows/flow_close_out_of_creation_order.table.txt` | Frozen canonical flow creation-order output. |
+| `tests/golden/findings/local_http_partial_with_dns_detection.table.txt` | Frozen independent DNS finding despite local HTTP degradation. |
+| `tests/golden/http/csv_formula_sentinels.csv` | Frozen CSV formula-prefix output. |
+| `tests/golden/analyze/useful_then_truncated_record.json` | Frozen useful partial analysis with capture truncation limitation. |
+| `tests/golden/stderr/useful_then_truncated_record.txt` | Frozen useful-partial capture diagnostics. |
+| `tests/golden/stderr/corrupt_packet.txt` | Frozen failed-before-useful capture diagnostics/error. |
+| `tests/golden/stderr/analyze_csv_rejected.txt` | Frozen exit-2 unsupported-format error. |
+| `tests/golden/stderr/local_http_partial_with_dns_detection.txt` | Frozen expected local HTTP degradation diagnostic. |
 | `docs/PRODUCT.md` | Product identity, scope, goals, non-goals, and target CLI behavior. |
 | `docs/ARCHITECTURE.md` | Workspace, crate boundaries, dependency direction, errors, logging, and unsafe Rust. |
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
+| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, corpus policy, smoke profile, invariants, and pending acceptance campaign ledger. |
+| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, environment fields, and pending acceptance placeholders. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
 | `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
@@ -66,12 +89,14 @@ Phase 18 (property testing, fuzzing, robustness, and performance) and later capa
 | `.agents/skills/finding-correlation/SKILL.md` | Reusable cross-detector finding correlation procedure. |
 | `.agents/skills/finding-filtering/SKILL.md` | Reusable explainable finding filtering procedure. |
 | `.agents/skills/fixture-golden-testing/SKILL.md` | Reusable synthetic fixture corpus, schema freeze verification, golden reports, and end-to-end regression testing procedure. |
+| `.agents/skills/fuzz-robustness/SKILL.md` | Reusable bounded fuzz harness, corpus, campaign, invariant, and triage procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
 | `.agents/skills/http-protocol-analysis/SKILL.md` | Reusable HTTP/1.x header parser, candidate classification, sensitive header masking, and observation extraction procedure. |
 | `.agents/skills/mitre-attack-mapping/SKILL.md` | Reusable MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance and validation procedure. |
 | `.agents/skills/observation-evidence-model/SKILL.md` | Reusable unified protocol observation and structured evidence procedure. |
 | `.agents/skills/periodic-beaconing/SKILL.md` | Reusable explainable periodic beaconing detection procedure. |
+| `.agents/skills/performance-analysis/SKILL.md` | Reusable worst-case complexity, scalable benchmark, and performance regression procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
 | `.agents/skills/reporting/SKILL.md` | Reusable multi-format reporting, schema serialization, sanitization, and output file procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
@@ -163,20 +188,38 @@ Phase 18 (property testing, fuzzing, robustness, and performance) and later capa
 | `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, DNS, HTTP, TLS, findings, and unified analysis inspection. |
 | `crates/pcapraven-cli/src/diagnostics.rs` | Bounded diagnostic emission and suppression tracking. |
 | `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI across subcommands, formats, and safe output writing. |
-| `crates/pcapraven-cli/tests/corpus.rs` | Cross-crate integration tests over synthetic PCAP fixture corpus, validation, flows, and findings. |
-| `crates/pcapraven-cli/tests/golden.rs` | End-to-end golden regression tests verifying exact byte-for-byte CLI stdout matching. |
-| `fuzz/Cargo.toml` | Excluded independent cargo-fuzz project manifest with separately audited fuzz-only dependency. |
+| `crates/pcapraven-cli/tests/corpus.rs` | Cross-crate integration tests with trusted-root fixture preflight before manifest reads or CLI execution. |
+| `crates/pcapraven-cli/tests/golden.rs` | End-to-end golden regressions with fixture/golden structural preflight before execution and expected-byte reads. |
+| `crates/pcapraven-cli/tests/support/mod.rs` | Shared trusted-root-relative bounded traversal/read support with component validation and static symlink-ancestor regressions. |
+| `fuzz/Cargo.toml` | Excluded independent cargo-fuzz project manifest with exact audited fuzz-only dependencies and eight binary targets. |
 | `fuzz/Cargo.lock` | Cargo-generated lockfile for the excluded fuzz project. |
 | `fuzz/fuzz_targets/fuzz_pcap_reader.rs` | Stable-name libFuzzer target using only the public bounded reader API. |
 | `fuzz/fuzz_targets/fuzz_packet_normalizer.rs` | Stable-name libFuzzer target for bounded protocol normalization. |
 | `fuzz/fuzz_targets/fuzz_flow_reconstructor.rs` | Stable-name libFuzzer target for bounded bidirectional flow reconstruction and metric invariant validation. |
-| `fuzz/fuzz_targets/fuzz_dns_parser.rs` | Stable-name libFuzzer target for bounded DNS wire parsing. |
+| `fuzz/fuzz_targets/fuzz_dns_parser.rs` | Stable-name libFuzzer target for bounded DNS wire parsing and aggregate expanded question/owner/RDATA name accounting. |
 | `fuzz/fuzz_targets/fuzz_http_parser.rs` | Stable-name libFuzzer target for bounded HTTP/1.x wire parsing. |
 | `fuzz/fuzz_targets/fuzz_tls_parser.rs` | Stable-name libFuzzer target for bounded TLS 1.2 / TLS 1.3 wire parsing. |
+| `fuzz/fuzz_targets/fuzz_detection_engine.rs` | Stable-name libFuzzer target for bounded built-in detection and correlation over synthetic normalized facts. |
+| `fuzz/fuzz_targets/fuzz_reporting.rs` | Stable-name libFuzzer target for deterministic reporting, strict packet/flow/observation/evidence/source-finding reference closure, serialization validity, terminal safety, and writer failures. |
+| `fuzz/corpus/fuzz_pcap_reader/seed-minimal` | Curated synthetic 24-byte empty classic-PCAP seed. |
+| `fuzz/corpus/fuzz_pcap_reader/seed-structured` | Curated synthetic 28-byte empty PCAPNG-section seed. |
+| `fuzz/corpus/fuzz_packet_normalizer/seed-minimal` | Curated synthetic 14-byte Ethernet-frame seed. |
+| `fuzz/corpus/fuzz_packet_normalizer/seed-structured` | Curated synthetic Ethernet/IPv4/UDP/DNS frame seed. |
+| `fuzz/corpus/fuzz_flow_reconstructor/seed-minimal` | Curated synthetic single flow-control-record seed. |
+| `fuzz/corpus/fuzz_flow_reconstructor/seed-structured` | Curated synthetic three-record timestamped flow seed. |
+| `fuzz/corpus/fuzz_dns_parser/seed-minimal` | Curated synthetic empty DNS-header seed. |
+| `fuzz/corpus/fuzz_dns_parser/seed-structured` | Curated synthetic `example.com` A-query seed. |
+| `fuzz/corpus/fuzz_http_parser/seed-minimal` | Curated synthetic complete minimal HTTP request seed. |
+| `fuzz/corpus/fuzz_http_parser/seed-structured` | Curated synthetic HTTP request with selected headers. |
+| `fuzz/corpus/fuzz_tls_parser/seed-minimal` | Curated synthetic empty TLS handshake-record seed. |
+| `fuzz/corpus/fuzz_tls_parser/seed-structured` | Curated synthetic TLS 1.3 ClientHello seed. |
+| `fuzz/corpus/fuzz_detection_engine/seed-minimal` | Curated synthetic one-flow/one-observation control seed. |
+| `fuzz/corpus/fuzz_detection_engine/seed-structured` | Curated synthetic 16-flow/32-observation control seed. |
+| `fuzz/corpus/fuzz_reporting/seed-minimal` | Curated one-byte attacker-control reporting seed. |
+| `fuzz/corpus/fuzz_reporting/seed-structured` | Curated bounded control/Unicode/formula reporting seed. |
 
-The former duplicate skill copies are intentionally absent. Future capture
-fixtures, threat detection heuristics, and advanced CLI commands
-are not current inventory and may be added only by their owning roadmap phases.
+The former duplicate skill copies are intentionally absent. Additional roadmap
+artifacts may be added only by their owning delegated phase scope.
 The excluded `fuzz/` project is tracked repository inventory but is not one of the
 seven main workspace packages.
 

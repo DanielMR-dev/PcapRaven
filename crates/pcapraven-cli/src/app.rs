@@ -38,6 +38,15 @@ fn emit_fatal_error(message: &str) -> u8 {
     1
 }
 
+fn render_and_flush<W, F>(writer: &mut W, render: F) -> Result<(), ReportError>
+where
+    W: Write,
+    F: FnOnce(&mut dyn Write) -> Result<(), ReportError>,
+{
+    render(writer)?;
+    writer.flush().map_err(ReportError::Io)
+}
+
 /// Executes a reporting closure against the requested output sink (safe atomic file or stdout).
 fn with_output_sink<F>(output_path: Option<&Path>, f: F) -> Result<(), u8>
 where
@@ -65,7 +74,7 @@ where
                 }
             };
             let mut writer = std::io::BufWriter::new(file);
-            let write_res = f(&mut writer).and_then(|()| writer.flush().map_err(ReportError::Io));
+            let write_res = render_and_flush(&mut writer, f);
             if let Err(e) = write_res {
                 drop(writer);
                 let _ = std::fs::remove_file(path);
@@ -82,7 +91,7 @@ where
         }
         None => {
             let mut stdout = io::stdout().lock();
-            let write_res = f(&mut stdout).and_then(|()| stdout.flush().map_err(ReportError::Io));
+            let write_res = render_and_flush(&mut stdout, f);
             if let Err(e) = write_res {
                 return match e {
                     ReportError::UnsupportedFormat { rationale, .. } => {
@@ -758,4 +767,120 @@ fn run_analyze(
     }
 
     result.exit_code()
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::{render_and_flush, with_output_sink};
+    use pcapraven_reporting::ReportError;
+    use std::io::{self, Write};
+
+    struct ControlledWriter {
+        fail_write: bool,
+        fail_flush: bool,
+    }
+
+    struct BoundaryWriter {
+        remaining: usize,
+        flushed: bool,
+    }
+
+    impl Write for BoundaryWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "synthetic boundary write failure",
+                ));
+            }
+            let written = self.remaining.min(bytes.len());
+            self.remaining -= written;
+            Ok(written)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.flushed = true;
+            Ok(())
+        }
+    }
+
+    impl Write for ControlledWriter {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self.fail_write {
+                Err(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "synthetic write failure",
+                ))
+            } else {
+                Ok(bytes.len())
+            }
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            if self.fail_flush {
+                Err(io::Error::other("synthetic flush failure"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn output_writer_and_flush_failures_are_returned() {
+        let mut write_failure = ControlledWriter {
+            fail_write: true,
+            fail_flush: false,
+        };
+        let write_result = render_and_flush(&mut write_failure, |writer| {
+            writer.write_all(b"result").map_err(ReportError::Io)
+        });
+        assert!(matches!(write_result, Err(ReportError::Io(_))));
+
+        let mut flush_failure = ControlledWriter {
+            fail_write: false,
+            fail_flush: true,
+        };
+        let flush_result = render_and_flush(&mut flush_failure, |writer| {
+            writer.write_all(b"result").map_err(ReportError::Io)
+        });
+        assert!(matches!(flush_result, Err(ReportError::Io(_))));
+    }
+
+    #[test]
+    fn phase18_output_write_capacity_covers_n_minus_1_n_n_plus_1() {
+        const OUTPUT_BYTES: &[u8] = b"result";
+        for capacity in [
+            OUTPUT_BYTES.len() - 1,
+            OUTPUT_BYTES.len(),
+            OUTPUT_BYTES.len() + 1,
+        ] {
+            let mut writer = BoundaryWriter {
+                remaining: capacity,
+                flushed: false,
+            };
+            let result = render_and_flush(&mut writer, |output| {
+                output.write_all(OUTPUT_BYTES).map_err(ReportError::Io)
+            });
+            assert_eq!(result.is_ok(), capacity >= OUTPUT_BYTES.len());
+            assert_eq!(writer.flushed, capacity >= OUTPUT_BYTES.len());
+        }
+    }
+
+    #[test]
+    fn phase18_new_output_file_is_removed_after_reporting_failure() {
+        let path = std::env::temp_dir().join(format!(
+            "pcapraven_phase18_cleanup_{}_{}.tmp",
+            std::process::id(),
+            line!()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let result = with_output_sink(Some(&path), |output| {
+            output.write_all(b"partial").map_err(ReportError::Io)?;
+            Err(ReportError::Io(io::Error::other(
+                "synthetic report failure after write",
+            )))
+        });
+        assert_eq!(result, Err(1));
+        assert!(!path.exists());
+    }
 }

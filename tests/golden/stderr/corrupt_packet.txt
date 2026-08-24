@@ -1,0 +1,3 @@
+diagnostic: capture reader error: incomplete capture at byte 24
+diagnostic: [Incomplete] capture ended before a complete unit was available at byte 24
+error: capture validation failed before useful records: incomplete capture at byte 24

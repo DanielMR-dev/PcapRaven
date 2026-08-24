@@ -7,15 +7,20 @@ use pcapraven_detection::{
 };
 use pcapraven_domain::{
     FlowRecord, ObservationFlowAssociation, ObservationReference, ProtocolKind,
-    ProtocolObservation, ProtocolObservationCollection, ProtocolObservationData,
+    ProtocolObservation, ProtocolObservationCollection, ProtocolObservationCollectionError,
+    ProtocolObservationData,
 };
 use pcapraven_flows::{FlowDisposition, FlowReconstructionConfigBuilder, FlowReconstructor};
-use pcapraven_pcap::{CaptureReadOutcome, CaptureReader, ReaderLimits};
+use pcapraven_pcap::{
+    CaptureCompletion, CaptureDiagnosticKind, CaptureReadOutcome, CaptureReader,
+    CaptureReaderErrorKind, ReaderLimit, ReaderLimits,
+};
 use pcapraven_protocols::{
     DnsLimits, HttpLimits, NormalizationLimits, TlsLimits, normalize_packet, parse_dns_packet,
     parse_http_packet, parse_tls_packet,
 };
 use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
 
 use crate::diagnostics::DiagnosticEmitter;
@@ -108,13 +113,83 @@ impl AnalysisResult {
     }
 }
 
+fn emit_diagnostic<W: Write>(
+    emitter: &mut DiagnosticEmitter<W>,
+    message: &str,
+) -> Result<(), AnalysisError> {
+    emitter.emit_diagnostic(message).map_err(|_| {
+        AnalysisError::Fatal("failed to emit analysis diagnostic to stderr".to_string())
+    })
+}
+
+fn handle_observation_push<W: Write>(
+    collection: &mut ProtocolObservationCollection,
+    observation: ProtocolObservation,
+    budget_exhausted: &mut bool,
+    had_partial_data: &mut bool,
+    emitter: &mut DiagnosticEmitter<W>,
+) -> Result<(), AnalysisError> {
+    match collection.push(observation) {
+        Ok(()) => Ok(()),
+        Err(error @ ProtocolObservationCollectionError::ResourceLimit { .. }) => {
+            *budget_exhausted = true;
+            *had_partial_data = true;
+            emit_diagnostic(
+                emitter,
+                &format!("observation collection budget exhausted: {error}"),
+            )
+        }
+        Err(
+            error @ (ProtocolObservationCollectionError::DuplicateReference(_)
+            | ProtocolObservationCollectionError::OutOfOrderReference { .. }),
+        ) => Err(AnalysisError::Fatal(format!(
+            "protocol observation ordering invariant failed: {error}"
+        ))),
+        Err(
+            error @ (ProtocolObservationCollectionError::ZeroCapacity
+            | ProtocolObservationCollectionError::CapacityAboveHardMaximum { .. }),
+        ) => Err(AnalysisError::Fatal(format!(
+            "initialized observation collection rejected an insertion: {error}"
+        ))),
+    }
+}
+
+fn terminal_reader_error(
+    outcome: &CaptureReadOutcome,
+) -> Option<&pcapraven_pcap::CaptureReaderError> {
+    match &outcome.completion {
+        CaptureCompletion::Complete => None,
+        CaptureCompletion::Partial { terminal_error } => terminal_error.as_ref(),
+        CaptureCompletion::FailedBeforeUsefulRecords { terminal_error } => Some(terminal_error),
+    }
+}
+
+fn outcome_is_physically_truncated(outcome: &CaptureReadOutcome) -> bool {
+    terminal_reader_error(outcome)
+        .is_some_and(|error| error.kind() == CaptureReaderErrorKind::Incomplete)
+        || outcome
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.kind == CaptureDiagnosticKind::Incomplete)
+}
+
+fn outcome_reached_record_budget(outcome: &CaptureReadOutcome) -> bool {
+    matches!(
+        terminal_reader_error(outcome),
+        Some(pcapraven_pcap::CaptureReaderError::ResourceLimit {
+            limit: ReaderLimit::MaximumRecords,
+            ..
+        })
+    )
+}
+
 /// Executes the shared capture analysis pipeline.
 ///
 /// # Errors
 /// Returns [`AnalysisError`] on configuration or fatal initialization/execution errors.
-pub fn run_analysis(
+pub fn run_analysis<W: Write>(
     options: &AnalysisOptions,
-    diag_emitter: &mut DiagnosticEmitter,
+    diag_emitter: &mut DiagnosticEmitter<W>,
 ) -> Result<AnalysisResult, AnalysisError> {
     // 1. Validate reader limits
     let reader_limits = if let Some(max_rec) = options.max_records {
@@ -156,9 +231,8 @@ pub fn run_analysis(
     let max_obs = options
         .max_observations
         .unwrap_or(ProtocolObservationCollection::DEFAULT_MAX_OBSERVATIONS);
-    let mut obs_collection = ProtocolObservationCollection::new(max_obs).map_err(|e| {
-        AnalysisError::Fatal(format!("failed to initialize observation collection: {e}"))
-    })?;
+    let mut obs_collection = ProtocolObservationCollection::new(max_obs)
+        .map_err(|e| AnalysisError::Config(format!("invalid observation collection limit: {e}")))?;
 
     // 5. Open capture file and initialize capture reader
     let file = File::open(&options.capture_path)
@@ -184,7 +258,7 @@ pub fn run_analysis(
             Ok(opt) => opt,
             Err(e) => {
                 had_stream_error = true;
-                let _ = diag_emitter.emit_diagnostic(&format!("capture reader stream error: {e}"));
+                emit_diagnostic(diag_emitter, &format!("capture reader stream error: {e}"))?;
                 break;
             }
         };
@@ -193,7 +267,11 @@ pub fn run_analysis(
             Some(r) => r,
             None => break,
         };
-        total_records_processed = total_records_processed.saturating_add(1);
+        total_records_processed = total_records_processed.checked_add(1).ok_or_else(|| {
+            AnalysisError::Fatal(
+                "capture record counter exceeded supported resource bounds".to_string(),
+            )
+        })?;
 
         let norm_input = record.as_normalization_input();
         let norm_outcome = normalize_packet(&norm_input, &norm_limits);
@@ -201,10 +279,13 @@ pub fn run_analysis(
             had_partial_data = true;
         }
         for d in &norm_outcome.diagnostics {
-            let _ = diag_emitter.emit_diagnostic(&format!(
-                "normalization diagnostic on packet {}: {}",
-                record.ordinal, d.message
-            ));
+            emit_diagnostic(
+                diag_emitter,
+                &format!(
+                    "normalization diagnostic on packet {}: {}",
+                    record.ordinal, d.message
+                ),
+            )?;
         }
 
         let flow_step = match flow_reconstructor.observe(&norm_outcome.packet) {
@@ -214,10 +295,13 @@ pub fn run_analysis(
                 if matches!(&e, pcapraven_flows::FlowError::ResourceLimit { .. }) {
                     had_flow_budget_exhaustion = true;
                 }
-                let _ = diag_emitter.emit_diagnostic(&format!(
-                    "flow reconstruction error on packet {}: {e}",
-                    record.ordinal
-                ));
+                emit_diagnostic(
+                    diag_emitter,
+                    &format!(
+                        "flow reconstruction error on packet {}: {e}",
+                        record.ordinal
+                    ),
+                )?;
                 break;
             }
         };
@@ -249,10 +333,10 @@ pub fn run_analysis(
                 had_partial_data = true;
             }
             for d in &dns_outcome.diagnostics {
-                let _ = diag_emitter.emit_diagnostic(&format!(
-                    "DNS diagnostic on packet {}: {}",
-                    record.ordinal, d.message
-                ));
+                emit_diagnostic(
+                    diag_emitter,
+                    &format!("DNS diagnostic on packet {}: {}", record.ordinal, d.message),
+                )?;
             }
             for (idx, obs) in dns_outcome.observations.into_iter().enumerate() {
                 if !obs.completeness.is_complete() {
@@ -262,10 +346,13 @@ pub fn run_analysis(
                     Ok(si) => si,
                     Err(_) => {
                         had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
-                            "DNS observation index overflow on packet {}",
-                            record.ordinal
-                        ));
+                        emit_diagnostic(
+                            diag_emitter,
+                            &format!(
+                                "DNS observation index overflow on packet {}",
+                                record.ordinal
+                            ),
+                        )?;
                         continue;
                     }
                 };
@@ -277,13 +364,13 @@ pub fn run_analysis(
                 ) {
                     Ok(protocol_obs) => {
                         if !observation_budget_exhausted {
-                            if let Err(e) = obs_collection.push(protocol_obs) {
-                                observation_budget_exhausted = true;
-                                had_partial_data = true;
-                                let _ = diag_emitter.emit_diagnostic(&format!(
-                                    "observation collection budget exhausted: {e}"
-                                ));
-                            }
+                            handle_observation_push(
+                                &mut obs_collection,
+                                protocol_obs,
+                                &mut observation_budget_exhausted,
+                                &mut had_partial_data,
+                                diag_emitter,
+                            )?;
                         }
                     }
                     Err(e) => {
@@ -303,10 +390,13 @@ pub fn run_analysis(
                 had_partial_data = true;
             }
             for d in &http_outcome.diagnostics {
-                let _ = diag_emitter.emit_diagnostic(&format!(
-                    "HTTP diagnostic on packet {}: {}",
-                    record.ordinal, d.message
-                ));
+                emit_diagnostic(
+                    diag_emitter,
+                    &format!(
+                        "HTTP diagnostic on packet {}: {}",
+                        record.ordinal, d.message
+                    ),
+                )?;
             }
             for (idx, obs) in http_outcome.observations.into_iter().enumerate() {
                 if !obs.completeness.is_complete() {
@@ -316,10 +406,13 @@ pub fn run_analysis(
                     Ok(si) => si,
                     Err(_) => {
                         had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
-                            "HTTP observation index overflow on packet {}",
-                            record.ordinal
-                        ));
+                        emit_diagnostic(
+                            diag_emitter,
+                            &format!(
+                                "HTTP observation index overflow on packet {}",
+                                record.ordinal
+                            ),
+                        )?;
                         continue;
                     }
                 };
@@ -332,13 +425,13 @@ pub fn run_analysis(
                 ) {
                     Ok(protocol_obs) => {
                         if !observation_budget_exhausted {
-                            if let Err(e) = obs_collection.push(protocol_obs) {
-                                observation_budget_exhausted = true;
-                                had_partial_data = true;
-                                let _ = diag_emitter.emit_diagnostic(&format!(
-                                    "observation collection budget exhausted: {e}"
-                                ));
-                            }
+                            handle_observation_push(
+                                &mut obs_collection,
+                                protocol_obs,
+                                &mut observation_budget_exhausted,
+                                &mut had_partial_data,
+                                diag_emitter,
+                            )?;
                         }
                     }
                     Err(e) => {
@@ -358,10 +451,10 @@ pub fn run_analysis(
                 had_partial_data = true;
             }
             for d in &tls_outcome.diagnostics {
-                let _ = diag_emitter.emit_diagnostic(&format!(
-                    "TLS diagnostic on packet {}: {}",
-                    record.ordinal, d.message
-                ));
+                emit_diagnostic(
+                    diag_emitter,
+                    &format!("TLS diagnostic on packet {}: {}", record.ordinal, d.message),
+                )?;
             }
             for (idx, obs) in tls_outcome.observations.into_iter().enumerate() {
                 if !obs.completeness.is_complete() {
@@ -371,10 +464,13 @@ pub fn run_analysis(
                     Ok(si) => si,
                     Err(_) => {
                         had_partial_data = true;
-                        let _ = diag_emitter.emit_diagnostic(&format!(
-                            "TLS observation index overflow on packet {}",
-                            record.ordinal
-                        ));
+                        emit_diagnostic(
+                            diag_emitter,
+                            &format!(
+                                "TLS observation index overflow on packet {}",
+                                record.ordinal
+                            ),
+                        )?;
                         continue;
                     }
                 };
@@ -386,13 +482,13 @@ pub fn run_analysis(
                 ) {
                     Ok(protocol_obs) => {
                         if !observation_budget_exhausted {
-                            if let Err(e) = obs_collection.push(protocol_obs) {
-                                observation_budget_exhausted = true;
-                                had_partial_data = true;
-                                let _ = diag_emitter.emit_diagnostic(&format!(
-                                    "observation collection budget exhausted: {e}"
-                                ));
-                            }
+                            handle_observation_push(
+                                &mut obs_collection,
+                                protocol_obs,
+                                &mut observation_budget_exhausted,
+                                &mut had_partial_data,
+                                diag_emitter,
+                            )?;
                         }
                     }
                     Err(e) => {
@@ -408,7 +504,17 @@ pub fn run_analysis(
 
     let reader_outcome = reader.into_outcome();
     for diag in &reader_outcome.diagnostics {
-        let _ = diag_emitter.emit_capture_diagnostic(diag);
+        diag_emitter.emit_capture_diagnostic(diag).map_err(|_| {
+            AnalysisError::Fatal("failed to emit capture diagnostic to stderr".to_string())
+        })?;
+    }
+
+    if let CaptureCompletion::FailedBeforeUsefulRecords { terminal_error } =
+        &reader_outcome.completion
+    {
+        return Err(AnalysisError::Fatal(format!(
+            "capture analysis failed before useful records: {terminal_error}"
+        )));
     }
 
     // Flush remaining flows
@@ -423,13 +529,11 @@ pub fn run_analysis(
     all_flows.sort_by_key(|f| f.reference.ordinal());
 
     let mut detection_limitations = Vec::new();
-    if !reader_outcome.is_complete() {
+    if outcome_is_physically_truncated(&reader_outcome) {
         detection_limitations.push(DetectionInputLimitation::CaptureTruncated);
     }
-    if let Some(max_rec) = options.max_records {
-        if total_records_processed >= max_rec {
-            detection_limitations.push(DetectionInputLimitation::PacketCountBudgetReached);
-        }
+    if outcome_reached_record_budget(&reader_outcome) {
+        detection_limitations.push(DetectionInputLimitation::PacketCountBudgetReached);
     }
     if observation_budget_exhausted {
         detection_limitations.push(DetectionInputLimitation::ObservationBudgetReached);
@@ -460,29 +564,50 @@ pub fn run_analysis(
         };
 
         let mut det_registry = DetectorRegistry::default();
-        if let Err(e) = det_registry.register(Box::new(PeriodicBeaconingDetector::new())) {
+        let beaconing = PeriodicBeaconingDetector::try_new().map_err(|e| {
+            AnalysisError::Fatal(format!("invalid built-in beaconing detector metadata: {e}"))
+        })?;
+        if let Err(e) = det_registry.register(Box::new(beaconing)) {
             return Err(AnalysisError::Fatal(format!(
                 "failed to register beaconing detector: {e}"
             )));
         }
-        if let Err(e) = det_registry.register(Box::new(DnsPossibleTunnelingDetector::new())) {
+        let dns_tunneling = DnsPossibleTunnelingDetector::try_new().map_err(|e| {
+            AnalysisError::Fatal(format!(
+                "invalid built-in DNS tunneling detector metadata: {e}"
+            ))
+        })?;
+        if let Err(e) = det_registry.register(Box::new(dns_tunneling)) {
             return Err(AnalysisError::Fatal(format!(
                 "failed to register DNS tunneling detector: {e}"
             )));
         }
-        if let Err(e) = det_registry.register(Box::new(DnsLongQueryNameDetector::new())) {
+        let dns_long_query = DnsLongQueryNameDetector::try_new().map_err(|e| {
+            AnalysisError::Fatal(format!(
+                "invalid built-in DNS long query detector metadata: {e}"
+            ))
+        })?;
+        if let Err(e) = det_registry.register(Box::new(dns_long_query)) {
             return Err(AnalysisError::Fatal(format!(
                 "failed to register DNS long query detector: {e}"
             )));
         }
-        if let Err(e) = det_registry.register(Box::new(RepeatedLowVolumeFlowDetector::new())) {
+        let low_volume = RepeatedLowVolumeFlowDetector::try_new().map_err(|e| {
+            AnalysisError::Fatal(format!(
+                "invalid built-in low-volume detector metadata: {e}"
+            ))
+        })?;
+        if let Err(e) = det_registry.register(Box::new(low_volume)) {
             return Err(AnalysisError::Fatal(format!(
                 "failed to register low-volume flow detector: {e}"
             )));
         }
 
         let mut corr_registry = CorrelationRegistry::default();
-        if let Err(e) = corr_registry.register(Box::new(PossibleC2MultiSignalCorrelator::new())) {
+        let c2_correlator = PossibleC2MultiSignalCorrelator::try_new().map_err(|e| {
+            AnalysisError::Fatal(format!("invalid built-in correlator metadata: {e}"))
+        })?;
+        if let Err(e) = corr_registry.register(Box::new(c2_correlator)) {
             return Err(AnalysisError::Fatal(format!(
                 "failed to register C2 multi-signal correlator: {e}"
             )));
@@ -527,4 +652,90 @@ pub fn run_analysis(
         had_stream_error,
         had_partial_data,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
+
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buffer: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "synthetic failure",
+            ))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct FailAfterOneWrite {
+        completed_line: bool,
+    }
+
+    impl Write for FailAfterOneWrite {
+        fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+            if self.completed_line {
+                return Err(io::Error::new(
+                    io::ErrorKind::BrokenPipe,
+                    "synthetic failure",
+                ));
+            }
+            self.completed_line = buffer.contains(&b'\n');
+            Ok(buffer.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn options_for(relative_capture: &str) -> AnalysisOptions {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(std::path::Path::parent)
+            .expect("CLI crate is below workspace root")
+            .to_path_buf();
+        AnalysisOptions {
+            capture_path: root.join("tests/fixtures/pcaps").join(relative_capture),
+            max_records: None,
+            max_flows: None,
+            max_flow_instances: None,
+            max_observations: None,
+            tcp_idle_timeout: None,
+            udp_idle_timeout: None,
+            parse_dns: false,
+            parse_http: true,
+            parse_tls: false,
+            run_detectors: false,
+        }
+    }
+
+    #[test]
+    fn diagnostic_write_failure_is_a_fatal_analysis_error() {
+        let options = options_for("edge_cases/local_http_partial_with_dns_detection.pcap");
+        let mut emitter = DiagnosticEmitter::with_writer(FailingWriter, false, 100);
+        assert!(matches!(
+            run_analysis(&options, &mut emitter),
+            Err(AnalysisError::Fatal(_))
+        ));
+    }
+
+    #[test]
+    fn capture_diagnostic_write_failure_is_a_fatal_analysis_error() {
+        let options = options_for("malformed/useful_then_truncated_record.pcap");
+        let writer = FailAfterOneWrite {
+            completed_line: false,
+        };
+        let mut emitter = DiagnosticEmitter::with_writer(writer, false, 100);
+        assert!(matches!(
+            run_analysis(&options, &mut emitter),
+            Err(AnalysisError::Fatal(_))
+        ));
+    }
 }

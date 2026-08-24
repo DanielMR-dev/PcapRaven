@@ -3,6 +3,16 @@
 use pcapraven_detection::*;
 use pcapraven_domain::*;
 
+trait TestConstructor {
+    fn new() -> Self;
+}
+
+impl TestConstructor for DnsLongQueryNameDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
 /// Test-only stub detector that emits zero findings.
 struct NoMatchStubDetector {
     metadata: DetectorMetadata,
@@ -539,6 +549,30 @@ fn test_detection_limits_validation() {
         .unwrap();
     assert_eq!(b.max_registered_detectors(), 10);
     assert_eq!(b.max_parameters_per_detector(), 5);
+}
+
+#[test]
+fn phase18_detection_limits_table_covers_n_minus_1_n_n_plus_1() {
+    let maxima = [
+        DetectionLimits::HARD_MAX_REGISTERED_DETECTORS,
+        DetectionLimits::HARD_MAX_PARAMETERS_PER_DETECTOR,
+        DetectionLimits::HARD_MAX_TOTAL_FINDINGS,
+        DetectionLimits::HARD_MAX_TOTAL_EVIDENCE,
+        DetectionLimits::HARD_MAX_DIAGNOSTICS,
+    ];
+    for field in 0..maxima.len() {
+        for delta in [-1_isize, 0, 1] {
+            let mut values = maxima;
+            values[field] = maxima[field].checked_add_signed(delta).unwrap();
+            let result =
+                DetectionLimits::try_new(values[0], values[1], values[2], values[3], values[4]);
+            assert_eq!(
+                result.is_ok(),
+                delta <= 0,
+                "field {field} failed at hard maximum delta {delta}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -1532,14 +1566,17 @@ fn test_engine_dns_detector_sink_exhaustion_transactional_discard() {
             edns: None,
             completeness: DnsObservationCompleteness::Complete,
         };
-        observations.push(ProtocolObservation::new(
-            ObservationReference::new(i, ProtocolKind::Dns, 0),
-            ObservationFlowAssociation::Associated {
-                flow: flow.reference,
-                direction: FlowDirection::AToB,
-            },
-            ProtocolObservationData::Dns(dns_obs),
-        ));
+        observations.push(
+            ProtocolObservation::try_new(
+                ObservationReference::new(i, ProtocolKind::Dns, 0),
+                ObservationFlowAssociation::Associated {
+                    flow: flow.reference,
+                    direction: FlowDirection::AToB,
+                },
+                ProtocolObservationData::Dns(dns_obs),
+            )
+            .expect("test observation is valid"),
+        );
     }
 
     let flows = vec![flow];

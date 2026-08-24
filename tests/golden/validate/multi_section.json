@@ -1,0 +1,29 @@
+{
+  "schema_version": "v1.0",
+  "kind": "validation",
+  "source_path": null,
+  "metadata": {
+    "format": "pcapng",
+    "byte_order": "little_endian",
+    "version_major": 1,
+    "version_minor": 0,
+    "linktype": null,
+    "snaplen": null,
+    "timestamp_resolution": null,
+    "section_count": "2",
+    "interface_count": "2",
+    "usable_interfaces": "2",
+    "unusable_interfaces": "0"
+  },
+  "summary": {
+    "records_emitted": "2",
+    "total_diagnostics": "0",
+    "had_diagnostics": false
+  },
+  "diagnostics": [],
+  "completion": {
+    "status": "complete",
+    "is_complete": true,
+    "terminal_error": null
+  }
+}

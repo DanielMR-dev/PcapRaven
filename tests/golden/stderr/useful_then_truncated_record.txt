@@ -1,0 +1,2 @@
+diagnostic: capture reader stream error: incomplete capture at byte 114
+diagnostic: [Incomplete] capture ended before a complete unit was available at byte 114

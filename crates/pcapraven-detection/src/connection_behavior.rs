@@ -136,12 +136,6 @@ pub struct RepeatedLowVolumeFlowDetector {
     metadata: DetectorMetadata,
 }
 
-impl Default for RepeatedLowVolumeFlowDetector {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RepeatedLowVolumeFlowDetector {
     /// Stable namespaced detector identifier.
     pub const DETECTOR_ID: &'static str = "behavior.repeated_low_volume_flows";
@@ -174,12 +168,6 @@ impl RepeatedLowVolumeFlowDetector {
     /// Valid range for `maximum_tracked_peer_groups` (1..=1_000_000).
     pub const MIN_MAXIMUM_TRACKED_PEER_GROUPS: usize = 1;
     pub const MAX_MAXIMUM_TRACKED_PEER_GROUPS: usize = 1_000_000;
-
-    /// Creates a new repeated low-volume flow detector.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::try_new().expect("valid static detector metadata")
-    }
 
     /// Fallible constructor returning `Result` if metadata validation fails.
     pub fn try_new() -> Result<Self, FindingValidationError> {

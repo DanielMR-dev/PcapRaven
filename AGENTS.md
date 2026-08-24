@@ -26,8 +26,8 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository phase for this branch is Phase 17 (with Phase 16.1
-hardening complete). Phase 0 product and governance work, Phase 1
+The accepted repository baseline is Phase 17 after the mandatory Phase 17.1
+fixture, golden, and analysis-pipeline hardening gate. Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
 normalization work, Phase 4 flow reconstruction, Phase 5 checked flow
 statistics and exact temporal metrics, Phase 6 initial functional CLI with
@@ -42,8 +42,10 @@ Phase 15/15.1 severity and confidence finalization, MITRE ATT&CK Enterprise
 Matrix v19.2 mapping provenance, finding filtering, shared analysis assembly, and
 findings CLI inspection, and Phase 16/16.1 deterministic reporting architecture (Table, JSON, NDJSON, CSV),
 safe output file creation, schema freeze, and unified `analyze` CLI subcommand are complete.
-Phase 17 covers synthetic fixture corpus generation, golden report matrix, cross-crate integration, and end-to-end regression testing.
-Phase 18 and later capabilities remain out of scope until their roadmap gates are accepted.
+Phase 17 synthetic fixture corpus generation, golden report matrix, cross-crate integration,
+end-to-end regression testing, and the Phase 17.1 hardening gate are complete.
+Phase 18 robustness and performance verification is the current roadmap scope;
+only separately delegated Phase 18 work may begin, and Phase 19 remains out of scope.
 
 ## Project Invariants
 

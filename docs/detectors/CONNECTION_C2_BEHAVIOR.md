@@ -72,7 +72,7 @@ An eligible flow is a candidate when all are true:
 
 ### 3.1 Metadata and Contracts
 - **Correlator Identifier:** `behavior.possible_c2_multi_signal`
-- **Correlator Logic Version:** `v1.1.0`
+- **Correlator Logic Version:** `v1.1.1`
 - **Required Primary Detector IDs:** `["behavior.periodic_beaconing", "dns.possible_tunneling"]`
 - **Severity:** `Severity::Medium`
 - **Confidence:** `Confidence::Medium`

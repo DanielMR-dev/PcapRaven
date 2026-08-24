@@ -5,7 +5,11 @@ use pcapraven_domain::{
     TcpFlags, TcpMetadata, TransportLayer,
 };
 use pcapraven_protocols::{
-    HttpLimits, HttpLimitsBuilder, HttpPacketDisposition, parse_http_packet,
+    HttpLimits, HttpLimitsBuilder, HttpPacketDisposition, MAX_ALLOWED_HTTP_DIAGNOSTICS_PER_PACKET,
+    MAX_ALLOWED_HTTP_HEADER_FIELDS, MAX_ALLOWED_HTTP_HEADER_LINE_BYTES,
+    MAX_ALLOWED_HTTP_HEADER_SECTION_BYTES, MAX_ALLOWED_HTTP_METHOD_BYTES,
+    MAX_ALLOWED_HTTP_REQUEST_TARGET_BYTES, MAX_ALLOWED_HTTP_SELECTED_FIELD_VALUE_BYTES,
+    MAX_ALLOWED_HTTP_START_LINE_BYTES, parse_http_packet,
 };
 use proptest::prelude::*;
 
@@ -177,6 +181,148 @@ fn test_sensitive_headers_presence_flags_only() {
     let outcome_resp = parse_http_packet(&packet_resp, &limits);
     assert_eq!(outcome_resp.disposition, HttpPacketDisposition::Parsed);
     assert!(outcome_resp.observations[0].headers.has_set_cookie);
+    let rendered = format!("{outcome_resp:?}");
+    assert!(!rendered.contains("session=xyz"));
+    assert!(!rendered.contains("Secure"));
+    assert!(!rendered.contains("HttpOnly"));
+}
+
+#[test]
+fn phase18_all_http_limit_hard_caps_accept_n_minus_1_and_n_but_reject_n_plus_1() {
+    macro_rules! assert_boundary {
+        ($setter:ident, $maximum:expr) => {{
+            let maximum = $maximum;
+            assert!(
+                HttpLimitsBuilder::new()
+                    .$setter(maximum - 1)
+                    .build()
+                    .is_ok()
+            );
+            assert!(HttpLimitsBuilder::new().$setter(maximum).build().is_ok());
+            assert!(
+                HttpLimitsBuilder::new()
+                    .$setter(maximum + 1)
+                    .build()
+                    .is_err()
+            );
+        }};
+    }
+
+    assert_boundary!(maximum_start_line_bytes, MAX_ALLOWED_HTTP_START_LINE_BYTES);
+    assert_boundary!(
+        maximum_header_line_bytes,
+        MAX_ALLOWED_HTTP_HEADER_LINE_BYTES
+    );
+    assert_boundary!(
+        maximum_header_section_bytes,
+        MAX_ALLOWED_HTTP_HEADER_SECTION_BYTES
+    );
+    assert_boundary!(maximum_header_fields, MAX_ALLOWED_HTTP_HEADER_FIELDS);
+    assert_boundary!(maximum_method_bytes, MAX_ALLOWED_HTTP_METHOD_BYTES);
+    assert_boundary!(
+        maximum_request_target_bytes,
+        MAX_ALLOWED_HTTP_REQUEST_TARGET_BYTES
+    );
+    assert_boundary!(
+        maximum_selected_field_value_bytes,
+        MAX_ALLOWED_HTTP_SELECTED_FIELD_VALUE_BYTES
+    );
+    assert_boundary!(
+        maximum_diagnostics_per_packet,
+        MAX_ALLOWED_HTTP_DIAGNOSTICS_PER_PACKET
+    );
+}
+
+#[test]
+fn phase18_http_parser_limits_cover_n_minus_1_n_n_plus_1() {
+    let raw = b"GET /abc HTTP/1.1\r\nHost: abc\r\nX-Test: x\r\n\r\n";
+    let packet = make_tcp_packet(54321, 80, raw.to_vec());
+    let start_line_bytes = b"GET /abc HTTP/1.1".len();
+    let header_line_bytes = b"X-Test: x".len();
+    let section_bytes = raw.len();
+
+    for (limit, parsed) in [
+        (start_line_bytes - 1, false),
+        (start_line_bytes, true),
+        (start_line_bytes + 1, true),
+    ] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_start_line_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
+    for (limit, parsed) in [
+        (header_line_bytes - 1, false),
+        (header_line_bytes, true),
+        (header_line_bytes + 1, true),
+    ] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_header_line_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
+    for (limit, parsed) in [
+        (section_bytes - 1, false),
+        (section_bytes, true),
+        (section_bytes + 1, true),
+    ] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_header_section_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
+    for (limit, parsed) in [(1, false), (2, true), (3, true)] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_header_fields(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
+    for (limit, parsed) in [(2, false), (3, true), (4, true)] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_method_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
+    for (limit, parsed) in [(3, false), (4, true), (5, true)] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_request_target_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
+    for (limit, parsed) in [(2, false), (3, true), (4, true)] {
+        let limits = HttpLimitsBuilder::new()
+            .maximum_selected_field_value_bytes(limit)
+            .build()
+            .unwrap();
+        assert_eq!(
+            parse_http_packet(&packet, &limits).disposition == HttpPacketDisposition::Parsed,
+            parsed
+        );
+    }
 }
 
 #[test]
@@ -464,11 +610,19 @@ proptest! {
             if obs.completeness.is_complete() {
                 prop_assert!(obs.header_section_bytes <= limits.maximum_header_section_bytes);
             }
-            if let Some(ref h) = obs.headers.host {
-                prop_assert!(h.len() <= limits.maximum_selected_field_value_bytes);
-            }
-            if let Some(ref ua) = obs.headers.user_agent {
-                prop_assert!(ua.len() <= limits.maximum_selected_field_value_bytes);
+            for value in [
+                obs.headers.host.as_ref(),
+                obs.headers.user_agent.as_ref(),
+                obs.headers.server.as_ref(),
+                obs.headers.content_type.as_ref(),
+                obs.headers.transfer_encoding.as_ref(),
+                obs.headers.connection.as_ref(),
+                obs.headers.upgrade.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                prop_assert!(value.len() <= limits.maximum_selected_field_value_bytes);
             }
         }
     }

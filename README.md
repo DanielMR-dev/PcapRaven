@@ -22,8 +22,9 @@ exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspe
 **Phase 13: Explainable DNS anomaly and possible tunneling detection**,
 **Phase 14: Explainable repeated low-volume flow behavior and deterministic cross-detector C2-like correlation**,
 **Phase 15: Severity, confidence, finding filtering, and MITRE ATT&CK mapping provenance**,
-and **Phase 16: Deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI**
-are complete.
+**Phase 16: Deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI**,
+and **Phase 17: Synthetic fixture corpus, golden reports, and integration/E2E regression testing**
+are complete. Phase 18 robustness, fuzzing, property testing, and performance verification is current; this status does not imply those verification campaigns are complete.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
@@ -67,7 +68,8 @@ pcapraven --output <report.json> <subcommand> <capture.pcap>
 pcapraven --quiet analyze <capture.pcap>
 ```
 
-Fixture corpus generation and golden/end-to-end integration tests (Phase 17) are the next roadmap phase.
+The synthetic corpus and read-only golden verification gate are documented in
+[Phase 17 Quality Gates](docs/TESTING.md#phase-17-quality-gates).
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.
@@ -104,7 +106,7 @@ v1 CLI contract.
 - [Repository structure](MANIFEST.md)
 
 Workspace tooling includes `scripts/check_workspace_architecture.py`, the
-workspace quality commands in [Testing](docs/TESTING.md#phase-16-quality-gates),
+workspace quality commands in [Testing](docs/TESTING.md#phase-17-quality-gates),
 the independent fuzz targets under `fuzz/`, and the CI workflow in
 `.github/workflows/ci.yml`.
 

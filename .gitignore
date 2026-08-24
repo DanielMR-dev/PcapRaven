@@ -2,6 +2,33 @@
 /target/
 /fuzz/target/
 /fuzz/artifacts/
+/fuzz/coverage/
+/fuzz/*.profraw
+/fuzz/corpus/**
+!/fuzz/corpus/fuzz_pcap_reader/
+!/fuzz/corpus/fuzz_pcap_reader/seed-minimal
+!/fuzz/corpus/fuzz_pcap_reader/seed-structured
+!/fuzz/corpus/fuzz_packet_normalizer/
+!/fuzz/corpus/fuzz_packet_normalizer/seed-minimal
+!/fuzz/corpus/fuzz_packet_normalizer/seed-structured
+!/fuzz/corpus/fuzz_flow_reconstructor/
+!/fuzz/corpus/fuzz_flow_reconstructor/seed-minimal
+!/fuzz/corpus/fuzz_flow_reconstructor/seed-structured
+!/fuzz/corpus/fuzz_dns_parser/
+!/fuzz/corpus/fuzz_dns_parser/seed-minimal
+!/fuzz/corpus/fuzz_dns_parser/seed-structured
+!/fuzz/corpus/fuzz_http_parser/
+!/fuzz/corpus/fuzz_http_parser/seed-minimal
+!/fuzz/corpus/fuzz_http_parser/seed-structured
+!/fuzz/corpus/fuzz_tls_parser/
+!/fuzz/corpus/fuzz_tls_parser/seed-minimal
+!/fuzz/corpus/fuzz_tls_parser/seed-structured
+!/fuzz/corpus/fuzz_detection_engine/
+!/fuzz/corpus/fuzz_detection_engine/seed-minimal
+!/fuzz/corpus/fuzz_detection_engine/seed-structured
+!/fuzz/corpus/fuzz_reporting/
+!/fuzz/corpus/fuzz_reporting/seed-minimal
+!/fuzz/corpus/fuzz_reporting/seed-structured
 
 # Local credentials and environment overrides.
 .env

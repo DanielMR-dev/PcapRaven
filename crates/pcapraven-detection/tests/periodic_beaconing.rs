@@ -4,6 +4,16 @@ use pcapraven_detection::periodic_beaconing::PeriodicBeaconingDetector;
 use pcapraven_detection::*;
 use pcapraven_domain::*;
 
+trait TestConstructor {
+    fn new() -> Self;
+}
+
+impl TestConstructor for PeriodicBeaconingDetector {
+    fn new() -> Self {
+        Self::try_new().expect("test detector metadata is valid")
+    }
+}
+
 fn create_test_flow_with_protocol(
     ordinal: u64,
     protocol: TransportProtocol,

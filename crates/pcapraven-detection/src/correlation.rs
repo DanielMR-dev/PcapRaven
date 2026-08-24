@@ -494,31 +494,17 @@ pub struct PossibleC2MultiSignalCorrelator {
     metadata: CorrelatorMetadata,
 }
 
-impl Default for PossibleC2MultiSignalCorrelator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl PossibleC2MultiSignalCorrelator {
     /// Stable namespaced correlator identifier.
     pub const CORRELATOR_ID: &'static str = "behavior.possible_c2_multi_signal";
     /// Correlator logic version for Phase 15.1 mapping semantics.
     pub const CORRELATOR_VERSION: DetectorVersion = DetectorVersion::new(1, 1, 1);
 
-    /// Creates a new possible C2 multi-signal correlator.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::try_new().expect("valid static correlator metadata")
-    }
-
     /// Fallible constructor returning `Result` if metadata validation fails.
     pub fn try_new() -> Result<Self, DetectorRegistryError> {
         let id = DetectorId::try_new(Self::CORRELATOR_ID).map_err(|_| {
-            DetectorRegistryError::InvalidRequiredPrimaryDetectorIds {
-                correlator_id: DetectorId::try_new("behavior.possible_c2_multi_signal")
-                    .unwrap_or_else(|_| unreachable!()),
-                reason: "invalid correlator ID",
+            DetectorRegistryError::InvalidStaticMetadata {
+                component: Self::CORRELATOR_ID,
             }
         })?;
         let description = CorrelatorDescription::try_new(

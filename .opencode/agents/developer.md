@@ -74,6 +74,8 @@ You are the senior Rust developer for PcapRaven.
 - `reporting` skill for deterministic multi-format reporting architecture, schema serialization, sanitization, and output files.
 - `fixture-golden-testing` skill for synthetic fixture corpus, schema freeze verification, golden reports, and end-to-end regression testing.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
+- `fuzz-robustness` skill for bounded fuzz harnesses, corpora, campaigns, and triage.
+- `performance-analysis` skill for complexity audits, scalable benchmarks, and regression analysis.
 - `phase-validation` skill for phase verification checklists.
 
 ## Role Boundaries

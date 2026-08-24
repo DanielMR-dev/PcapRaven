@@ -8,7 +8,8 @@ use pcapraven_domain::{
 };
 use pcapraven_flows::{
     FlowDisposition, FlowError, FlowExclusionReason, FlowReconstructionConfig,
-    FlowReconstructionConfigBuilder, FlowReconstructor, has_timed_out,
+    FlowReconstructionConfigBuilder, FlowReconstructor, MAX_ALLOWED_FLOW_INSTANCES,
+    MAX_ALLOWED_TIMEOUT_SECONDS, MAX_ALLOWED_TRACKED_FLOWS, has_timed_out,
 };
 use proptest::prelude::*;
 
@@ -1064,6 +1065,61 @@ fn config_builder_validation_rejects_zero_and_excessive_values() {
     assert!(
         FlowReconstructionConfigBuilder::default()
             .maximum_tracked_flows(10_000_000)
+            .build()
+            .is_err()
+    );
+}
+
+#[test]
+fn phase18_flow_config_hard_caps_cover_n_minus_1_n_n_plus_1() {
+    for value in [MAX_ALLOWED_TRACKED_FLOWS - 1, MAX_ALLOWED_TRACKED_FLOWS] {
+        assert!(
+            FlowReconstructionConfigBuilder::default()
+                .maximum_tracked_flows(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        FlowReconstructionConfigBuilder::default()
+            .maximum_tracked_flows(MAX_ALLOWED_TRACKED_FLOWS + 1)
+            .build()
+            .is_err()
+    );
+
+    for value in [MAX_ALLOWED_FLOW_INSTANCES - 1, MAX_ALLOWED_FLOW_INSTANCES] {
+        assert!(
+            FlowReconstructionConfigBuilder::default()
+                .maximum_flow_instances(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        FlowReconstructionConfigBuilder::default()
+            .maximum_flow_instances(MAX_ALLOWED_FLOW_INSTANCES + 1)
+            .build()
+            .is_err()
+    );
+
+    for value in [MAX_ALLOWED_TIMEOUT_SECONDS - 1, MAX_ALLOWED_TIMEOUT_SECONDS] {
+        assert!(
+            FlowReconstructionConfigBuilder::default()
+                .tcp_idle_timeout_seconds(value)
+                .udp_idle_timeout_seconds(value)
+                .build()
+                .is_ok()
+        );
+    }
+    assert!(
+        FlowReconstructionConfigBuilder::default()
+            .tcp_idle_timeout_seconds(MAX_ALLOWED_TIMEOUT_SECONDS + 1)
+            .build()
+            .is_err()
+    );
+    assert!(
+        FlowReconstructionConfigBuilder::default()
+            .udp_idle_timeout_seconds(MAX_ALLOWED_TIMEOUT_SECONDS + 1)
             .build()
             .is_err()
     );
