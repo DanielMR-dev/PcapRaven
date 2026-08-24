@@ -50,6 +50,8 @@ pending. Phase 18 remains in progress and Phase 19 remains future work.
 | `scripts/run_phase18_benchmarks.py` | Dependency-free bounded release-CLI semantic scenario benchmark and separate smoke tool with one warmup, five measured samples, integer nanosecond summaries, growth ratios, and environment provenance. |
 | `scripts/derive_phase18_budgets.py` | Dependency-free strict validator and integer-only derivation tool for the three-run Phase 18.2 baseline budget document. |
 | `scripts/test_phase18_performance.py` | Focused dependency-free regression tests for the Phase 18.2 benchmark matrix, growth groups, budget arithmetic, and invalid-input rejection. |
+| `scripts/evaluate_phase18_acceptance.py` | Dependency-free strict integer-only evaluator for exactly three Phase 18.3 acceptance measurements against the frozen Phase 18.2 budgets. |
+| `scripts/test_phase18_acceptance.py` | Focused dependency-free tests for Phase 18.3 acceptance evidence validation, aggregation, stability, budget failures, null growth, and deterministic results. |
 | `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and eight-target bounded Linux fuzz-smoke CI. |
 | `tests/fixtures/pcaps/README.md` | Provenance and inventory documentation for synthetic PCAP fixture corpus. |
 | `tests/fixtures/pcaps/manifest.json` | Canonical schema-v1/generator-v1 path-sorted fixture provenance, behavior, and SHA-256 manifest. |
