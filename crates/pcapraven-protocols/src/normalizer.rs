@@ -540,9 +540,7 @@ fn traverse_ipv6_extensions<'a>(
                         Some(ExtError::Malformed),
                     );
                 }
-                ext_count = ext_count.saturating_add(1);
-                ext_len = ext_len.saturating_add(hdr_len);
-                if ext_len > limits.maximum_ipv6_extension_bytes {
+                if ext_len.saturating_add(hdr_len) > limits.maximum_ipv6_extension_bytes {
                     collector.push(NormalizationDiagnostic::new(
                         NormalizationDiagnosticKind::ResourceLimit,
                         NormalizationDiagnosticLayer::Ipv6Extension,
@@ -557,6 +555,8 @@ fn traverse_ipv6_extensions<'a>(
                         Some(ExtError::ResourceLimit),
                     );
                 }
+                ext_count = ext_count.saturating_add(1);
+                ext_len = ext_len.saturating_add(hdr_len);
                 current_protocol = next_proto;
                 current_slice = &current_slice[hdr_len..];
             }
@@ -592,9 +592,7 @@ fn traverse_ipv6_extensions<'a>(
                     more_fragments: more,
                     identification: Some(id),
                 };
-                ext_count = ext_count.saturating_add(1);
-                ext_len = ext_len.saturating_add(8);
-                if ext_len > limits.maximum_ipv6_extension_bytes {
+                if ext_len.saturating_add(8) > limits.maximum_ipv6_extension_bytes {
                     collector.push(NormalizationDiagnostic::new(
                         NormalizationDiagnosticKind::ResourceLimit,
                         NormalizationDiagnosticLayer::Ipv6Extension,
@@ -609,6 +607,8 @@ fn traverse_ipv6_extensions<'a>(
                         Some(ExtError::ResourceLimit),
                     );
                 }
+                ext_count = ext_count.saturating_add(1);
+                ext_len = ext_len.saturating_add(8);
                 if offset > 0 || more {
                     collector.push(NormalizationDiagnostic::new(
                         NormalizationDiagnosticKind::Unsupported,
@@ -664,9 +664,7 @@ fn traverse_ipv6_extensions<'a>(
                         Some(ExtError::Malformed),
                     );
                 }
-                ext_count = ext_count.saturating_add(1);
-                ext_len = ext_len.saturating_add(hdr_len);
-                if ext_len > limits.maximum_ipv6_extension_bytes {
+                if ext_len.saturating_add(hdr_len) > limits.maximum_ipv6_extension_bytes {
                     collector.push(NormalizationDiagnostic::new(
                         NormalizationDiagnosticKind::ResourceLimit,
                         NormalizationDiagnosticLayer::Ipv6Extension,
@@ -681,6 +679,8 @@ fn traverse_ipv6_extensions<'a>(
                         Some(ExtError::ResourceLimit),
                     );
                 }
+                ext_count = ext_count.saturating_add(1);
+                ext_len = ext_len.saturating_add(hdr_len);
                 current_protocol = next_proto;
                 current_slice = &current_slice[hdr_len..];
             }
