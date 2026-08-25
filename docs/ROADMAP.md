@@ -7,9 +7,9 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, and Phase 17 are complete.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, and Phase 18 are complete.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 is next and remains unimplemented.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is current and in progress. Phases 20 through 28 are future and not implemented; only Phase 19 implementation scope is active.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -269,11 +269,64 @@ Phase 18.2 methodology and passed 24/24 stability checks, 24/24 absolute median
 budgets, and 13/13 meaningful growth budgets. The machine-readable result and
 raw acceptance evidence are tracked under `docs/performance/`.
 
-Phase 18 — COMPLETE. Phase 19 is NEXT and remains out of scope for this phase.
+Phase 18 — COMPLETE. Its required robustness and performance acceptance evidence
+is a prerequisite for the current Phase 19 gate.
 
-## Phase 19 - Security hardening, documentation, packaging and v1.0.0 (NEXT; NOT IMPLEMENTED)
+## Phase 19 - Release code-health audit and targeted internal refactoring (CURRENT; IN PROGRESS)
 
-Perform final threat-model and unsafe/dependency review, resolve release-blocking
-security findings, validate documentation against behavior, stabilize schemas
-and CLI contracts, prepare reproducible packaging and release artifacts, and
-release v1.0.0 only after all quality gates pass.
+Audit every production Rust module for evidence-backed code-health findings and
+apply only targeted, behavior-preserving internal refactoring. Preserve the
+CLI, reporting schema, detector and MITRE semantics, dependency graph, workspace
+shape, fixture corpus, golden outputs, security invariants, and Phase 18
+performance/fuzz evidence. Phase 19 adds no product feature, new public API,
+new dependency, new crate, release packaging, or v1.0.0 claim. The governance
+and audit stage records the baseline and dispositions; production refactoring is
+performed only in a separately authorized implementation stage. The current
+implementation remains in progress pending final gates and independent review.
+
+## Phase 20 - Final security and supply-chain hardening (FUTURE; NOT IMPLEMENTED)
+
+Perform the final security, dependency, license, provenance, and supply-chain
+hardening review after Phase 19 is accepted. No Phase 20 capability is
+implemented or advertised by Phase 19.
+
+## Phase 21 - Freeze CLI v1 contract (FUTURE; NOT IMPLEMENTED)
+
+Freeze the documented CLI v1 commands, flags, diagnostics, stdout/stderr
+boundaries, and exit-code contract after the preceding gates are accepted.
+
+## Phase 22 - Reporting schema v1 final audit (FUTURE; NOT IMPLEMENTED)
+
+Perform the final reporting schema v1 audit and compatibility review without
+claiming that future schema work is available now.
+
+## Phase 23 - Cross-platform runtime acceptance (FUTURE; NOT IMPLEMENTED)
+
+Run the required supported-platform runtime acceptance matrix after the prior
+security, CLI, and schema gates are complete.
+
+## Phase 24 - Packaging and release pipeline (FUTURE; NOT IMPLEMENTED)
+
+Prepare reproducible packaging, distribution, signing, and release-pipeline
+artifacts only after all preceding gates are accepted.
+
+## Phase 25 - Documentation and analyst UX freeze (FUTURE; NOT IMPLEMENTED)
+
+Freeze user-facing documentation and analyst-facing UX after the runtime,
+contract, platform, and packaging prerequisites are accepted.
+
+## Phase 26 - v1.0.0-rc.1 (FUTURE; NOT IMPLEMENTED)
+
+Prepare the first release candidate only after Phases 19 through 25 are
+accepted and the release gates authorize it.
+
+## Phase 27 - RC hardening and final release gate (FUTURE; NOT IMPLEMENTED)
+
+Perform release-candidate hardening, final regression, security, provenance,
+and release-readiness checks before the v1.0.0 decision.
+
+## Phase 28 - Release v1.0.0 (FUTURE; NOT IMPLEMENTED)
+
+Release v1.0.0 only after every ordered prerequisite and final release gate is
+accepted. No v1.0.0 release is available or claimed by the current Phase 19
+scope.

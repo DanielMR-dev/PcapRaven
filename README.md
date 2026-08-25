@@ -26,8 +26,11 @@ exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspe
 and **Phase 17: Synthetic fixture corpus, golden reports, and integration/E2E regression testing**
 are complete. Phase 18.1 full fuzz acceptance, Phase 18.2 performance
 baseline/budget work, and Phase 18.3 final performance acceptance are complete.
-Phase 19 is the next roadmap scope and is not implemented. This status does not
-claim v1.0.0 or release readiness.
+Phase 19 release code-health audit and targeted behavior-preserving internal
+refactoring is current and in progress. The authorized implementation is
+limited to private CLI helpers and remains pending independent review and final
+gates. Phases 20 through 28 are future and not implemented. This status does
+not claim v1.0.0 or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.

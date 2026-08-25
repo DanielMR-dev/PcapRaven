@@ -10,7 +10,7 @@ established from clean revision
 passed the frozen budgets from clean revision
 `406df29befee99d737c43728943f5daef55ea7f1`.
 
-The current Phase 18 state has three distinct states:
+The accepted Phase 18 state has three distinct states:
 
 ```text
 Performance baseline: ESTABLISHED
@@ -18,6 +18,13 @@ Performance budgets: FROZEN
 Final acceptance execution: PASSED (Phase 18.3)
 Phase 18 status: COMPLETE
 ```
+
+Phase 19 release code-health audit and targeted behavior-preserving internal
+refactoring is current and in progress. Phase 19 has changed only private CLI
+orchestration in `analysis.rs` and `app.rs`; the frozen Phase 18 methodology,
+budgets, and tracked evidence remain unchanged. The exact three-run Phase 18
+benchmark revalidation and acceptance evaluation are outstanding. Phases 20
+through 28 are future and not implemented.
 
 ## Benchmark Infrastructure
 

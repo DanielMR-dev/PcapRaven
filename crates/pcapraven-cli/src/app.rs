@@ -1,13 +1,16 @@
 //! CLI application orchestration for validation, flow, DNS, HTTP, TLS, findings, and analysis inspection.
 
-use crate::analysis::{AnalysisError, AnalysisOptions, run_analysis};
+use crate::analysis::{AnalysisError, AnalysisOptions, AnalysisResult, run_analysis};
 use crate::args::{
     AnalyzeArgs, CliArgs, DnsArgs, FindingsArgs, FlowsArgs, HttpArgs, Subcommand, TlsArgs,
     ValidateArgs,
 };
 use crate::diagnostics::{DEFAULT_DIAGNOSTIC_BUDGET, DiagnosticEmitter};
 use pcapraven_detection::FindingFilter;
-use pcapraven_domain::ProtocolObservationData;
+use pcapraven_domain::{
+    Confidence, DetectorId, EvidenceRecord, FindingRecord, MitreAttackId, ProtocolObservation,
+    ProtocolObservationData, Severity,
+};
 use pcapraven_pcap::{
     ByteOrder, CaptureCompletion, CaptureFormat, CaptureReadOutcome, CaptureReader,
     CaptureTimestampResolution, ReaderLimits,
@@ -242,6 +245,86 @@ fn convert_validation_outcome(
     (meta, summary, completion, diagnostics)
 }
 
+fn execute_analysis(options: AnalysisOptions, quiet: bool) -> Result<AnalysisResult, u8> {
+    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
+    let result = match run_analysis(&options, &mut diag_emitter) {
+        Ok(r) => r,
+        Err(AnalysisError::Config(msg)) => return Err(emit_config_error(&msg)),
+        Err(AnalysisError::Fatal(msg)) => return Err(emit_fatal_error(&msg)),
+    };
+
+    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
+        return Err(1);
+    }
+
+    Ok(result)
+}
+
+fn build_finding_filter_dto(
+    min_severity: Option<Severity>,
+    min_confidence: Option<Confidence>,
+    detector_id: Option<&DetectorId>,
+    mitre_id: Option<&MitreAttackId>,
+) -> Option<FindingFilterDto> {
+    if min_severity.is_some()
+        || min_confidence.is_some()
+        || detector_id.is_some()
+        || mitre_id.is_some()
+    {
+        Some(FindingFilterDto {
+            min_severity: min_severity.map(|s| s.as_str().to_string()),
+            min_confidence: min_confidence.map(|c| c.as_str().to_string()),
+            detector_id: detector_id.map(ToString::to_string),
+            mitre_attack_id: mitre_id.map(ToString::to_string),
+        })
+    } else {
+        None
+    }
+}
+
+fn filter_findings_and_evidence<'a>(
+    findings: &'a [FindingRecord],
+    evidence: &'a [EvidenceRecord],
+    min_severity: Option<Severity>,
+    min_confidence: Option<Confidence>,
+    detector_id: Option<&DetectorId>,
+    mitre_id: Option<&MitreAttackId>,
+) -> (Vec<&'a FindingRecord>, Vec<&'a EvidenceRecord>) {
+    let filter = FindingFilter::new()
+        .with_min_severity(min_severity)
+        .with_min_confidence(min_confidence)
+        .with_detector_id(detector_id.cloned())
+        .with_mitre_attack_id(mitre_id.cloned());
+
+    let filtered_findings = filter.filter_findings(findings);
+    let needed_evidence_refs: BTreeSet<_> = filtered_findings
+        .iter()
+        .flat_map(|f| f.evidence_references().iter().copied())
+        .collect();
+    let filtered_evidence = evidence
+        .iter()
+        .filter(|e| needed_evidence_refs.contains(&e.reference()))
+        .collect();
+
+    (filtered_findings, filtered_evidence)
+}
+
+fn project_protocol_observations<T, F>(
+    observations: &[ProtocolObservation],
+    mut project: F,
+) -> Vec<T>
+where
+    F: FnMut(&ProtocolObservationData) -> Option<T>,
+{
+    let mut projected = Vec::new();
+    for observation in observations {
+        if let Some(value) = project(observation.data()) {
+            projected.push(value);
+        }
+    }
+    projected
+}
+
 /// Main application dispatcher converting [`CliArgs`] into a process [`ExitCode`].
 #[must_use]
 pub fn run(args: CliArgs) -> ExitCode {
@@ -361,8 +444,6 @@ fn run_validate(
 }
 
 fn run_flows(args: FlowsArgs, quiet: bool, format: ReportFormat, output_path: Option<&Path>) -> u8 {
-    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
-
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
         max_records: args.max_records,
@@ -377,15 +458,10 @@ fn run_flows(args: FlowsArgs, quiet: bool, format: ReportFormat, output_path: Op
         run_detectors: false,
     };
 
-    let result = match run_analysis(&analysis_options, &mut diag_emitter) {
+    let result = match execute_analysis(analysis_options, quiet) {
         Ok(r) => r,
-        Err(AnalysisError::Config(msg)) => return emit_config_error(&msg),
-        Err(AnalysisError::Fatal(msg)) => return emit_fatal_error(&msg),
+        Err(code) => return code,
     };
-
-    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
-        return 1;
-    }
 
     if let Err(code) = with_output_sink(output_path, |mut w| {
         report_flows(format, &result.flows, &mut w)
@@ -397,8 +473,6 @@ fn run_flows(args: FlowsArgs, quiet: bool, format: ReportFormat, output_path: Op
 }
 
 fn run_dns(args: DnsArgs, quiet: bool, format: ReportFormat, output_path: Option<&Path>) -> u8 {
-    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
-
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
         max_records: args.max_records,
@@ -413,22 +487,15 @@ fn run_dns(args: DnsArgs, quiet: bool, format: ReportFormat, output_path: Option
         run_detectors: false,
     };
 
-    let result = match run_analysis(&analysis_options, &mut diag_emitter) {
+    let result = match execute_analysis(analysis_options, quiet) {
         Ok(r) => r,
-        Err(AnalysisError::Config(msg)) => return emit_config_error(&msg),
-        Err(AnalysisError::Fatal(msg)) => return emit_fatal_error(&msg),
+        Err(code) => return code,
     };
 
-    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
-        return 1;
-    }
-
-    let mut dns_obs = Vec::new();
-    for obs in &result.observations {
-        if let ProtocolObservationData::Dns(d) = obs.data() {
-            dns_obs.push(d.clone());
-        }
-    }
+    let dns_obs = project_protocol_observations(&result.observations, |data| match data {
+        ProtocolObservationData::Dns(d) => Some(d.clone()),
+        ProtocolObservationData::Http(_) | ProtocolObservationData::Tls(_) => None,
+    });
 
     if let Err(code) = with_output_sink(output_path, |mut w| report_dns(format, &dns_obs, &mut w)) {
         return code;
@@ -438,8 +505,6 @@ fn run_dns(args: DnsArgs, quiet: bool, format: ReportFormat, output_path: Option
 }
 
 fn run_http(args: HttpArgs, quiet: bool, format: ReportFormat, output_path: Option<&Path>) -> u8 {
-    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
-
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
         max_records: args.max_records,
@@ -454,22 +519,15 @@ fn run_http(args: HttpArgs, quiet: bool, format: ReportFormat, output_path: Opti
         run_detectors: false,
     };
 
-    let result = match run_analysis(&analysis_options, &mut diag_emitter) {
+    let result = match execute_analysis(analysis_options, quiet) {
         Ok(r) => r,
-        Err(AnalysisError::Config(msg)) => return emit_config_error(&msg),
-        Err(AnalysisError::Fatal(msg)) => return emit_fatal_error(&msg),
+        Err(code) => return code,
     };
 
-    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
-        return 1;
-    }
-
-    let mut http_obs = Vec::new();
-    for obs in &result.observations {
-        if let ProtocolObservationData::Http(h) = obs.data() {
-            http_obs.push(h.clone());
-        }
-    }
+    let http_obs = project_protocol_observations(&result.observations, |data| match data {
+        ProtocolObservationData::Dns(_) | ProtocolObservationData::Tls(_) => None,
+        ProtocolObservationData::Http(h) => Some(h.clone()),
+    });
 
     if let Err(code) = with_output_sink(output_path, |mut w| report_http(format, &http_obs, &mut w))
     {
@@ -480,8 +538,6 @@ fn run_http(args: HttpArgs, quiet: bool, format: ReportFormat, output_path: Opti
 }
 
 fn run_tls(args: TlsArgs, quiet: bool, format: ReportFormat, output_path: Option<&Path>) -> u8 {
-    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
-
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
         max_records: args.max_records,
@@ -496,22 +552,15 @@ fn run_tls(args: TlsArgs, quiet: bool, format: ReportFormat, output_path: Option
         run_detectors: false,
     };
 
-    let result = match run_analysis(&analysis_options, &mut diag_emitter) {
+    let result = match execute_analysis(analysis_options, quiet) {
         Ok(r) => r,
-        Err(AnalysisError::Config(msg)) => return emit_config_error(&msg),
-        Err(AnalysisError::Fatal(msg)) => return emit_fatal_error(&msg),
+        Err(code) => return code,
     };
 
-    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
-        return 1;
-    }
-
-    let mut tls_obs = Vec::new();
-    for obs in &result.observations {
-        if let ProtocolObservationData::Tls(t) = obs.data() {
-            tls_obs.push(t.clone());
-        }
-    }
+    let tls_obs = project_protocol_observations(&result.observations, |data| match data {
+        ProtocolObservationData::Dns(_) | ProtocolObservationData::Http(_) => None,
+        ProtocolObservationData::Tls(t) => Some(t.clone()),
+    });
 
     if let Err(code) = with_output_sink(output_path, |mut w| report_tls(format, &tls_obs, &mut w)) {
         return code;
@@ -526,22 +575,12 @@ fn run_findings(
     format: ReportFormat,
     output_path: Option<&Path>,
 ) -> u8 {
-    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
-
-    let filter_dto = if args.min_severity.is_some()
-        || args.min_confidence.is_some()
-        || args.detector_id.is_some()
-        || args.mitre_id.is_some()
-    {
-        Some(FindingFilterDto {
-            min_severity: args.min_severity.map(|s| s.as_str().to_string()),
-            min_confidence: args.min_confidence.map(|c| c.as_str().to_string()),
-            detector_id: args.detector_id.as_ref().map(|d| d.to_string()),
-            mitre_attack_id: args.mitre_id.as_ref().map(|m| m.to_string()),
-        })
-    } else {
-        None
-    };
+    let filter_dto = build_finding_filter_dto(
+        args.min_severity,
+        args.min_confidence,
+        args.detector_id.as_ref(),
+        args.mitre_id.as_ref(),
+    );
 
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
@@ -557,34 +596,19 @@ fn run_findings(
         run_detectors: true,
     };
 
-    let result = match run_analysis(&analysis_options, &mut diag_emitter) {
+    let result = match execute_analysis(analysis_options, quiet) {
         Ok(r) => r,
-        Err(AnalysisError::Config(msg)) => return emit_config_error(&msg),
-        Err(AnalysisError::Fatal(msg)) => return emit_fatal_error(&msg),
+        Err(code) => return code,
     };
 
-    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
-        return 1;
-    }
-
-    let filter = FindingFilter::new()
-        .with_min_severity(args.min_severity)
-        .with_min_confidence(args.min_confidence)
-        .with_detector_id(args.detector_id)
-        .with_mitre_attack_id(args.mitre_id);
-
-    let filtered_findings = filter.filter_findings(&result.detection_outcome.findings);
-
-    let needed_evidence_refs: BTreeSet<_> = filtered_findings
-        .iter()
-        .flat_map(|f| f.evidence_references().iter().copied())
-        .collect();
-    let filtered_evidence: Vec<&pcapraven_domain::EvidenceRecord> = result
-        .detection_outcome
-        .evidence
-        .iter()
-        .filter(|e| needed_evidence_refs.contains(&e.reference()))
-        .collect();
+    let (filtered_findings, filtered_evidence) = filter_findings_and_evidence(
+        &result.detection_outcome.findings,
+        &result.detection_outcome.evidence,
+        args.min_severity,
+        args.min_confidence,
+        args.detector_id.as_ref(),
+        args.mitre_id.as_ref(),
+    );
 
     if let Err(code) = with_output_sink(output_path, |mut w| {
         report_findings(
@@ -613,22 +637,12 @@ fn run_analyze(
         );
     }
 
-    let mut diag_emitter = DiagnosticEmitter::new(quiet, DEFAULT_DIAGNOSTIC_BUDGET);
-
-    let filter_dto = if args.min_severity.is_some()
-        || args.min_confidence.is_some()
-        || args.detector_id.is_some()
-        || args.mitre_id.is_some()
-    {
-        Some(FindingFilterDto {
-            min_severity: args.min_severity.map(|s| s.as_str().to_string()),
-            min_confidence: args.min_confidence.map(|c| c.as_str().to_string()),
-            detector_id: args.detector_id.as_ref().map(|d| d.to_string()),
-            mitre_attack_id: args.mitre_id.as_ref().map(|m| m.to_string()),
-        })
-    } else {
-        None
-    };
+    let filter_dto = build_finding_filter_dto(
+        args.min_severity,
+        args.min_confidence,
+        args.detector_id.as_ref(),
+        args.mitre_id.as_ref(),
+    );
 
     let analysis_options = AnalysisOptions {
         capture_path: args.capture_path,
@@ -644,37 +658,22 @@ fn run_analyze(
         run_detectors: true,
     };
 
-    let result = match run_analysis(&analysis_options, &mut diag_emitter) {
+    let result = match execute_analysis(analysis_options, quiet) {
         Ok(r) => r,
-        Err(AnalysisError::Config(msg)) => return emit_config_error(&msg),
-        Err(AnalysisError::Fatal(msg)) => return emit_fatal_error(&msg),
+        Err(code) => return code,
     };
 
-    if diag_emitter.finish().is_err() || diag_emitter.had_io_error() {
-        return 1;
-    }
-
-    let filter = FindingFilter::new()
-        .with_min_severity(args.min_severity)
-        .with_min_confidence(args.min_confidence)
-        .with_detector_id(args.detector_id)
-        .with_mitre_attack_id(args.mitre_id);
-
-    let filtered_findings = filter.filter_findings(&result.detection_outcome.findings);
+    let (filtered_findings, filtered_evidence) = filter_findings_and_evidence(
+        &result.detection_outcome.findings,
+        &result.detection_outcome.evidence,
+        args.min_severity,
+        args.min_confidence,
+        args.detector_id.as_ref(),
+        args.mitre_id.as_ref(),
+    );
 
     let (meta, _, _, _) =
         convert_validation_outcome(&result.reader_outcome, result.total_records_processed);
-
-    let needed_evidence_refs: BTreeSet<_> = filtered_findings
-        .iter()
-        .flat_map(|f| f.evidence_references().iter().copied())
-        .collect();
-    let filtered_evidence: Vec<&pcapraven_domain::EvidenceRecord> = result
-        .detection_outcome
-        .evidence
-        .iter()
-        .filter(|e| needed_evidence_refs.contains(&e.reference()))
-        .collect();
 
     let completion_dto = ReportCompletionDto {
         status: if result.is_partial() {

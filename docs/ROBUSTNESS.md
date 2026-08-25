@@ -9,7 +9,9 @@ boundary edge cases were triaged, fixed in safe Rust, and hardened with determin
 regression test coverage. Phase 18.2 performance baseline and acceptance
 budgets are complete and tracked in `PERFORMANCE.md` and `docs/performance/`.
 Phase 18.3 final performance acceptance is complete and passed the frozen
-budgets. Phase 19 release packaging remains future work and is not implemented.
+budgets. Phase 19 release code-health audit and targeted behavior-preserving
+internal refactoring is current and in progress. Release packaging is Phase 24
+future work; Phases 20 through 28 are future and not implemented.
 
 ## Threat Model and Invariants
 

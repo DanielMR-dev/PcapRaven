@@ -18,8 +18,11 @@ and Phase 17 synthetic fixture corpus, golden report matrix, and end-to-end regr
 Fixture generation, golden staging/checking, the excluded eight-target fuzz
 package, and benchmark tooling are development-only and do not change the
 seven-package runtime architecture. The architecture checker audits the fuzz
-package separately. Phase 18 robustness and performance verification is current
-and remains outside runtime crate responsibilities.
+package separately. Phase 18 robustness and performance verification is
+complete and remains outside runtime crate responsibilities. Phase 19
+code-health audit and targeted internal refactoring is current and in progress;
+the governance/audit stage leaves the runtime architecture unchanged. Phases 20
+through 28 are future and not implemented.
 
 ## Architectural Principles
 

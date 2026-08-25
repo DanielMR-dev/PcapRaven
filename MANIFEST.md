@@ -23,8 +23,11 @@ Phase 17 synthetic fixture corpus, schema freeze verification, golden reports ma
 Phase 18 property testing, fuzzing, robustness, and performance verification is
 complete. Phase 18.1 full fuzz acceptance campaigns, Phase 18.2 performance
 baseline/budget work, and Phase 18.3 final performance acceptance are complete.
-Phase 19 is the next roadmap scope and remains future work; no Phase 19
-capability is implemented.
+Phase 19 release code-health audit and targeted behavior-preserving internal
+refactoring is current and in progress. Its authorized implementation is
+limited to private CLI helpers and remains pending independent review and final
+gates. Phases 20 through 28 are future and not implemented; no later capability
+or release is claimed.
 
 ## Tracked Current Inventory
 
@@ -36,6 +39,7 @@ capability is implemented.
 | `CONTRIBUTING.md` | Phase-aware contributor policy and quality guidance. |
 | `AGENTS.md` | Authoritative AI-agent engineering and review workflow. |
 | `MANIFEST.md` | Repository structure, current inventory, and phase status. |
+| `docs/CODE_HEALTH.md` | Phase 19 production Rust code-health audit, evidence, and dispositions. |
 | `.gitignore` | Rust build, editor, operating-system, and local-environment ignores. |
 | `.gitattributes` | Cross-platform LF checkout policy for repository text and binary protocol/capture fixture exclusions. |
 | `Cargo.toml` | Virtual Edition 2024 workspace, package metadata, lints, and internal path dependencies. |
@@ -91,7 +95,7 @@ capability is implemented.
 | `docs/performance/phase18-3-acceptance-result.json` | Deterministic Phase 18.3 final acceptance result: 24/24 median, 13/13 growth, and overall pass. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
 | `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
-| `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
+| `docs/ROADMAP.md` | Ordered Phase 0 through Phase 28 path to v1.0.0 and release gates. |
 | `docs/detectors/PERIODIC_BEACONING.md` | Specification and statistical contract for the periodic beaconing detector. |
 | `docs/detectors/DNS_ANOMALY_TUNNELING.md` | Specification and analytical contract for DNS anomaly and possible tunneling detectors. |
 | `docs/detectors/CONNECTION_C2_BEHAVIOR.md` | Specification and analytical contract for connection behavior detector and cross-detector finding correlators. |
