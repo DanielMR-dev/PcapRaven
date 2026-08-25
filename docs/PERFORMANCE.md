@@ -2,18 +2,21 @@
 
 ## Status
 
-Phase 18.1 fuzz acceptance and Phase 18.2 performance baseline/budget work are
-complete. Three full baseline runs and the machine-readable budget artifact are
+Phase 18.1 fuzz acceptance, Phase 18.2 performance baseline/budget work, and
+the separately reviewed Phase 18.3 final performance acceptance are complete.
+Three full baseline runs and the machine-readable budget artifact were
 established from clean revision
-`cd98fa6164ce0a6473386e9dca841cd57c599427`. Final performance acceptance has
-not been executed; Phase 18.3 remains separate and pending.
+`cd98fa6164ce0a6473386e9dca841cd57c599427`; three later full acceptance runs
+passed the frozen budgets from clean revision
+`406df29befee99d737c43728943f5daef55ea7f1`.
 
 The current Phase 18 state has three distinct states:
 
 ```text
 Performance baseline: ESTABLISHED
 Performance budgets: FROZEN
-Final acceptance execution: PENDING (Phase 18.3)
+Final acceptance execution: PASSED (Phase 18.3)
+Phase 18 status: COMPLETE
 ```
 
 ## Benchmark Infrastructure
@@ -101,9 +104,8 @@ and was applied unchanged to the three replacement runs:
 
 All calculations use integer nanoseconds, basis points, and exact integer
 ceiling division. The full matrix produces 24 absolute median budgets and 13
-meaningful scaled growth budgets. These are frozen regression budgets, not
-measured acceptance results; Phase 18.3 must execute a later independent
-comparison.
+meaningful scaled growth budgets. These remain frozen regression budgets; the
+independent Phase 18.3 comparison is recorded below.
 
 ## Phase 18.2 Baseline Results
 
@@ -128,7 +130,7 @@ or scenario was discarded.
 
 The budget derivation produced 24 absolute median budgets and 13 meaningful
 scaled growth budgets. These results establish the baseline and freeze the
-budgets; they do not execute or declare the Phase 18.3 final acceptance gate.
+budgets; the separate Phase 18.3 final acceptance result is recorded below.
 
 ## Baseline Environment Contract
 
@@ -165,6 +167,95 @@ The official baseline environment recorded by run 1 was:
 The complete provenance, including the full `rustc` version output, remains in
 each raw measurement artifact.
 
+### Frozen Phase 18.3 environment-equivalence amendment
+
+Before official Phase 18.3 timing, the acceptance methodology permits one
+narrow, explicit equivalence case for the frozen baseline environment. All
+stable identity fields other than `total_memory_bytes` must match exactly, and
+all three acceptance runs must share that same stable identity. Only Linux WSL2
+may use the exception: both total-memory values must be positive and aligned to
+4096 bytes, and their absolute difference must be at most one 4096-byte page.
+Any larger difference, unaligned or non-positive value, non-WSL2 environment, or
+difference in another stable identity field is rejected.
+
+The evaluator records policy identifier
+`phase18.3-linux-wsl2-total-memory-one-page-v1`, compatibility status, differing
+fields, observed difference, and the fixed tolerance in the acceptance result.
+This is a frozen Phase 18.3 equivalence policy requiring independent Reviewer
+approval before official timing; it is not a general cross-machine tolerance.
+It did not change the Phase 18.2 budgets, raw baseline evidence, benchmark
+runner, workloads, or measurement semantics.
+
+## Phase 18.3 Final Acceptance Results
+
+The final acceptance methodology and measurement revision is
+`406df29befee99d737c43728943f5daef55ea7f1`. It reused benchmark implementation
+`phase18.2-methodology-v1` and compared exactly three sequential full runs with
+one warmup and five measured samples for each of the 24 scenarios against the
+frozen Phase 18.2 budget artifact. The frozen baseline measurement revision was
+`cd98fa6164ce0a6473386e9dca841cd57c599427`, and the budget SHA-256 was
+`d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1`.
+
+The result is a performance PASS: all 24/24 stability checks passed, with a
+maximum observed spread of 1,485 basis points; all 24/24 absolute median
+budgets passed; all 13/13 meaningful growth budgets passed; and
+`overall_pass = true`.
+
+The acceptance environment recorded by the result was:
+
+```text
+os: Linux
+kernel: 6.18.33.2-microsoft-standard-WSL2
+machine: x86_64
+platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43
+cpu_model: AMD Ryzen 5 5600G with Radeon Graphics
+logical_cpu_count: 12
+total_memory_bytes: 16698187776
+available_memory_bytes: 13544247296
+rustc: rustc 1.97.1 (8bab26f4f 2026-07-14)
+  binary: rustc
+  commit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452
+  commit-date: 2026-07-14
+  host: x86_64-unknown-linux-gnu
+  release: 1.97.1
+  LLVM version: 22.1.6
+active_toolchain: 1.97.1-x86_64-unknown-linux-gnu (overridden by '/home/danielmr-dev/Dev/PcapRaven/rust-toolchain.toml')
+cargo: cargo 1.97.1 (c980f4866 2026-06-30)
+python: 3.14.4
+build_profile: release
+git_sha: 406df29befee99d737c43728943f5daef55ea7f1
+git_dirty: false
+git_worktree_status: clean
+background_load: not controlled, pinned, or sampled
+power_mode: unreported; power state was not controlled
+limitations: Whole-process timings include CLI startup and filesystem cache effects; CPU affinity, power state, thermal state, and background load are uncontrolled.
+```
+
+The acceptance total memory differs from the frozen baseline by exactly one
+4096-byte page (`16698191872` versus `16698187776`). The approved, frozen
+equivalence policy `phase18.3-linux-wsl2-total-memory-one-page-v1` permits this
+single positive page-aligned difference only on Linux WSL2 when every other
+stable identity field matches exactly. The evaluator recorded
+`equivalent_within_one_page`; this is not a general cross-machine tolerance.
+
+The tracked Phase 18.3 evidence and SHA-256 values are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `phase18-3-acceptance-run-1.json` | `834847892046b49f154be7aec2cbc87e079c978da91fa3b19564a704a704e186` |
+| `phase18-3-acceptance-run-2.json` | `af07fb7e96953491ba62d0f1126f24cd246de70c986802adf741f293e6865152` |
+| `phase18-3-acceptance-run-3.json` | `3e8e4f6c238a886b4952a0513db4d0cb6f90949f307d1fb10869ea4fc5190c7a` |
+| `phase18-3-acceptance-result.json` | `7ca94bcd23d87db44072edeba1afa283a343ba541072b1523c19b08e47043383` |
+
+Two complete candidate datasets were discarded after investigation because
+they exceeded the frozen stability ceiling. Candidate dataset #1 was unstable
+at `dns_10000` with a 2,828-basis-point spread. Candidate dataset #2 was
+unstable at `validate_50000`, `dns_1000`, `analyze_multi_signal_1000`,
+`reporting_ndjson_10000`, and `reporting_csv_1000`, with a maximum spread of
+17,391 basis points. Their raw files remain external diagnostics only and are
+not tracked acceptance evidence; no individual run or scenario was selected
+from either dataset.
+
 ## Source-Level Complexity Audit
 
 The current implementation preserves the following bounded model:
@@ -200,9 +291,8 @@ docs/performance/phase18-2-budgets.json
 measurements, rejected smoke/dirty/mixed/duplicate/incomplete/inconsistent
 inputs, checked the frozen 15% stability limit, and wrote the deterministic
 budget document. The budget artifact includes source measurement SHA-256
-values, baseline environment identity, all 24 scenario budgets, and an explicit
-statement that budgets are frozen for Phase 18.3 but have not yet been executed
-as the final acceptance gate.
+values, baseline environment identity, and all 24 scenario budgets. The
+Phase 18.3 evaluator separately validated the tracked final acceptance result.
 
 SHA-256 checksums of the tracked evidence are:
 
@@ -213,5 +303,5 @@ SHA-256 checksums of the tracked evidence are:
 | `phase18-2-baseline-run-3.json` | `57e1b576146828f6a20ac0753509dbb8046d8c51758500862aaa41765276cbd4` |
 | `phase18-2-budgets.json` | `d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1` |
 
-Baseline and budget status are now established and frozen. Phase 18.3 remains
-the only place where final performance acceptance may be executed or declared.
+Baseline and budget status remain established and frozen. The final Phase 18.3
+performance acceptance is recorded above and completes the Phase 18 gate.

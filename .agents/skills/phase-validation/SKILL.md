@@ -372,7 +372,7 @@ Phase 17 establishes the documented synthetic, sanitized, redistributable PCAP/P
   CSV injection, HTTP privacy, and deterministic repeatability form mandatory
   Gate 17.1.
 
-## Phase 18 Gate (current)
+## Phase 18 Gate (completed)
 
 Phase 18 expands property testing, bounded fuzz campaigns, robustness analysis,
 and practical performance verification. The Part B foundation requires exactly
@@ -380,6 +380,7 @@ eight bounded targets, curated synthetic seeds with generated fuzz noise ignored
 an architecture audit of the excluded fuzz package, 30-second Linux CI smoke
 runs with explicit length/timeout/RSS limits, bounded fixture/golden verification,
 writer failure tests, and a dependency-free release-CLI benchmark tool. The
-eight 600-second campaigns and acceptance benchmark results must remain pending
-until actually run. Implement only delegated Phase 18 scope and do not begin
-Phase 19 release work.
+eight 600-second campaigns and final acceptance benchmark results have been
+completed and must remain backed by the tracked evidence. Phase 19 release
+hardening remains future work and must not be implemented or claimed as
+available by Phase 18 validation.

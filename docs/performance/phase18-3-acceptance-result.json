@@ -1,0 +1,719 @@
+{
+  "absolute_budget_count": 24,
+  "acceptance_environment": {
+    "active_toolchain": "1.97.1-x86_64-unknown-linux-gnu (overridden by '/home/danielmr-dev/Dev/PcapRaven/rust-toolchain.toml')",
+    "available_memory_bytes": 13544247296,
+    "background_load": "not controlled, pinned, or sampled",
+    "build_profile": "release",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cpu_model": "AMD Ryzen 5 5600G with Radeon Graphics",
+    "git_dirty": false,
+    "git_sha": "406df29befee99d737c43728943f5daef55ea7f1",
+    "git_worktree_status": "clean",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2",
+    "limitations": "Whole-process timings include CLI startup and filesystem cache effects; CPU affinity, power state, thermal state, and background load are uncontrolled.",
+    "logical_cpu_count": 12,
+    "machine": "x86_64",
+    "os": "Linux",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "power_mode": "unreported; power state was not controlled",
+    "python": "3.14.4",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "total_memory_bytes": 16698187776
+  },
+  "acceptance_measurement_git_sha": "406df29befee99d737c43728943f5daef55ea7f1",
+  "acceptance_run_count": 3,
+  "acceptance_statement": "PASSED: all 24 scenarios are within the frozen Phase 18.2 budgets",
+  "acceptance_status": "passed",
+  "artifact_kind": "performance_final_acceptance",
+  "baseline_environment": {
+    "active_toolchain": "1.97.1-x86_64-unknown-linux-gnu (overridden by '/home/danielmr-dev/Dev/PcapRaven/rust-toolchain.toml')",
+    "available_memory_bytes": 10510102528,
+    "background_load": "not controlled, pinned, or sampled",
+    "build_profile": "release",
+    "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+    "cpu_model": "AMD Ryzen 5 5600G with Radeon Graphics",
+    "git_dirty": false,
+    "git_sha": "cd98fa6164ce0a6473386e9dca841cd57c599427",
+    "git_worktree_status": "clean",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2",
+    "limitations": "Whole-process timings include CLI startup and filesystem cache effects; CPU affinity, power state, thermal state, and background load are uncontrolled.",
+    "logical_cpu_count": 12,
+    "machine": "x86_64",
+    "os": "Linux",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "power_mode": "unreported; power state was not controlled",
+    "python": "3.14.4",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.97.1\nLLVM version: 22.1.6",
+    "total_memory_bytes": 16698191872
+  },
+  "baseline_measurement_git_sha": "cd98fa6164ce0a6473386e9dca841cd57c599427",
+  "benchmark_implementation": "phase18.2-methodology-v1",
+  "budget_artifact_sha256": "d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1",
+  "budget_schema_version": "phase18.2-budgets-v1",
+  "budget_status": "frozen_for_phase_18.3",
+  "environment_compatibility": {
+    "differing_fields": [
+      "total_memory_bytes"
+    ],
+    "observed_total_memory_difference_bytes": 4096,
+    "policy_identifier": "phase18.3-linux-wsl2-total-memory-one-page-v1",
+    "status": "equivalent_within_one_page",
+    "tolerance": {
+      "field": "total_memory_bytes",
+      "maximum_absolute_difference_bytes": 4096,
+      "page_size_bytes": 4096,
+      "requires_positive_page_aligned_values": true,
+      "scope": "Linux WSL2 only; not a general cross-machine tolerance"
+    }
+  },
+  "failed_scenario_count": 0,
+  "failed_scenarios": [],
+  "growth_budgets_passed": 13,
+  "growth_budgets_total": 13,
+  "maximum_acceptance_spread_basis_points": 1485,
+  "meaningful_growth_count": 13,
+  "median_budgets_passed": 24,
+  "median_budgets_total": 24,
+  "overall_pass": true,
+  "passed_scenario_count": 24,
+  "phase": "18.3",
+  "samples_per_scenario_per_run": 5,
+  "scenario_count": 24,
+  "scenarios": [
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 1132430,
+      "acceptance_run_medians_ns": [
+        1121730,
+        1132430,
+        1266936
+      ],
+      "acceptance_spread_basis_points": 1282,
+      "family": "validate",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 1422590,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "validate_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "record_scaling"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        14742,
+        14995,
+        13058
+      ],
+      "acceptance_reference_growth_basis_points": 14742,
+      "acceptance_reference_median_ns": 1654432,
+      "acceptance_run_medians_ns": [
+        1653701,
+        1698080,
+        1654432
+      ],
+      "acceptance_spread_basis_points": 268,
+      "family": "validate",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 19394,
+      "frozen_median_budget_ns": 2207230,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "validate_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "record_scaling"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        37310,
+        34953,
+        31169
+      ],
+      "acceptance_reference_growth_basis_points": 34953,
+      "acceptance_reference_median_ns": 3958238,
+      "acceptance_run_medians_ns": [
+        4185208,
+        3958238,
+        3949000
+      ],
+      "acceptance_spread_basis_points": 596,
+      "family": "validate",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 44789,
+      "frozen_median_budget_ns": 5083669,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 50000,
+      "scenario": "validate_50000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "record_scaling"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 2896040,
+      "acceptance_run_medians_ns": [
+        2896040,
+        2809215,
+        3045835
+      ],
+      "acceptance_spread_basis_points": 817,
+      "family": "flows",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 3637918,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 128,
+      "scenario": "flows_low",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "flow_cardinality"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        100468,
+        102267,
+        98001
+      ],
+      "acceptance_reference_growth_basis_points": 100468,
+      "acceptance_reference_median_ns": 29095992,
+      "acceptance_run_medians_ns": [
+        29095992,
+        28729215,
+        29849643
+      ],
+      "acceptance_spread_basis_points": 385,
+      "family": "flows",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 128879,
+      "frozen_median_budget_ns": 37508277,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 2048,
+      "scenario": "flows_medium",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "flow_cardinality"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        448757,
+        402012,
+        376272
+      ],
+      "acceptance_reference_growth_basis_points": 402012,
+      "acceptance_reference_median_ns": 114606301,
+      "acceptance_run_medians_ns": [
+        129961841,
+        112933885,
+        114606301
+      ],
+      "acceptance_spread_basis_points": 1485,
+      "family": "flows",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 491388,
+      "frozen_median_budget_ns": 142887519,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 8192,
+      "scenario": "flows_higher",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "flow_cardinality"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 5716718,
+      "acceptance_run_medians_ns": [
+        5942336,
+        5499185,
+        5716718
+      ],
+      "acceptance_spread_basis_points": 775,
+      "family": "dns",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 7012807,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "dns_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "dns_scaling"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        75249,
+        79314,
+        76401
+      ],
+      "acceptance_reference_growth_basis_points": 76401,
+      "acceptance_reference_median_ns": 43676404,
+      "acceptance_run_medians_ns": [
+        44716018,
+        43616620,
+        43676404
+      ],
+      "acceptance_spread_basis_points": 251,
+      "family": "dns",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 96502,
+      "frozen_median_budget_ns": 55352730,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "dns_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "dns_scaling"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 7493593,
+      "acceptance_run_medians_ns": [
+        7626814,
+        7256822,
+        7493593
+      ],
+      "acceptance_spread_basis_points": 493,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 9213599,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "analyze_benign_mixed_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "benign_mixed"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        74227,
+        78500,
+        76689
+      ],
+      "acceptance_reference_growth_basis_points": 76689,
+      "acceptance_reference_median_ns": 56966757,
+      "acceptance_run_medians_ns": [
+        56611652,
+        56966757,
+        57467947
+      ],
+      "acceptance_spread_basis_points": 150,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 97359,
+      "frozen_median_budget_ns": 71762332,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "analyze_benign_mixed_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "benign_mixed"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 8360770,
+      "acceptance_run_medians_ns": [
+        8480858,
+        8360770,
+        8339158
+      ],
+      "acceptance_spread_basis_points": 169,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 10417562,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "analyze_repeated_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "repeated"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        81522,
+        84573,
+        83867
+      ],
+      "acceptance_reference_growth_basis_points": 83867,
+      "acceptance_reference_median_ns": 69938334,
+      "acceptance_run_medians_ns": [
+        69138201,
+        70709928,
+        69938334
+      ],
+      "acceptance_spread_basis_points": 224,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 107139,
+      "frozen_median_budget_ns": 89143458,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "analyze_repeated_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "repeated"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 20458297,
+      "acceptance_run_medians_ns": [
+        20458297,
+        20022728,
+        20721966
+      ],
+      "acceptance_spread_basis_points": 341,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 25336697,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "analyze_dns_heavy_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "dns_heavy"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        132762,
+        121669,
+        119253
+      ],
+      "acceptance_reference_growth_basis_points": 121669,
+      "acceptance_reference_median_ns": 247116078,
+      "acceptance_run_medians_ns": [
+        271608749,
+        243616218,
+        247116078
+      ],
+      "acceptance_spread_basis_points": 1132,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 164090,
+      "frozen_median_budget_ns": 333441105,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "analyze_dns_heavy_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "dns_heavy"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 18724173,
+      "acceptance_run_medians_ns": [
+        18417469,
+        18777514,
+        18724173
+      ],
+      "acceptance_spread_basis_points": 192,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 22673198,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "analyze_multi_signal_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        122024,
+        118125,
+        120635
+      ],
+      "acceptance_reference_growth_basis_points": 120635,
+      "acceptance_reference_median_ns": 224738829,
+      "acceptance_run_medians_ns": [
+        224738829,
+        221809480,
+        225880725
+      ],
+      "acceptance_spread_basis_points": 181,
+      "family": "analyze",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 156923,
+      "frozen_median_budget_ns": 284635737,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "analyze_multi_signal_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 10415371,
+      "acceptance_run_medians_ns": [
+        10415371,
+        10238226,
+        10494441
+      ],
+      "acceptance_spread_basis_points": 245,
+      "family": "reporting",
+      "format": "table",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 13214385,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "reporting_table_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        135372,
+        138465,
+        134965
+      ],
+      "acceptance_reference_growth_basis_points": 135372,
+      "acceptance_reference_median_ns": 141638504,
+      "acceptance_run_medians_ns": [
+        140995760,
+        141763995,
+        141638504
+      ],
+      "acceptance_spread_basis_points": 54,
+      "family": "reporting",
+      "format": "table",
+      "frozen_growth_budget_basis_points": 167985,
+      "frozen_median_budget_ns": 178030378,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "reporting_table_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 14014878,
+      "acceptance_run_medians_ns": [
+        14006132,
+        14033645,
+        14014878
+      ],
+      "acceptance_spread_basis_points": 19,
+      "family": "reporting",
+      "format": "json",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 17544598,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "reporting_json_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        128310,
+        124988,
+        128629
+      ],
+      "acceptance_reference_growth_basis_points": 128310,
+      "acceptance_reference_median_ns": 179713924,
+      "acceptance_run_medians_ns": [
+        179713924,
+        175404480,
+        180273203
+      ],
+      "acceptance_spread_basis_points": 270,
+      "family": "reporting",
+      "format": "json",
+      "frozen_growth_budget_basis_points": 159255,
+      "frozen_median_budget_ns": 223525897,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "reporting_json_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 13542139,
+      "acceptance_run_medians_ns": [
+        13542139,
+        13540256,
+        13816272
+      ],
+      "acceptance_spread_basis_points": 203,
+      "family": "reporting",
+      "format": "ndjson",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 16988317,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "reporting_ndjson_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        127864,
+        128366,
+        127347
+      ],
+      "acceptance_reference_growth_basis_points": 127864,
+      "acceptance_reference_median_ns": 173811834,
+      "acceptance_run_medians_ns": [
+        173156350,
+        173811834,
+        175946295
+      ],
+      "acceptance_spread_basis_points": 160,
+      "family": "reporting",
+      "format": "ndjson",
+      "frozen_growth_budget_basis_points": 162838,
+      "frozen_median_budget_ns": 221059853,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "reporting_ndjson_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        10000,
+        10000,
+        10000
+      ],
+      "acceptance_reference_growth_basis_points": null,
+      "acceptance_reference_median_ns": 10034748,
+      "acceptance_run_medians_ns": [
+        10034748,
+        10187820,
+        9960607
+      ],
+      "acceptance_spread_basis_points": 226,
+      "family": "reporting",
+      "format": "csv",
+      "frozen_growth_budget_basis_points": null,
+      "frozen_median_budget_ns": 13052079,
+      "growth_pass": null,
+      "median_pass": true,
+      "packet_records": 1000,
+      "scenario": "reporting_csv_1000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    },
+    {
+      "acceptance_growth_values_basis_points": [
+        145197,
+        139332,
+        144185
+      ],
+      "acceptance_reference_growth_basis_points": 144185,
+      "acceptance_reference_median_ns": 143617884,
+      "acceptance_run_medians_ns": [
+        145702150,
+        141949440,
+        143617884
+      ],
+      "acceptance_spread_basis_points": 261,
+      "family": "reporting",
+      "format": "csv",
+      "frozen_growth_budget_basis_points": 172364,
+      "frozen_median_budget_ns": 179643354,
+      "growth_pass": true,
+      "median_pass": true,
+      "packet_records": 10000,
+      "scenario": "reporting_csv_10000",
+      "scenario_pass": true,
+      "stability_pass": true,
+      "workload": "multi_signal_findings"
+    }
+  ],
+  "schema_version": "phase18.3-acceptance-v1",
+  "source_measurement_sha256": {
+    "run_1": "834847892046b49f154be7aec2cbc87e079c978da91fa3b19564a704a704e186",
+    "run_2": "af07fb7e96953491ba62d0f1126f24cd246de70c986802adf741f293e6865152",
+    "run_3": "3e8e4f6c238a886b4952a0513db4d0cb6f90949f307d1fb10869ea4fc5190c7a"
+  },
+  "stability_checks_passed": 24,
+  "stability_checks_total": 24,
+  "unstable_scenarios": [],
+  "warmups_per_scenario": 1
+}

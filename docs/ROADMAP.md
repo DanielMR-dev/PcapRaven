@@ -9,7 +9,7 @@ it does not mean all later capabilities are available.
 
 Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, and Phase 17 are complete.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is current.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 is next and remains unimplemented.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -264,12 +264,14 @@ complete; it does not declare final performance acceptance.
 
 ### Phase 18.3 - Final Phase 18 acceptance gate
 
-PENDING / NEXT: separately reviewed comparison of a later clean-revision
-measurement against the frozen Phase 18.2 budgets. Phase 18 remains in
-progress until this gate is completed. Phase 19 remains future work and is out
-of scope for Phase 18.2.
+COMPLETE: the separately reviewed final acceptance comparison reused the frozen
+Phase 18.2 methodology and passed 24/24 stability checks, 24/24 absolute median
+budgets, and 13/13 meaningful growth budgets. The machine-readable result and
+raw acceptance evidence are tracked under `docs/performance/`.
 
-## Phase 19 - Security hardening, documentation, packaging and v1.0.0
+Phase 18 — COMPLETE. Phase 19 is NEXT and remains out of scope for this phase.
+
+## Phase 19 - Security hardening, documentation, packaging and v1.0.0 (NEXT; NOT IMPLEMENTED)
 
 Perform final threat-model and unsafe/dependency review, resolve release-blocking
 security findings, validate documentation against behavior, stabilize schemas

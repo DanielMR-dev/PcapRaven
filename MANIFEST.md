@@ -21,9 +21,10 @@ Phase 15 severity and confidence finalization, MITRE ATT&CK mapping provenance, 
 Phase 16 deterministic reporting architecture (table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI command, and
 Phase 17 synthetic fixture corpus, schema freeze verification, golden reports matrix, cross-crate integration, end-to-end regression testing, and the mandatory Phase 17.1 hardening gate are complete.
 Phase 18 property testing, fuzzing, robustness, and performance verification is
-current. Phase 18.1 full fuzz acceptance campaigns and Phase 18.2 performance
-baseline/budget work are complete; Phase 18.3 final performance acceptance is
-pending. Phase 18 remains in progress and Phase 19 remains future work.
+complete. Phase 18.1 full fuzz acceptance campaigns, Phase 18.2 performance
+baseline/budget work, and Phase 18.3 final performance acceptance are complete.
+Phase 19 is the next roadmap scope and remains future work; no Phase 19
+capability is implemented.
 
 ## Tracked Current Inventory
 
@@ -50,6 +51,8 @@ pending. Phase 18 remains in progress and Phase 19 remains future work.
 | `scripts/run_phase18_benchmarks.py` | Dependency-free bounded release-CLI semantic scenario benchmark and separate smoke tool with one warmup, five measured samples, integer nanosecond summaries, growth ratios, and environment provenance. |
 | `scripts/derive_phase18_budgets.py` | Dependency-free strict validator and integer-only derivation tool for the three-run Phase 18.2 baseline budget document. |
 | `scripts/test_phase18_performance.py` | Focused dependency-free regression tests for the Phase 18.2 benchmark matrix, growth groups, budget arithmetic, and invalid-input rejection. |
+| `scripts/evaluate_phase18_acceptance.py` | Dependency-free strict integer-only evaluator for exactly three Phase 18.3 acceptance measurements against the frozen Phase 18.2 budgets. |
+| `scripts/test_phase18_acceptance.py` | Focused dependency-free tests for Phase 18.3 acceptance evidence validation, aggregation, stability, budget failures, null growth, and deterministic results. |
 | `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and eight-target bounded Linux fuzz-smoke CI. |
 | `tests/fixtures/pcaps/README.md` | Provenance and inventory documentation for synthetic PCAP fixture corpus. |
 | `tests/fixtures/pcaps/manifest.json` | Canonical schema-v1/generator-v1 path-sorted fixture provenance, behavior, and SHA-256 manifest. |
@@ -75,13 +78,17 @@ pending. Phase 18 remains in progress and Phase 19 remains future work.
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
-| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and Phase 18.3 performance acceptance status. |
-| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline environment, frozen budgets, and pending Phase 18.3 acceptance. |
-| `docs/performance/` | Tracked Phase 18.2 raw baseline measurements and frozen budget evidence. |
+| `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and completed Phase 18.3 performance acceptance. |
+| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline and acceptance environments, frozen budgets, and completed Phase 18.3 acceptance. |
+| `docs/performance/` | Tracked Phase 18.2 baseline/budget evidence and Phase 18.3 final acceptance evidence. |
 | `docs/performance/phase18-2-baseline-run-1.json` | Raw full baseline measurement run 1 for the clean Phase 18.2 measurement revision. |
 | `docs/performance/phase18-2-baseline-run-2.json` | Raw full baseline measurement run 2 for the clean Phase 18.2 measurement revision. |
 | `docs/performance/phase18-2-baseline-run-3.json` | Raw full baseline measurement run 3 for the clean Phase 18.2 measurement revision. |
-| `docs/performance/phase18-2-budgets.json` | Machine-readable Phase 18.2 budgets frozen for later Phase 18.3 acceptance; final acceptance not executed. |
+| `docs/performance/phase18-2-budgets.json` | Machine-readable Phase 18.2 budgets frozen and consumed by the Phase 18.3 final acceptance evaluator. |
+| `docs/performance/phase18-3-acceptance-run-1.json` | Raw full Phase 18.3 final acceptance measurement run 1. |
+| `docs/performance/phase18-3-acceptance-run-2.json` | Raw full Phase 18.3 final acceptance measurement run 2. |
+| `docs/performance/phase18-3-acceptance-run-3.json` | Raw full Phase 18.3 final acceptance measurement run 3. |
+| `docs/performance/phase18-3-acceptance-result.json` | Deterministic Phase 18.3 final acceptance result: 24/24 median, 13/13 growth, and overall pass. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
 | `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 19 path to v1.0.0. |
