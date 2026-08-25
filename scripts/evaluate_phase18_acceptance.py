@@ -44,6 +44,8 @@ BUDGET_FACTOR_BP = 12_500
 ACCEPTANCE_SCHEMA_VERSION = "phase18.3-acceptance-v1"
 ACCEPTANCE_ARTIFACT_KIND = "performance_final_acceptance"
 FROZEN_BUDGET_SHA256 = "d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1"
+ENVIRONMENT_COMPATIBILITY_POLICY_ID = "phase18.3-linux-wsl2-total-memory-one-page-v1"
+MEMORY_PAGE_BYTES = 4_096
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 FROZEN_BUDGET_PATH = REPOSITORY_ROOT / "docs" / "performance" / "phase18-2-budgets.json"
 FROZEN_BASELINE_PATHS = tuple(
@@ -886,6 +888,75 @@ def _environment_identity(environment: dict[str, object]) -> dict[str, object]:
     return {field: environment[field] for field in ENVIRONMENT_IDENTITY_FIELDS}
 
 
+def _is_linux_wsl2(environment: dict[str, object]) -> bool:
+    return (
+        environment["os"] == "Linux"
+        and "WSL2" in str(environment["kernel"])
+        and "WSL2" in str(environment["platform"])
+    )
+
+
+def _is_positive_page_aligned(value: object) -> bool:
+    return _is_int(value) and value > 0 and value % MEMORY_PAGE_BYTES == 0
+
+
+def _environment_compatibility(
+    baseline_environment: dict[str, object], acceptance_environment: dict[str, object]
+) -> dict[str, object]:
+    """Apply the frozen, narrow Phase 18.3 environment equivalence policy."""
+
+    baseline_identity = _environment_identity(baseline_environment)
+    acceptance_identity = _environment_identity(acceptance_environment)
+    differing_fields = [
+        field
+        for field in ENVIRONMENT_IDENTITY_FIELDS
+        if baseline_identity[field] != acceptance_identity[field]
+    ]
+    tolerance: dict[str, object] = {
+        "field": "total_memory_bytes",
+        "page_size_bytes": MEMORY_PAGE_BYTES,
+        "maximum_absolute_difference_bytes": MEMORY_PAGE_BYTES,
+        "requires_positive_page_aligned_values": True,
+        "scope": "Linux WSL2 only; not a general cross-machine tolerance",
+    }
+    baseline_memory = baseline_environment["total_memory_bytes"]
+    acceptance_memory = acceptance_environment["total_memory_bytes"]
+    _require(
+        _is_positive_page_aligned(baseline_memory)
+        and _is_positive_page_aligned(acceptance_memory),
+        "environment total_memory_bytes values must be positive and 4096-byte aligned",
+    )
+    memory_difference = abs(int(acceptance_memory) - int(baseline_memory))
+    if not differing_fields:
+        return {
+            "policy_identifier": ENVIRONMENT_COMPATIBILITY_POLICY_ID,
+            "status": "exact_match",
+            "differing_fields": [],
+            "observed_total_memory_difference_bytes": memory_difference,
+            "tolerance": tolerance,
+        }
+
+    _require(
+        differing_fields == ["total_memory_bytes"],
+        "acceptance environment differs in a stable field outside the frozen memory exception",
+    )
+    _require(
+        _is_linux_wsl2(baseline_environment) and _is_linux_wsl2(acceptance_environment),
+        "the total-memory equivalence exception is limited to Linux WSL2",
+    )
+    _require(
+        memory_difference <= MEMORY_PAGE_BYTES,
+        "acceptance total_memory_bytes differs by more than one 4096-byte page",
+    )
+    return {
+        "policy_identifier": ENVIRONMENT_COMPATIBILITY_POLICY_ID,
+        "status": "equivalent_within_one_page",
+        "differing_fields": ["total_memory_bytes"],
+        "observed_total_memory_difference_bytes": memory_difference,
+        "tolerance": tolerance,
+    }
+
+
 def _acceptance_result(
     budget: dict[str, object],
     budget_sha256: str,
@@ -920,9 +991,13 @@ def _acceptance_result(
         acceptance_git_sha != baseline_git_sha,
         "acceptance must use a later Git revision than the frozen baseline",
     )
+    acceptance_identity = _environment_identity(runs[0]["environment"])
     _require(
-        all(_environment_identity(run["environment"]) == _environment_identity(baseline_environment) for run in runs),
-        "acceptance environment identity does not match the frozen baseline environment",
+        all(_environment_identity(run["environment"]) == acceptance_identity for run in runs),
+        "acceptance runs do not share one stable environment identity",
+    )
+    environment_compatibility = _environment_compatibility(
+        baseline_environment, runs[0]["environment"]
     )
     _require(
         all(run["benchmark_implementation"] == budget["benchmark_implementation"] for run in runs),
@@ -1038,6 +1113,7 @@ def _acceptance_result(
         "benchmark_implementation": budget["benchmark_implementation"],
         "acceptance_environment": runs[0]["environment"],
         "baseline_environment": baseline_environment,
+        "environment_compatibility": environment_compatibility,
         "acceptance_run_count": EXPECTED_RUN_COUNT,
         "samples_per_scenario_per_run": EXPECTED_SAMPLES_PER_SCENARIO,
         "warmups_per_scenario": EXPECTED_WARMUPS_PER_SCENARIO,

@@ -165,6 +165,25 @@ The official baseline environment recorded by run 1 was:
 The complete provenance, including the full `rustc` version output, remains in
 each raw measurement artifact.
 
+### Frozen Phase 18.3 environment-equivalence amendment
+
+Before official Phase 18.3 timing, the acceptance methodology permits one
+narrow, explicit equivalence case for the frozen baseline environment. All
+stable identity fields other than `total_memory_bytes` must match exactly, and
+all three acceptance runs must share that same stable identity. Only Linux WSL2
+may use the exception: both total-memory values must be positive and aligned to
+4096 bytes, and their absolute difference must be at most one 4096-byte page.
+Any larger difference, unaligned or non-positive value, non-WSL2 environment, or
+difference in another stable identity field is rejected.
+
+The evaluator records policy identifier
+`phase18.3-linux-wsl2-total-memory-one-page-v1`, compatibility status, differing
+fields, observed difference, and the fixed tolerance in the acceptance result.
+This is a frozen Phase 18.3 equivalence policy requiring independent Reviewer
+approval before official timing; it is not a general cross-machine tolerance.
+It does not change the Phase 18.2 budgets, raw baseline evidence, benchmark
+runner, workloads, or measurement semantics.
+
 ## Source-Level Complexity Audit
 
 The current implementation preserves the following bounded model:

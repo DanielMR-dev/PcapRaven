@@ -213,6 +213,16 @@ class Phase18AcceptanceTests(unittest.TestCase):
         self.assertEqual(result["acceptance_environment"]["git_sha"], "b" * 40)
         self.assertEqual(len(result["source_measurement_sha256"]), 3)
         self.assertEqual(len(result["budget_artifact_sha256"]), 64)
+        self.assertEqual(
+            result["environment_compatibility"]["policy_identifier"],
+            EVALUATOR.ENVIRONMENT_COMPATIBILITY_POLICY_ID,
+        )
+        self.assertEqual(result["environment_compatibility"]["status"], "exact_match")
+        self.assertEqual(result["environment_compatibility"]["differing_fields"], [])
+        self.assertEqual(
+            result["environment_compatibility"]["tolerance"]["page_size_bytes"],
+            EVALUATOR.MEMORY_PAGE_BYTES,
+        )
         required = {
             "scenario",
             "family",
@@ -449,6 +459,75 @@ class Phase18AcceptanceTests(unittest.TestCase):
         process = self.run_cli(budget, measurements)
         self.assertEqual(process.returncode, 0, process.stderr)
         self.assertTrue(json.loads(process.stdout)["overall_pass"])
+
+    def test_one_page_total_memory_equivalence_is_allowed(self) -> None:
+        budget, measurements = self.make_case()
+        accepted_total_memory = (
+            int(FROZEN_BUDGET["baseline_environment"]["total_memory_bytes"])
+            - EVALUATOR.MEMORY_PAGE_BYTES
+        )
+        for measurement in measurements:
+            measurement["environment"]["total_memory_bytes"] = accepted_total_memory
+        process = self.run_cli(budget, measurements)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        result = json.loads(process.stdout)
+        compatibility = result["environment_compatibility"]
+        self.assertTrue(result["overall_pass"])
+        self.assertEqual(compatibility["status"], "equivalent_within_one_page")
+        self.assertEqual(compatibility["differing_fields"], ["total_memory_bytes"])
+        self.assertEqual(compatibility["observed_total_memory_difference_bytes"], 4_096)
+
+    def test_total_memory_difference_above_one_page_is_rejected(self) -> None:
+        budget, measurements = self.make_case()
+        rejected_total_memory = (
+            int(FROZEN_BUDGET["baseline_environment"]["total_memory_bytes"])
+            + 2 * EVALUATOR.MEMORY_PAGE_BYTES
+        )
+        for measurement in measurements:
+            measurement["environment"]["total_memory_bytes"] = rejected_total_memory
+        self.assert_rejected(budget, measurements)
+
+    def test_unaligned_total_memory_equivalence_is_rejected(self) -> None:
+        budget, measurements = self.make_case()
+        rejected_total_memory = int(
+            FROZEN_BUDGET["baseline_environment"]["total_memory_bytes"]
+        ) - 1
+        for measurement in measurements:
+            measurement["environment"]["total_memory_bytes"] = rejected_total_memory
+        self.assert_rejected(budget, measurements)
+
+    def test_non_wsl_environment_cannot_use_memory_equivalence(self) -> None:
+        budget, measurements = self.make_case()
+        accepted_total_memory = (
+            int(FROZEN_BUDGET["baseline_environment"]["total_memory_bytes"])
+            - EVALUATOR.MEMORY_PAGE_BYTES
+        )
+        for measurement in measurements:
+            measurement["environment"]["total_memory_bytes"] = accepted_total_memory
+            measurement["environment"]["kernel"] = "6.18.33.2-native-linux"
+            measurement["environment"]["platform"] = "Linux-6.18.33.2-native-linux-x86_64"
+        self.assert_rejected(budget, measurements)
+
+    def test_non_wsl_policy_branch_is_rejected(self) -> None:
+        baseline_environment = deepcopy(FROZEN_BUDGET["baseline_environment"])
+        acceptance_environment = deepcopy(baseline_environment)
+        for environment in (baseline_environment, acceptance_environment):
+            environment["kernel"] = "6.18.33.2-native-linux"
+            environment["platform"] = "Linux-6.18.33.2-native-linux-x86_64"
+        acceptance_environment["total_memory_bytes"] -= EVALUATOR.MEMORY_PAGE_BYTES
+        with self.assertRaises(EVALUATOR.AcceptanceError):
+            EVALUATOR._environment_compatibility(baseline_environment, acceptance_environment)
+
+    def test_other_stable_field_cannot_use_memory_equivalence(self) -> None:
+        budget, measurements = self.make_case()
+        accepted_total_memory = (
+            int(FROZEN_BUDGET["baseline_environment"]["total_memory_bytes"])
+            - EVALUATOR.MEMORY_PAGE_BYTES
+        )
+        for measurement in measurements:
+            measurement["environment"]["total_memory_bytes"] = accepted_total_memory
+            measurement["environment"]["cpu_model"] = "Other CPU"
+        self.assert_rejected(budget, measurements)
 
     def test_wrong_warmup_count_is_rejected(self) -> None:
         budget, measurements = self.make_case()
