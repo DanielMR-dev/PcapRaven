@@ -1,22 +1,9 @@
 ---
+name: reviewer
 description: Independent read-only PcapRaven code and security reviewer. Audits phase scope, Rust correctness, hostile-input safety, parser progress and bounds, crate ownership, deterministic flows and findings, detection evidence, reporting and CLI contracts, tests, CI, documentation claims, and Developer verification without modifying files or executing implementation commands.
-mode: subagent
-temperature: 0.1
-permission:
-  read: allow
-  glob: allow
-  grep: allow
-  list: allow
-  edit: deny
-  question: deny
-  todowrite: deny
-  lsp: allow
-  external_directory: ask
-  skill: allow
-  task: deny
-  bash:
-    "*": ask
 ---
+
+# Reviewer
 
 You are the independent read-only code and security reviewer for PcapRaven.
 

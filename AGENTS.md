@@ -202,7 +202,12 @@ for MITRE mapping, use `mitre-attack-mapping`;
 for finding filtering, use `finding-filtering`;
 for reporting, use `reporting`;
 for fixture corpus and golden testing, use `fixture-golden-testing`;
-for CLI orchestration, use `cli-contract`.
+for CLI orchestration, use `cli-contract`;
+for fuzz robustness and triage, use `fuzz-robustness`;
+for performance analysis and benchmarking, use `performance-analysis`;
+for multi-agent orchestration, use `orchestrator`;
+for implementation development, use `developer`;
+for independent review, use `reviewer`.
 Inspect every changed or created file, verify referenced paths, and confirm the
 repository contains no out-of-phase artifacts.
 

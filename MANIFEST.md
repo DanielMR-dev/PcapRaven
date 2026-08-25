@@ -102,21 +102,24 @@ capability is implemented.
 | `.agents/skills/cli-contract/SKILL.md` | Reusable command-line interface, streaming orchestration, and exit status procedure. |
 | `.agents/skills/connection-behavior-detection/SKILL.md` | Reusable explainable repeated low-volume flow behavior detection procedure. |
 | `.agents/skills/detection-engine/SKILL.md` | Reusable detection engine architecture, detector registration, configuration, and evaluation procedure. |
+| `.agents/skills/developer/SKILL.md` | Reusable senior Rust developer instructions, safety invariants, and implementation procedure. |
 | `.agents/skills/dns-detection/SKILL.md` | Reusable DNS anomaly and possible tunneling detection procedure. |
 | `.agents/skills/dns-protocol-analysis/SKILL.md` | Reusable DNS wire parser, candidate classification, and observation extraction procedure. |
 | `.agents/skills/finding-correlation/SKILL.md` | Reusable cross-detector finding correlation procedure. |
 | `.agents/skills/finding-filtering/SKILL.md` | Reusable explainable finding filtering procedure. |
 | `.agents/skills/fixture-golden-testing/SKILL.md` | Reusable synthetic fixture corpus, schema freeze verification, golden reports, and end-to-end regression testing procedure. |
-| `.agents/skills/fuzz-robustness/SKILL.md` | Reusable bounded fuzz harness, corpus, campaign, invariant, and triage procedure. |
 | `.agents/skills/flow-reconstruction/SKILL.md` | Reusable bidirectional flow reconstruction procedure. |
 | `.agents/skills/flow-statistics/SKILL.md` | Reusable flow statistics and temporal metrics review procedure. |
+| `.agents/skills/fuzz-robustness/SKILL.md` | Reusable bounded fuzz harness, corpus, campaign, invariant, and triage procedure. |
 | `.agents/skills/http-protocol-analysis/SKILL.md` | Reusable HTTP/1.x header parser, candidate classification, sensitive header masking, and observation extraction procedure. |
 | `.agents/skills/mitre-attack-mapping/SKILL.md` | Reusable MITRE ATT&CK Enterprise Matrix v19.2 mapping provenance and validation procedure. |
 | `.agents/skills/observation-evidence-model/SKILL.md` | Reusable unified protocol observation and structured evidence procedure. |
+| `.agents/skills/orchestrator/SKILL.md` | Reusable software architect and multi-agent orchestrator planning and delegation procedure. |
 | `.agents/skills/periodic-beaconing/SKILL.md` | Reusable explainable periodic beaconing detection procedure. |
 | `.agents/skills/performance-analysis/SKILL.md` | Reusable worst-case complexity, scalable benchmark, and performance regression procedure. |
 | `.agents/skills/phase-validation/SKILL.md` | Reusable phase-scope and completion procedure. |
 | `.agents/skills/reporting/SKILL.md` | Reusable multi-format reporting, schema serialization, sanitization, and output file procedure. |
+| `.agents/skills/reviewer/SKILL.md` | Reusable independent read-only code and security reviewer auditing procedure. |
 | `.agents/skills/rust-quality/SKILL.md` | Reusable Rust and Cargo quality procedure. |
 | `.agents/skills/secure-parser-review/SKILL.md` | Reusable hostile-input parser review procedure. |
 | `.agents/skills/tls-protocol-analysis/SKILL.md` | Reusable TLS 1.2 / TLS 1.3 handshake parser, candidate classification, privacy non-retention, and observation extraction procedure. |
