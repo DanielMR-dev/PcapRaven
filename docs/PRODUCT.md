@@ -20,8 +20,9 @@ Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe o
 and Phase 17 synthetic fixtures, golden reports, and end-to-end integration testing are complete.
 Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted behavior-preserving internal refactoring is
-current and in progress; it adds no product feature semantics. Phases 20
-through 28 are future and not implemented.
+complete and accepted; it adds no product feature semantics. Phase 20 is next,
+future, and not implemented; Phases 21 through 28 remain future and not
+implemented.
 
 ## Problem Statement
 

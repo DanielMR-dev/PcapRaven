@@ -18,9 +18,12 @@ and Phase 17 synthetic fixture corpus, golden report matrix, cross-crate integra
 end-to-end regression testing, and mandatory Phase 17.1 hardening are complete.
 Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted behavior-preserving internal refactoring is
-current and in progress; the authorized implementation is limited to private
-CLI helpers and remains pending independent review and final gates. Phases 20
-through 28 are future and not implemented.
+complete and accepted; the authorized implementation was limited to private
+CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
+logical jobs, including all eight fuzz-smoke targets, and the independent
+source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 is next,
+future, and not implemented; Phases 21 through 28 remain future and not
+implemented.
 
 ## Testing Pyramid
 
@@ -511,10 +514,12 @@ Phase 18 is complete. Its bounded fuzz, verifier-hardening, CI-smoke, benchmark
 foundation, Phase 18.1 full fuzz acceptance campaigns, Phase 18.2 performance
 baseline/budget work, and Phase 18.3 final performance acceptance are all
 implemented and verified. Phase 19 release code-health audit and targeted
-behavior-preserving internal refactoring is current and in progress. The
-authorized implementation is limited to private CLI helpers and remains
-pending independent review and final gates. Phases 20 through 28 remain future
-and not implemented.
+behavior-preserving internal refactoring is complete and accepted. The
+authorized implementation was limited to private CLI helpers. PR workflow run
+`32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all eight
+fuzz-smoke targets; the independent source-read-only re-review found no
+CRITICAL or HIGH findings. Phase 20 is next, future, and not implemented;
+Phases 21 through 28 remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

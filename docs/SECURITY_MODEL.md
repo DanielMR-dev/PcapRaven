@@ -23,9 +23,9 @@ Phase 16 adds deterministic reporting architecture (Table, JSON, NDJSON, CSV), C
 and Phase 17 adds the manifest-backed synthetic fixture corpus, golden reports,
 and end-to-end regression testing. Phase 18 robustness and performance
 verification is complete. Phase 19 release code-health audit and targeted
-behavior-preserving internal refactoring is current and in progress; this
-stage claims no new security capability or v1.0.0 release. Phases 20 through 28
-are future and not implemented.
+behavior-preserving internal refactoring is complete and accepted; this stage
+claims no new security capability or v1.0.0 release. Phase 20 is next, future,
+and not implemented; Phases 21 through 28 remain future and not implemented.
 
 ## Assets
 

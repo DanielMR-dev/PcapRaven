@@ -27,10 +27,14 @@ and **Phase 17: Synthetic fixture corpus, golden reports, and integration/E2E re
 are complete. Phase 18.1 full fuzz acceptance, Phase 18.2 performance
 baseline/budget work, and Phase 18.3 final performance acceptance are complete.
 Phase 19 release code-health audit and targeted behavior-preserving internal
-refactoring is current and in progress. The authorized implementation is
-limited to private CLI helpers and remains pending independent review and final
-gates. Phases 20 through 28 are future and not implemented. This status does
-not claim v1.0.0 or release readiness.
+refactoring is complete and accepted. Its implementation was limited to
+private CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all
+13 logical jobs, including all eight fuzz-smoke targets; the accepted
+performance retry passed stability `24/24`, median budgets `24/24`, and growth
+budgets `13/13`; and the independent source-read-only re-review found no
+CRITICAL or HIGH findings. Phase 20 is next, future, and not implemented;
+Phases 21 through 28 remain future and not implemented. This status does not
+claim v1.0.0 or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.

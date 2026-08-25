@@ -9,7 +9,7 @@ it does not mean all later capabilities are available.
 
 Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, and Phase 18 are complete.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is current and in progress. Phases 20 through 28 are future and not implemented; only Phase 19 implementation scope is active.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 is next, future, and not implemented; Phases 21 through 28 remain future and not implemented.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -270,9 +270,9 @@ budgets, and 13/13 meaningful growth budgets. The machine-readable result and
 raw acceptance evidence are tracked under `docs/performance/`.
 
 Phase 18 — COMPLETE. Its required robustness and performance acceptance evidence
-is a prerequisite for the current Phase 19 gate.
+was a prerequisite for the Phase 19 gate.
 
-## Phase 19 - Release code-health audit and targeted internal refactoring (CURRENT; IN PROGRESS)
+## Phase 19 - Release code-health audit and targeted internal refactoring (COMPLETE; ACCEPTED)
 
 Audit every production Rust module for evidence-backed code-health findings and
 apply only targeted, behavior-preserving internal refactoring. Preserve the
@@ -280,11 +280,15 @@ CLI, reporting schema, detector and MITRE semantics, dependency graph, workspace
 shape, fixture corpus, golden outputs, security invariants, and Phase 18
 performance/fuzz evidence. Phase 19 adds no product feature, new public API,
 new dependency, new crate, release packaging, or v1.0.0 claim. The governance
-and audit stage records the baseline and dispositions; production refactoring is
-performed only in a separately authorized implementation stage. The current
-implementation remains in progress pending final gates and independent review.
+and audit stage recorded the baseline and dispositions; production refactoring
+was performed only in the separately authorized implementation stage. PR
+workflow run `32889910915` for HEAD `674c8fd` passed all 13 logical jobs,
+including all eight fuzz-smoke targets. The accepted performance retry at
+measurement SHA `dbcf108` passed stability `24/24`, median budgets `24/24`, and
+growth budgets `13/13`; the independent source-read-only re-review found no
+CRITICAL or HIGH findings.
 
-## Phase 20 - Final security and supply-chain hardening (FUTURE; NOT IMPLEMENTED)
+## Phase 20 - Final security and supply-chain hardening (NEXT; FUTURE; NOT IMPLEMENTED)
 
 Perform the final security, dependency, license, provenance, and supply-chain
 hardening review after Phase 19 is accepted. No Phase 20 capability is

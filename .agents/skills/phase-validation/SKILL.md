@@ -387,10 +387,10 @@ completed and must remain backed by the tracked evidence. Phase 19 is outside
 the completed Phase 18 gate; its current requirements are defined in the
 dedicated Phase 19 Gate below.
 
-## Phase 19 Gate
+## Phase 19 Gate (COMPLETE; ACCEPTED)
 
-Phase 19 is the current release code-health audit and targeted
-behavior-preserving internal-refactoring gate. It may start only from the
+Phase 19 was the release code-health audit and targeted behavior-preserving
+internal-refactoring gate. It may start only from the
 accepted Phase 18 baseline, including the Phase 18.3 final robustness and
 performance acceptance evidence. The gate requires:
 
@@ -419,5 +419,5 @@ performance acceptance evidence. The gate requires:
   budgets; the evaluation must pass. Raw benchmark output stays under `/tmp`.
 - An independent Reviewer confirms that no CRITICAL or HIGH findings remain,
   phase boundaries and canonical documents agree, and no premature
-  functionality is present. Phase 19 remains `IN PROGRESS` until review and
-  all required evidence are complete.
+  functionality is present. The gate is complete because the listed evidence
+  passed and the independent Reviewer confirmed these requirements.
