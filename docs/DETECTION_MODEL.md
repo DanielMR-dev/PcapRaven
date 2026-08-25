@@ -13,7 +13,7 @@ the explainable periodic beaconing detector (`behavior.periodic_beaconing`),
 explainable DNS anomaly and possible tunneling detectors (`dns.long_query_name`, `dns.possible_tunneling`),
 explainable repeated low-volume flow detector (`behavior.repeated_low_volume_flows`), and
 Structured reporting formats (JSON, NDJSON, CSV, table), safe output file creation, and full `analyze` orchestration (Phase 16) are complete in `pcapraven-reporting` and `pcapraven-cli`.
-Synthetic fixture corpus generation, golden reports, and end-to-end integration testing (Phase 17) are complete. Phase 18 robustness and performance verification is current.
+Synthetic fixture corpus generation, golden reports, and end-to-end integration testing (Phase 17) are complete. Phase 18 robustness and performance verification is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is current and in progress. Phases 20 through 28 are future and not implemented.
 
 ## Separation from Parsing
 

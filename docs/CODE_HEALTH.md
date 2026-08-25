@@ -201,7 +201,6 @@ private, behavior-preserving target; the implemented targets are recorded below.
 | CH-005 | `crates/pcapraven-cli/src/app.rs:529-680` | Duplication / finding filtering | `run_findings` and `run_analyze` repeat `FindingFilterDto` construction, `FindingFilter` setup, filtered finding selection, and canonical evidence closure. | Filter or evidence ordering changes may be applied to one command but not the other. | REFACTOR_PHASE_19 |
 | CH-006 | `crates/pcapraven-cli/src/app.rs:427-513` | Duplication / projection allocation | DNS, HTTP, and TLS inspection commands each clone matching protocol observations from the unified collection using nearly identical loops. | Repeated projection code increases maintenance surface; the clones themselves are required by current reporting ownership. | REFACTOR_PHASE_19 |
 | CH-007 | `crates/pcapraven-cli/src/analysis.rs:657-730`; `crates/pcapraven-cli/src/diagnostics.rs:131-227` | Panic search / tests | The only exact `expect(` and `unwrap(` matches are in test-only helpers: repository fixture path setup and UTF-8 conversion of a test-owned buffer. No production path contains these calls. | No malformed capture or protocol input reaches either test assertion. | NO_ISSUE |
-| CH-008 | `crates/pcapraven-cli/src/analysis.rs:76` | Allow attributes / visibility | The broad `#[allow(dead_code)]` covers the public-in-the-binary `AnalysisResult` even though its fields are consumed by `app.rs`. | A future unused field could be hidden by a broad suppression. | REFACTOR_PHASE_19 |
 | CH-009 | `crates/pcapraven-detection/src/correlation.rs:198`; `crates/pcapraven-domain/src/{finding,flow_metrics,mitre_attack}.rs`; `crates/pcapraven-pcap/src/reader.rs:705,1956`; `crates/pcapraven-protocols/src/normalizer.rs:729` | Allow attributes / cohesive APIs | Nine narrowly scoped `clippy::too_many_arguments` allowances occur at cohesive parser, builder, or domain-construction boundaries. | Removing them would obscure cohesive parameter contracts without improving safety. | KEEP_WITH_RATIONALE |
 | CH-010 | `crates/pcapraven-protocols/src/normalizer.rs:298` | Unsafe Rust | The only `unsafe` token is in a comment explaining why fragmented transport interpretation is unsafe without reassembly. No `unsafe` item or block exists in production Rust. | No unsafe operation is enabled. | NO_ISSUE |
 | CH-011 | `crates/pcapraven-detection/src/engine.rs`; `crates/pcapraven-detection/src/config.rs`; `crates/pcapraven-domain/src/{flow,finding}.rs`; `crates/pcapraven-protocols/src/{dns,http,tls}.rs`; `crates/pcapraven-pcap/src/reader.rs`; `crates/pcapraven-reporting/src/table/mod.rs` | Indexing / slicing | Direct indexing and slices occur after fixed-size, length, `windows(2)`, or parser-offset checks. Examples include byte-array formatting, DNS/TCP framing, HTTP status parsing, TLS records, and the table ALPN first-element branch. | An unreviewed boundary access would be a hostile-input defect. | NO_ISSUE |
@@ -233,10 +232,9 @@ changing observable behavior:
   contains the same four detectors and one correlator in the same registration
   order, with the same metadata validation, canonical registry behavior, and
   error strings.
-- CH-003 and the `dead_code` part of CH-008 —
-  `crates/pcapraven-cli/src/analysis.rs`: the broad `AnalysisResult`
-  `#[allow(dead_code)]` was removed; all fields, methods, and ownership remain
-  intact.
+- CH-003 — `crates/pcapraven-cli/src/analysis.rs`: the broad
+  `AnalysisResult` `#[allow(dead_code)]` was removed; all fields, methods, and
+  ownership remain intact.
 - CH-004 — `crates/pcapraven-cli/src/app.rs`: `execute_analysis` centralizes
   emitter creation, `run_analysis` error translation, finalization, and I/O
   handling for analysis-backed inspection commands while preserving exit codes.
@@ -331,20 +329,45 @@ benchmark output must not be committed.
 
 Only private CLI orchestration changed; no fuzzed library or parser surface
 changed. The accepted Phase 18.1 full eight-target fuzz evidence therefore
-remains applicable to this refactor. The normal eight-target Linux CI smoke
-remains required for the completed Phase 19 branch:
+remains applicable to this refactor and is not replaced by the local evidence
+below.
+
+The exact CI-form `fuzz_pcap_reader` command was attempted on WSL2 with
+`ptrace_scope=1`:
 
 ```text
-cargo +nightly fuzz run <target> fuzz/corpus/<target> -- \
-  -max_len=<target-limit> -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo +nightly fuzz run "fuzz_pcap_reader" "fuzz/corpus/fuzz_pcap_reader" -- \
+  -max_len=4096 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
 ```
 
-The eight targets are `fuzz_pcap_reader`, `fuzz_packet_normalizer`,
-`fuzz_flow_reconstructor`, `fuzz_dns_parser`, `fuzz_http_parser`,
-`fuzz_tls_parser`, `fuzz_detection_engine`, and `fuzz_reporting`. A full new
-600-second campaign is not required for a CLI-only private refactor unless a
-fuzzed library surface changes; any such change must be re-audited before the
-exception is used.
+The 30-second campaign completed without a code crash, but LeakSanitizer
+teardown exited 1 because the host ptrace policy is incompatible with the
+sanitizer. The generated empty artifact was removed. This is a WSL2
+host/tooling result, not a passing CI result.
+
+A local `ASAN_OPTIONS=detect_leaks=0` workaround completed all eight targets
+with the exact CI limits. The logs are retained outside the repository under
+`/tmp/pcapraven-fuzz-fuzz_*.log`, including
+`/tmp/pcapraven-fuzz-fuzz_pcap_reader.log`:
+
+| Target | CI `max_len` | Local log |
+| --- | ---: | --- |
+| `fuzz_pcap_reader` | 4096 | `/tmp/pcapraven-fuzz-fuzz_pcap_reader.log` |
+| `fuzz_packet_normalizer` | 8192 | `/tmp/pcapraven-fuzz-fuzz_packet_normalizer.log` |
+| `fuzz_flow_reconstructor` | 4096 | `/tmp/pcapraven-fuzz-fuzz_flow_reconstructor.log` |
+| `fuzz_dns_parser` | 4096 | `/tmp/pcapraven-fuzz-fuzz_dns_parser.log` |
+| `fuzz_http_parser` | 8192 | `/tmp/pcapraven-fuzz-fuzz_http_parser.log` |
+| `fuzz_tls_parser` | 32768 | `/tmp/pcapraven-fuzz-fuzz_tls_parser.log` |
+| `fuzz_detection_engine` | 4096 | `/tmp/pcapraven-fuzz-fuzz_detection_engine.log` |
+| `fuzz_reporting` | 8192 | `/tmp/pcapraven-fuzz-fuzz_reporting.log` |
+
+Every local command used `-max_total_time=30`, `-timeout=5`, and
+`-rss_limit_mb=1024` in addition to the target-specific `max_len` above. This
+local workaround evidence is not equivalent to authoritative Linux CI. The
+exact eight-target Linux CI smoke remains required, and the PR CI result is
+pending; neither is claimed as passed here. A full new 600-second campaign is
+not required for a CLI-only private refactor unless a fuzzed library surface
+changes; any such change must be re-audited before that exception is used.
 
 ## Remaining Review Observations
 
@@ -352,9 +375,19 @@ exception is used.
   Phase 19 cannot be marked complete until the source-read-only Reviewer
   confirms scope, behavior preservation, hostile-input safety, and the final
   validation evidence with zero CRITICAL and zero HIGH findings.
-- The full three-run performance acceptance, final CI result, post-refactor fuzz
-  smoke result, and independent Reviewer sign-off are not claimed by this
-  Developer-stage document.
+- The first post-refactor three-run performance evaluation was unstable at
+  23/24 stability checks, so it was not accepted. A subsequent retry passed
+  with 24/24 stability checks, 24/24 median budgets, 13/13 growth budgets, and
+  `overall_pass = true` at measurement SHA
+  `bdd913e2c52b48cdb96c6a887b989f605cb6a5fa`. The retry inputs were
+  `/tmp/pcapraven-phase19-retry-1.json`,
+  `/tmp/pcapraven-phase19-retry-2.json`, and
+  `/tmp/pcapraven-phase19-retry-3.json`; they remain outside the repository and
+  do not replace Phase 18 evidence.
+- The authoritative eight-target Linux fuzz smoke and PR CI result remain
+  pending; the local LeakSanitizer workaround above is not equivalent to
+  Linux CI. Independent Reviewer re-review and the final Phase 19 status
+  transition also remain outstanding.
 - The governance stage updated `MANIFEST.md` to include `docs/CODE_HEALTH.md`;
   the new ledger path is reconciled with the repository inventory.
 - No additional evidence-backed code-health issue was identified beyond the
