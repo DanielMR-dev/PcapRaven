@@ -8,8 +8,8 @@ panics, hangs, uncontrolled memory growth, or invariant violations. All discover
 boundary edge cases were triaged, fixed in safe Rust, and hardened with deterministic
 regression test coverage. Phase 18.2 performance baseline and acceptance
 budgets are complete and tracked in `PERFORMANCE.md` and `docs/performance/`.
-Phase 18.3 final performance acceptance remains separate and pending; Phase 19
-release packaging remains future work.
+Phase 18.3 final performance acceptance is complete and passed the frozen
+budgets. Phase 19 release packaging remains future work and is not implemented.
 
 ## Threat Model and Invariants
 
@@ -133,3 +133,10 @@ growth blocks acceptance. Reproducers must be minimized, reviewed for privacy,
 fixed at the owning layer, and then checked in only as an intentional regression
 test with documented provenance. All 16 curated synthetic seed fixtures remain
 intact and verified.
+
+The Phase 18.1 fuzz evidence remains applicable: no production Rust surface
+changed after the accepted fuzz revision. The Phase 18.2 Windows EOL remediation
+and Phase 18.3 acceptance evaluator/evidence changes were repository-policy,
+tooling, or documentation changes and did not alter fuzzed production behavior.
+Together with the completed final performance acceptance, this closes the
+Phase 18 robustness and performance gate.

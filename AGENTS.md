@@ -26,8 +26,13 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository baseline is Phase 17 after the mandatory Phase 17.1
-fixture, golden, and analysis-pipeline hardening gate. Phase 0 product and governance work, Phase 1
+The accepted repository baseline is Phase 18 after the mandatory Phase 18.3
+final robustness and performance acceptance gate. Phase 18.1 full fuzz
+acceptance, Phase 18.2 performance baseline/budget work, and Phase 18.3 final
+acceptance are complete. Phase 19 is the next roadmap scope and remains out of
+scope; no Phase 19 capability or release is implemented.
+
+Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
 normalization work, Phase 4 flow reconstruction, Phase 5 checked flow
 statistics and exact temporal metrics, Phase 6 initial functional CLI with
@@ -44,8 +49,9 @@ findings CLI inspection, and Phase 16/16.1 deterministic reporting architecture 
 safe output file creation, schema freeze, and unified `analyze` CLI subcommand are complete.
 Phase 17 synthetic fixture corpus generation, golden report matrix, cross-crate integration,
 end-to-end regression testing, and the Phase 17.1 hardening gate are complete.
-Phase 18 robustness and performance verification is the current roadmap scope;
-only separately delegated Phase 18 work may begin, and Phase 19 remains out of scope.
+Phase 18 robustness and performance verification is complete. Phase 19 is the
+next roadmap scope and remains out of scope until separately delegated; no
+Phase 19 capability may be claimed as implemented.
 
 ## Project Invariants
 

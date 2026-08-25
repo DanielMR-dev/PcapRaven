@@ -6,7 +6,7 @@ network traffic, reconstruct bidirectional flows, extract selected DNS,
 HTTP/1.x, and TLS handshake metadata, and produce explainable heuristic security
 findings.
 
-## Early Development Status
+## Project Status
 
 Phase 0 product and governance work, **Phase 1: Cargo workspace, crate
 skeletons, baseline CI, and tooling**, **Phase 2: Safe PCAP/PCAPNG capture reader**,
@@ -24,10 +24,10 @@ exact temporal metrics**, **Phase 6: Initial functional CLI + capture/flow inspe
 **Phase 15: Severity, confidence, finding filtering, and MITRE ATT&CK mapping provenance**,
 **Phase 16: Deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, and unified `analyze` CLI**,
 and **Phase 17: Synthetic fixture corpus, golden reports, and integration/E2E regression testing**
-are complete. Phase 18.1 full fuzz acceptance and Phase 18.2 performance
-baseline/budget work are complete. Phase 18 remains in progress because the
-separate Phase 18.3 final performance acceptance gate is pending; this status
-does not claim final Phase 18 acceptance or release readiness.
+are complete. Phase 18.1 full fuzz acceptance, Phase 18.2 performance
+baseline/budget work, and Phase 18.3 final performance acceptance are complete.
+Phase 19 is the next roadmap scope and is not implemented. This status does not
+claim v1.0.0 or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.

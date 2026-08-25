@@ -21,7 +21,9 @@ explainable repeated low-volume flow behavior detection and deterministic cross-
 Phase 15 adds severity/confidence classification, finding filtering, and MITRE ATT&CK mapping provenance,
 Phase 16 adds deterministic reporting architecture (Table, JSON, NDJSON, CSV), CSV formula injection defenses, safe output file lifecycle, and unified forensic analysis (`analyze`),
 and Phase 17 adds the manifest-backed synthetic fixture corpus, golden reports,
-and end-to-end regression testing. Phase 18 robustness and performance verification is current.
+and end-to-end regression testing. Phase 18 robustness and performance
+verification is complete. Phase 19 is the next roadmap scope and remains
+unimplemented; no Phase 19 capability or v1.0.0 release is claimed.
 
 ## Assets
 
@@ -225,7 +227,8 @@ Algorithm choices must consider worst-case behavior, not only average captures.
 The Phase 18 bounded fuzz/benchmark foundation and complexity audit are
 documented in `ROBUSTNESS.md` and `PERFORMANCE.md`. Phase 18.2 established the
 clean-revision performance baseline and froze its bounded regression budgets;
-the separately reviewed Phase 18.3 final acceptance remains pending.
+the separately reviewed Phase 18.3 final acceptance passed and completes the
+Phase 18 verification gate.
 Boundedness may not be weakened to improve results.
 
 ## Partial and Malformed Captures

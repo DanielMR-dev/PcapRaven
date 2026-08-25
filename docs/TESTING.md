@@ -16,7 +16,8 @@ Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance 
 Phase 16 deterministic reporting architecture and schema contract tests,
 and Phase 17 synthetic fixture corpus, golden report matrix, cross-crate integration,
 end-to-end regression testing, and mandatory Phase 17.1 hardening are complete.
-Phase 18 robustness and performance verification is current.
+Phase 18 robustness and performance verification is complete; Phase 19 is the
+next roadmap scope and is not implemented.
 
 ## Testing Pyramid
 
@@ -122,9 +123,9 @@ progress and output invariants.
 Crashes and hangs are minimized, triaged, fixed, and promoted to the regression
 corpus. Corpus files must follow the fixture privacy and provenance policy.
 Long-running campaigns supplement, but do not replace, deterministic CI smoke
-runs. Platform sanitizer coverage is part of the current Phase 18 robustness
-contract. Phase 18.2 performance budgets are frozen for Phase 18.3, while the
-final Phase 18.3 acceptance remains pending.
+runs. Platform sanitizer coverage is part of the completed Phase 18 robustness
+contract. Phase 18.2 performance budgets were frozen and the final Phase 18.3
+acceptance passed against them.
 
 ## Fixture Policy
 
@@ -503,10 +504,11 @@ cargo +nightly fuzz build
 python3 scripts/run_phase18_benchmarks.py --smoke
 ```
 
-Phase 18 remains current. Its bounded fuzz, verifier-hardening, CI-smoke, and
-benchmark foundation is implemented. Phase 18.1 full fuzz acceptance campaigns
-and Phase 18.2 performance baseline/budget work are complete; Phase 18.3 final
-performance acceptance remains pending.
+Phase 18 is complete. Its bounded fuzz, verifier-hardening, CI-smoke, benchmark
+foundation, Phase 18.1 full fuzz acceptance campaigns, Phase 18.2 performance
+baseline/budget work, and Phase 18.3 final performance acceptance are all
+implemented and verified. Phase 19 remains the next, unimplemented roadmap
+scope.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte
@@ -549,8 +551,9 @@ baseline was collected from clean revision
 `cd98fa6164ce0a6473386e9dca841cd57c599427`; all 24 scenarios met the frozen
 stability ceiling, with a maximum spread of 1,158 basis points. The raw runs
 and the derived 24 absolute / 13 meaningful growth budgets are tracked under
-`docs/performance/`. The budgets are frozen for Phase 18.3, but the final
-performance acceptance comparison has not been executed.
+`docs/performance/`. The final Phase 18.3 comparison passed with 24/24 median
+budgets, 13/13 growth budgets, and 24/24 stability checks; the result and raw
+acceptance runs are tracked under `docs/performance/`.
 
 ## Dependency Audits
 
