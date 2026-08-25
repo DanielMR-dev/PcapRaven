@@ -37,10 +37,12 @@ parsers, packet decoders, flow logic, protocol analysis, detection, reporting,
 and functional CLI behavior. README and all examples had to label future
 capabilities as planned or targeted.
 
-Reject completion when any required path is missing, any internal link is
-broken, the roadmap does not contain exactly Phase 0 through Phase 19 in the
-required order, OpenCode frontmatter or reviewer permissions are invalid, or a
-document contradicts its canonical owner.
+At the historical Phase 0 gate, reject completion when any required path was
+missing, any internal link was broken, the roadmap did not contain exactly
+Phase 0 through Phase 19 in the required order, OpenCode frontmatter or
+reviewer permissions were invalid, or a document contradicted its canonical
+owner. That exact Phase 0-through-19 roadmap requirement was historical; the
+current roadmap may list future phases after Phase 19.
 
 ## Phase 1 Gate
 
