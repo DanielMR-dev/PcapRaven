@@ -305,11 +305,23 @@ byte-identical.
 
 The refactors add private dispatch helpers but no additional retained data,
 nested scans, parser passes, or unbounded allocations. The projection helper
-retains the existing bounded clone ownership. The baseline smoke matrix passed,
-but smoke output is not a substitute for the required Phase 19 full
-revalidation because `analysis.rs` and `app.rs` changed. After the finalized
-refactor is committed on a clean worktree, run exactly three full runs from the
-compatible baseline environment:
+retains the existing bounded clone ownership. The first three-run full
+revalidation set for the remediation baseline,
+`/tmp/pcapraven-phase19-final-run-1.json` through
+`/tmp/pcapraven-phase19-final-run-3.json`, was not accepted: stability was
+`23/24` because `flows_higher` was unstable.
+
+The subsequent retry set is the accepted performance evidence for remediation
+baseline commit `dbcf108f1ec4f8f9c9bf14f83ef2bfb0ed3de0e6`:
+`/tmp/pcapraven-phase19-final-retry-1.json` through
+`/tmp/pcapraven-phase19-final-retry-3.json` passed with stability `24/24`,
+median budgets `24/24`, growth budgets `13/13`, and `overall_pass = true`; the
+measurement SHA is `dbcf108f1ec4f8f9c9bf14f83ef2bfb0ed3de0e6`. These files remain
+outside the repository. Phase 18 evidence was not replaced, and no Phase 19
+benchmark output was committed.
+
+The performance gate used exactly three full runs from the compatible baseline
+environment:
 
 ```text
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase19-run-1.json
@@ -320,10 +332,9 @@ python3 -m json.tool /tmp/pcapraven-phase19-performance-result.json > /dev/null
 ```
 
 Acceptance requires stability `24/24`, median `24/24`, growth `13/13`, and
-overall `true`. The post-refactor smoke benchmark passed and is retained outside
-the repository at `/tmp/pcapraven-phase19-postrefactor-smoke.json`; it is not a
-full acceptance result. Phase 18 evidence must not be replaced and Phase 19
-benchmark output must not be committed.
+overall `true`. The earlier `bdd913e2c52b48cdb96c6a887b989f605cb6a5fa` retry is
+historical context only and is not the final accepted set for this remediation
+baseline.
 
 ## Fuzz/Robustness Implications
 
@@ -375,15 +386,18 @@ changes; any such change must be re-audited before that exception is used.
   Phase 19 cannot be marked complete until the source-read-only Reviewer
   confirms scope, behavior preservation, hostile-input safety, and the final
   validation evidence with zero CRITICAL and zero HIGH findings.
-- The first post-refactor three-run performance evaluation was unstable at
-  23/24 stability checks, so it was not accepted. A subsequent retry passed
-  with 24/24 stability checks, 24/24 median budgets, 13/13 growth budgets, and
-  `overall_pass = true` at measurement SHA
-  `bdd913e2c52b48cdb96c6a887b989f605cb6a5fa`. The retry inputs were
-  `/tmp/pcapraven-phase19-retry-1.json`,
-  `/tmp/pcapraven-phase19-retry-2.json`, and
-  `/tmp/pcapraven-phase19-retry-3.json`; they remain outside the repository and
-  do not replace Phase 18 evidence.
+- The first three-run full revalidation set,
+  `/tmp/pcapraven-phase19-final-run-1.json` through
+  `/tmp/pcapraven-phase19-final-run-3.json`, was not accepted because
+  `flows_higher` made stability fail at `23/24`. The subsequent retry inputs,
+  `/tmp/pcapraven-phase19-final-retry-1.json`,
+  `/tmp/pcapraven-phase19-final-retry-2.json`, and
+  `/tmp/pcapraven-phase19-final-retry-3.json`, passed with `24/24` stability,
+  `24/24` median budgets, `13/13` growth budgets, and `overall_pass = true` at
+  measurement SHA `dbcf108f1ec4f8f9c9bf14f83ef2bfb0ed3de0e6`. They remain outside
+  the repository and do not replace Phase 18 evidence. The earlier
+  `bdd913e2c52b48cdb96c6a887b989f605cb6a5fa` retry is historical context only,
+  not the final accepted set.
 - The authoritative eight-target Linux fuzz smoke and PR CI result remain
   pending; the local LeakSanitizer workaround above is not equivalent to
   Linux CI. Independent Reviewer re-review and the final Phase 19 status
