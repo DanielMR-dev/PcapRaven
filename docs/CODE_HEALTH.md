@@ -320,6 +320,14 @@ measurement SHA is `dbcf108f1ec4f8f9c9bf14f83ef2bfb0ed3de0e6`. These files remai
 outside the repository. Phase 18 evidence was not replaced, and no Phase 19
 benchmark output was committed.
 
+The fresh docs-only commit
+`85764a12440bee41e4ff5ed2368717b427cdf5ee` was also evaluated with
+`/tmp/pcapraven-phase19-accepted-run-1.json` through
+`/tmp/pcapraven-phase19-accepted-run-3.json`; the set was `unstable`, with
+stability `23/24`, median budgets `24/24`, growth budgets `13/13`, failed
+scenario `flows_higher`, and `overall_pass = false`. It was not accepted and is
+not a runtime regression because `85764a1` changed documentation only.
+
 The performance gate used exactly three full runs from the compatible baseline
 environment:
 
