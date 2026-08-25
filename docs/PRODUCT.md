@@ -18,8 +18,11 @@ Phase 14 explainable repeated low-volume flow behavior and finding correlation,
 Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance,
 Phase 16 deterministic reporting architecture (Table, JSON, NDJSON, CSV), safe output files, unified `analyze` CLI,
 and Phase 17 synthetic fixtures, golden reports, and end-to-end integration testing are complete.
-Phase 18 robustness and performance verification is current. It adds verification
-depth, not a new runtime feature claim.
+Phase 18 robustness and performance verification is complete. Phase 19 release
+code-health audit and targeted behavior-preserving internal refactoring is
+complete and accepted; it adds no product feature semantics. Phase 20 is next,
+future, and not implemented; Phases 21 through 28 remain future and not
+implemented.
 
 ## Problem Statement
 

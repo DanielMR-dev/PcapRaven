@@ -16,8 +16,14 @@ Phase 15 finding classification, filtering, and MITRE ATT&CK mapping provenance 
 Phase 16 deterministic reporting architecture and schema contract tests,
 and Phase 17 synthetic fixture corpus, golden report matrix, cross-crate integration,
 end-to-end regression testing, and mandatory Phase 17.1 hardening are complete.
-Phase 18 robustness and performance verification is complete; Phase 19 is the
-next roadmap scope and is not implemented.
+Phase 18 robustness and performance verification is complete. Phase 19 release
+code-health audit and targeted behavior-preserving internal refactoring is
+complete and accepted; the authorized implementation was limited to private
+CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
+logical jobs, including all eight fuzz-smoke targets, and the independent
+source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 is next,
+future, and not implemented; Phases 21 through 28 remain future and not
+implemented.
 
 ## Testing Pyramid
 
@@ -507,8 +513,13 @@ python3 scripts/run_phase18_benchmarks.py --smoke
 Phase 18 is complete. Its bounded fuzz, verifier-hardening, CI-smoke, benchmark
 foundation, Phase 18.1 full fuzz acceptance campaigns, Phase 18.2 performance
 baseline/budget work, and Phase 18.3 final performance acceptance are all
-implemented and verified. Phase 19 remains the next, unimplemented roadmap
-scope.
+implemented and verified. Phase 19 release code-health audit and targeted
+behavior-preserving internal refactoring is complete and accepted. The
+authorized implementation was limited to private CLI helpers. PR workflow run
+`32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all eight
+fuzz-smoke targets; the independent source-read-only re-review found no
+CRITICAL or HIGH findings. Phase 20 is next, future, and not implemented;
+Phases 21 through 28 remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

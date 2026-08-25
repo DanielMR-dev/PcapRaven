@@ -37,10 +37,12 @@ parsers, packet decoders, flow logic, protocol analysis, detection, reporting,
 and functional CLI behavior. README and all examples had to label future
 capabilities as planned or targeted.
 
-Reject completion when any required path is missing, any internal link is
-broken, the roadmap does not contain exactly Phase 0 through Phase 19 in the
-required order, OpenCode frontmatter or reviewer permissions are invalid, or a
-document contradicts its canonical owner.
+At the historical Phase 0 gate, reject completion when any required path was
+missing, any internal link was broken, the roadmap did not contain exactly
+Phase 0 through Phase 19 in the required order, OpenCode frontmatter or
+reviewer permissions were invalid, or a document contradicted its canonical
+owner. That exact Phase 0-through-19 roadmap requirement was historical; the
+current roadmap may list future phases after Phase 19.
 
 ## Phase 1 Gate
 
@@ -381,6 +383,41 @@ an architecture audit of the excluded fuzz package, 30-second Linux CI smoke
 runs with explicit length/timeout/RSS limits, bounded fixture/golden verification,
 writer failure tests, and a dependency-free release-CLI benchmark tool. The
 eight 600-second campaigns and final acceptance benchmark results have been
-completed and must remain backed by the tracked evidence. Phase 19 release
-hardening remains future work and must not be implemented or claimed as
-available by Phase 18 validation.
+completed and must remain backed by the tracked evidence. Phase 19 is outside
+the completed Phase 18 gate; its current requirements are defined in the
+dedicated Phase 19 Gate below.
+
+## Phase 19 Gate (COMPLETE; ACCEPTED)
+
+Phase 19 was the release code-health audit and targeted behavior-preserving
+internal-refactoring gate. It may start only from the
+accepted Phase 18 baseline, including the Phase 18.3 final robustness and
+performance acceptance evidence. The gate requires:
+
+- A complete, evidence-backed audit of every production Rust file under
+  `crates/*/src`, covering panic/unwrap/expect, `allow` attributes, unsafe code,
+  indexing and slicing, casts and arithmetic, visibility and public API,
+  duplication/clones/allocations, complexity and module ownership, errors,
+  TODO/FIXME debt, parser bounds/progress, and allowed dispositions.
+- A tracked `docs/CODE_HEALTH.md` report containing the baseline identity,
+  methodology, complete production inventory, findings, dispositions,
+  intentional non-refactors, contract preservation, golden/schema evidence,
+  performance and fuzz implications, remaining review observations, and the
+  current Phase 19 status.
+- Only evidence-backed internal refactoring. Phase 19 must not add product
+  features, detectors, MITRE mappings, CLI commands or contract changes,
+  reporting-schema changes, dependencies, crates, workspace edges, release
+  packaging, or future-phase capability claims.
+- Cargo.lock, the workspace package graph, fixture corpus, schema anchors, and
+  golden outputs remain unchanged. Applicable formatting, lint, workspace,
+  schema, golden, documentation, metadata, architecture, MSRV,
+  fuzz/robustness, and Phase 18 performance/acceptance checks must pass after
+  any authorized refactor.
+- The Phase 18 performance methodology and budgets remain frozen. Any change
+  to `analysis.rs` or `app.rs` requires exactly three full Phase 18 benchmark
+  runs followed by the Phase 18 acceptance evaluation against the frozen
+  budgets; the evaluation must pass. Raw benchmark output stays under `/tmp`.
+- An independent Reviewer confirms that no CRITICAL or HIGH findings remain,
+  phase boundaries and canonical documents agree, and no premature
+  functionality is present. The gate is complete because the listed evidence
+  passed and the independent Reviewer confirmed these requirements.

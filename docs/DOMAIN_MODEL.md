@@ -23,7 +23,7 @@ Phase 14 implements explainable repeated low-volume flow behavior detection and 
 Phase 15 implements finding classification, filtering, and MITRE ATT&CK mapping provenance in `pcapraven-domain` and `pcapraven-detection`.
 Phase 16 implements deterministic reporting DTO projections and multi-format serialization in `pcapraven-reporting`.
 Domain model facts remain separate from reporting DTO wire representations.
-Phase 17 synthetic fixture corpus, golden report matrix, and end-to-end regression testing are complete. Phase 18 robustness and performance verification is current.
+Phase 17 synthetic fixture corpus, golden report matrix, and end-to-end regression testing are complete. Phase 18 robustness and performance verification is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted; the domain model contract is unchanged. Phase 20 is next, future, and not implemented; Phases 21 through 28 remain future and not implemented.
 
 ## Modeling Rules
 

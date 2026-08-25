@@ -2,10 +2,13 @@
 
 ## Current Phase
 
-Phases 0 through 17, including the Phase 17.1 corpus/golden hardening gate, are
-complete. Phase 18 robustness, fuzzing, property testing, and performance
-verification is current; contributors must implement only explicitly delegated
-Phase 18 scope.
+Phases 0 through 18, including the Phase 17.1 corpus/golden hardening gate and
+the Phase 18.3 final acceptance gate, are complete. Phase 19 release code-health
+audit and targeted behavior-preserving internal refactoring is complete and
+accepted; its authorized implementation was limited to private CLI helpers.
+Contributors must implement only explicitly delegated scope. Phase 20 is next,
+future, and not implemented; Phases 21 through 28 remain future and not
+implemented.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.

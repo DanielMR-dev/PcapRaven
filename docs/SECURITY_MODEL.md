@@ -22,8 +22,10 @@ Phase 15 adds severity/confidence classification, finding filtering, and MITRE A
 Phase 16 adds deterministic reporting architecture (Table, JSON, NDJSON, CSV), CSV formula injection defenses, safe output file lifecycle, and unified forensic analysis (`analyze`),
 and Phase 17 adds the manifest-backed synthetic fixture corpus, golden reports,
 and end-to-end regression testing. Phase 18 robustness and performance
-verification is complete. Phase 19 is the next roadmap scope and remains
-unimplemented; no Phase 19 capability or v1.0.0 release is claimed.
+verification is complete. Phase 19 release code-health audit and targeted
+behavior-preserving internal refactoring is complete and accepted; this stage
+claims no new security capability or v1.0.0 release. Phase 20 is next, future,
+and not implemented; Phases 21 through 28 remain future and not implemented.
 
 ## Assets
 

@@ -10,7 +10,7 @@ established from clean revision
 passed the frozen budgets from clean revision
 `406df29befee99d737c43728943f5daef55ea7f1`.
 
-The current Phase 18 state has three distinct states:
+The accepted Phase 18 state has three distinct states:
 
 ```text
 Performance baseline: ESTABLISHED
@@ -18,6 +18,18 @@ Performance budgets: FROZEN
 Final acceptance execution: PASSED (Phase 18.3)
 Phase 18 status: COMPLETE
 ```
+
+Phase 19 release code-health audit and targeted behavior-preserving internal
+refactoring is complete and accepted. Phase 19 changed only private CLI
+orchestration in `analysis.rs` and `app.rs`; the frozen Phase 18 methodology,
+budgets, and tracked evidence remain unchanged. The accepted three-run retry at
+measurement SHA `dbcf108f1ec4f8f9c9bf14f83ef2bfb0ed3de0e6` passed stability
+`24/24`, median budgets `24/24`, and growth budgets `13/13`. Rejected unstable
+sets remain disclosed in `docs/CODE_HEALTH.md`. Final PR workflow run
+`32889910915` for HEAD `674c8fd` passed all 13 logical jobs, and the
+source-read-only Reviewer re-review found no CRITICAL or HIGH findings. Phase
+20 is next, future, and not implemented; Phases 21 through 28 remain future and
+not implemented.
 
 ## Benchmark Infrastructure
 

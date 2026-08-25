@@ -73,7 +73,6 @@ impl std::fmt::Display for AnalysisError {
 impl std::error::Error for AnalysisError {}
 
 /// Full outcome of the shared capture analysis pipeline.
-#[allow(dead_code)]
 pub struct AnalysisResult {
     /// Outcome metadata from the capture container reader.
     pub reader_outcome: CaptureReadOutcome,
@@ -154,6 +153,71 @@ fn handle_observation_push<W: Write>(
     }
 }
 
+struct ObservationIngestion<'a, W: Write> {
+    packet_ordinal: u64,
+    protocol: ProtocolKind,
+    protocol_label: &'static str,
+    flow_association: ObservationFlowAssociation,
+    collection: &'a mut ProtocolObservationCollection,
+    budget_exhausted: &'a mut bool,
+    had_partial_data: &'a mut bool,
+    emitter: &'a mut DiagnosticEmitter<W>,
+}
+
+fn ingest_observations<W, O, I, C, D>(
+    observations: I,
+    context: ObservationIngestion<'_, W>,
+    is_complete: C,
+    into_data: D,
+) -> Result<(), AnalysisError>
+where
+    W: Write,
+    I: IntoIterator<Item = O>,
+    C: Fn(&O) -> bool,
+    D: Fn(O) -> ProtocolObservationData,
+{
+    for (idx, obs) in observations.into_iter().enumerate() {
+        if !is_complete(&obs) {
+            *context.had_partial_data = true;
+        }
+        let sub_idx = match u32::try_from(idx) {
+            Ok(si) => si,
+            Err(_) => {
+                *context.had_partial_data = true;
+                emit_diagnostic(
+                    &mut *context.emitter,
+                    &format!(
+                        "{} observation index overflow on packet {}",
+                        context.protocol_label, context.packet_ordinal
+                    ),
+                )?;
+                continue;
+            }
+        };
+        let obs_ref = ObservationReference::new(context.packet_ordinal, context.protocol, sub_idx);
+        match ProtocolObservation::try_new(obs_ref, context.flow_association, into_data(obs)) {
+            Ok(protocol_obs) => {
+                if !*context.budget_exhausted {
+                    handle_observation_push(
+                        &mut *context.collection,
+                        protocol_obs,
+                        &mut *context.budget_exhausted,
+                        &mut *context.had_partial_data,
+                        &mut *context.emitter,
+                    )?;
+                }
+            }
+            Err(e) => {
+                return Err(AnalysisError::Fatal(format!(
+                    "{} observation construction failed on packet {}: {e}",
+                    context.protocol_label, context.packet_ordinal
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn terminal_reader_error(
     outcome: &CaptureReadOutcome,
 ) -> Option<&pcapraven_pcap::CaptureReaderError> {
@@ -181,6 +245,59 @@ fn outcome_reached_record_budget(outcome: &CaptureReadOutcome) -> bool {
             ..
         })
     )
+}
+
+fn build_builtin_registries() -> Result<(DetectorRegistry, CorrelationRegistry), AnalysisError> {
+    let mut det_registry = DetectorRegistry::default();
+    let beaconing = PeriodicBeaconingDetector::try_new().map_err(|e| {
+        AnalysisError::Fatal(format!("invalid built-in beaconing detector metadata: {e}"))
+    })?;
+    if let Err(e) = det_registry.register(Box::new(beaconing)) {
+        return Err(AnalysisError::Fatal(format!(
+            "failed to register beaconing detector: {e}"
+        )));
+    }
+    let dns_tunneling = DnsPossibleTunnelingDetector::try_new().map_err(|e| {
+        AnalysisError::Fatal(format!(
+            "invalid built-in DNS tunneling detector metadata: {e}"
+        ))
+    })?;
+    if let Err(e) = det_registry.register(Box::new(dns_tunneling)) {
+        return Err(AnalysisError::Fatal(format!(
+            "failed to register DNS tunneling detector: {e}"
+        )));
+    }
+    let dns_long_query = DnsLongQueryNameDetector::try_new().map_err(|e| {
+        AnalysisError::Fatal(format!(
+            "invalid built-in DNS long query detector metadata: {e}"
+        ))
+    })?;
+    if let Err(e) = det_registry.register(Box::new(dns_long_query)) {
+        return Err(AnalysisError::Fatal(format!(
+            "failed to register DNS long query detector: {e}"
+        )));
+    }
+    let low_volume = RepeatedLowVolumeFlowDetector::try_new().map_err(|e| {
+        AnalysisError::Fatal(format!(
+            "invalid built-in low-volume detector metadata: {e}"
+        ))
+    })?;
+    if let Err(e) = det_registry.register(Box::new(low_volume)) {
+        return Err(AnalysisError::Fatal(format!(
+            "failed to register low-volume flow detector: {e}"
+        )));
+    }
+
+    let mut corr_registry = CorrelationRegistry::default();
+    let c2_correlator = PossibleC2MultiSignalCorrelator::try_new()
+        .map_err(|e| AnalysisError::Fatal(format!("invalid built-in correlator metadata: {e}")))?;
+    if let Err(e) = corr_registry.register(Box::new(c2_correlator)) {
+        return Err(AnalysisError::Fatal(format!(
+            "failed to register C2 multi-signal correlator: {e}"
+        )));
+    }
+
+    Ok((det_registry, corr_registry))
 }
 
 /// Executes the shared capture analysis pipeline.
@@ -338,49 +455,21 @@ pub fn run_analysis<W: Write>(
                     &format!("DNS diagnostic on packet {}: {}", record.ordinal, d.message),
                 )?;
             }
-            for (idx, obs) in dns_outcome.observations.into_iter().enumerate() {
-                if !obs.completeness.is_complete() {
-                    had_partial_data = true;
-                }
-                let sub_idx = match u32::try_from(idx) {
-                    Ok(si) => si,
-                    Err(_) => {
-                        had_partial_data = true;
-                        emit_diagnostic(
-                            diag_emitter,
-                            &format!(
-                                "DNS observation index overflow on packet {}",
-                                record.ordinal
-                            ),
-                        )?;
-                        continue;
-                    }
-                };
-                let obs_ref = ObservationReference::new(record.ordinal, ProtocolKind::Dns, sub_idx);
-                match ProtocolObservation::try_new(
-                    obs_ref,
+            ingest_observations(
+                dns_outcome.observations,
+                ObservationIngestion {
+                    packet_ordinal: record.ordinal,
+                    protocol: ProtocolKind::Dns,
+                    protocol_label: "DNS",
                     flow_association,
-                    ProtocolObservationData::Dns(obs),
-                ) {
-                    Ok(protocol_obs) => {
-                        if !observation_budget_exhausted {
-                            handle_observation_push(
-                                &mut obs_collection,
-                                protocol_obs,
-                                &mut observation_budget_exhausted,
-                                &mut had_partial_data,
-                                diag_emitter,
-                            )?;
-                        }
-                    }
-                    Err(e) => {
-                        return Err(AnalysisError::Fatal(format!(
-                            "DNS observation construction failed on packet {}: {e}",
-                            record.ordinal
-                        )));
-                    }
-                }
-            }
+                    collection: &mut obs_collection,
+                    budget_exhausted: &mut observation_budget_exhausted,
+                    had_partial_data: &mut had_partial_data,
+                    emitter: diag_emitter,
+                },
+                |obs| obs.completeness.is_complete(),
+                ProtocolObservationData::Dns,
+            )?;
         }
 
         // HTTP parsing
@@ -398,50 +487,21 @@ pub fn run_analysis<W: Write>(
                     ),
                 )?;
             }
-            for (idx, obs) in http_outcome.observations.into_iter().enumerate() {
-                if !obs.completeness.is_complete() {
-                    had_partial_data = true;
-                }
-                let sub_idx = match u32::try_from(idx) {
-                    Ok(si) => si,
-                    Err(_) => {
-                        had_partial_data = true;
-                        emit_diagnostic(
-                            diag_emitter,
-                            &format!(
-                                "HTTP observation index overflow on packet {}",
-                                record.ordinal
-                            ),
-                        )?;
-                        continue;
-                    }
-                };
-                let obs_ref =
-                    ObservationReference::new(record.ordinal, ProtocolKind::Http, sub_idx);
-                match ProtocolObservation::try_new(
-                    obs_ref,
+            ingest_observations(
+                http_outcome.observations,
+                ObservationIngestion {
+                    packet_ordinal: record.ordinal,
+                    protocol: ProtocolKind::Http,
+                    protocol_label: "HTTP",
                     flow_association,
-                    ProtocolObservationData::Http(obs),
-                ) {
-                    Ok(protocol_obs) => {
-                        if !observation_budget_exhausted {
-                            handle_observation_push(
-                                &mut obs_collection,
-                                protocol_obs,
-                                &mut observation_budget_exhausted,
-                                &mut had_partial_data,
-                                diag_emitter,
-                            )?;
-                        }
-                    }
-                    Err(e) => {
-                        return Err(AnalysisError::Fatal(format!(
-                            "HTTP observation construction failed on packet {}: {e}",
-                            record.ordinal
-                        )));
-                    }
-                }
-            }
+                    collection: &mut obs_collection,
+                    budget_exhausted: &mut observation_budget_exhausted,
+                    had_partial_data: &mut had_partial_data,
+                    emitter: diag_emitter,
+                },
+                |obs| obs.completeness.is_complete(),
+                ProtocolObservationData::Http,
+            )?;
         }
 
         // TLS parsing
@@ -456,49 +516,21 @@ pub fn run_analysis<W: Write>(
                     &format!("TLS diagnostic on packet {}: {}", record.ordinal, d.message),
                 )?;
             }
-            for (idx, obs) in tls_outcome.observations.into_iter().enumerate() {
-                if !obs.completeness.is_complete() {
-                    had_partial_data = true;
-                }
-                let sub_idx = match u32::try_from(idx) {
-                    Ok(si) => si,
-                    Err(_) => {
-                        had_partial_data = true;
-                        emit_diagnostic(
-                            diag_emitter,
-                            &format!(
-                                "TLS observation index overflow on packet {}",
-                                record.ordinal
-                            ),
-                        )?;
-                        continue;
-                    }
-                };
-                let obs_ref = ObservationReference::new(record.ordinal, ProtocolKind::Tls, sub_idx);
-                match ProtocolObservation::try_new(
-                    obs_ref,
+            ingest_observations(
+                tls_outcome.observations,
+                ObservationIngestion {
+                    packet_ordinal: record.ordinal,
+                    protocol: ProtocolKind::Tls,
+                    protocol_label: "TLS",
                     flow_association,
-                    ProtocolObservationData::Tls(obs),
-                ) {
-                    Ok(protocol_obs) => {
-                        if !observation_budget_exhausted {
-                            handle_observation_push(
-                                &mut obs_collection,
-                                protocol_obs,
-                                &mut observation_budget_exhausted,
-                                &mut had_partial_data,
-                                diag_emitter,
-                            )?;
-                        }
-                    }
-                    Err(e) => {
-                        return Err(AnalysisError::Fatal(format!(
-                            "TLS observation construction failed on packet {}: {e}",
-                            record.ordinal
-                        )));
-                    }
-                }
-            }
+                    collection: &mut obs_collection,
+                    budget_exhausted: &mut observation_budget_exhausted,
+                    had_partial_data: &mut had_partial_data,
+                    emitter: diag_emitter,
+                },
+                |obs| obs.completeness.is_complete(),
+                ProtocolObservationData::Tls,
+            )?;
         }
     }
 
@@ -563,55 +595,7 @@ pub fn run_analysis<W: Write>(
             }
         };
 
-        let mut det_registry = DetectorRegistry::default();
-        let beaconing = PeriodicBeaconingDetector::try_new().map_err(|e| {
-            AnalysisError::Fatal(format!("invalid built-in beaconing detector metadata: {e}"))
-        })?;
-        if let Err(e) = det_registry.register(Box::new(beaconing)) {
-            return Err(AnalysisError::Fatal(format!(
-                "failed to register beaconing detector: {e}"
-            )));
-        }
-        let dns_tunneling = DnsPossibleTunnelingDetector::try_new().map_err(|e| {
-            AnalysisError::Fatal(format!(
-                "invalid built-in DNS tunneling detector metadata: {e}"
-            ))
-        })?;
-        if let Err(e) = det_registry.register(Box::new(dns_tunneling)) {
-            return Err(AnalysisError::Fatal(format!(
-                "failed to register DNS tunneling detector: {e}"
-            )));
-        }
-        let dns_long_query = DnsLongQueryNameDetector::try_new().map_err(|e| {
-            AnalysisError::Fatal(format!(
-                "invalid built-in DNS long query detector metadata: {e}"
-            ))
-        })?;
-        if let Err(e) = det_registry.register(Box::new(dns_long_query)) {
-            return Err(AnalysisError::Fatal(format!(
-                "failed to register DNS long query detector: {e}"
-            )));
-        }
-        let low_volume = RepeatedLowVolumeFlowDetector::try_new().map_err(|e| {
-            AnalysisError::Fatal(format!(
-                "invalid built-in low-volume detector metadata: {e}"
-            ))
-        })?;
-        if let Err(e) = det_registry.register(Box::new(low_volume)) {
-            return Err(AnalysisError::Fatal(format!(
-                "failed to register low-volume flow detector: {e}"
-            )));
-        }
-
-        let mut corr_registry = CorrelationRegistry::default();
-        let c2_correlator = PossibleC2MultiSignalCorrelator::try_new().map_err(|e| {
-            AnalysisError::Fatal(format!("invalid built-in correlator metadata: {e}"))
-        })?;
-        if let Err(e) = corr_registry.register(Box::new(c2_correlator)) {
-            return Err(AnalysisError::Fatal(format!(
-                "failed to register C2 multi-signal correlator: {e}"
-            )));
-        }
+        let (det_registry, corr_registry) = build_builtin_registries()?;
 
         let det_configs = DetectorConfigurations::default();
         let det_limits = DetectionLimits::default();
