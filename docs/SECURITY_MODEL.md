@@ -25,9 +25,8 @@ and end-to-end regression testing. Phase 18 robustness and performance
 verification is complete. Phase 19 release code-health audit and targeted
 behavior-preserving internal refactoring is complete and accepted; this stage
 claims no new security capability or v1.0.0 release. Phase 20 final security
-and supply-chain hardening is implemented on its dedicated branch; PR-head CI
-and final acceptance remain pending. Phase 21 is next, future, and not
-implemented; Phases 22 through 28 remain future and not implemented.
+and supply-chain hardening is complete and accepted. Phase 21 is next, future,
+and not implemented; Phases 22 through 28 remain future and not implemented.
 
 ## Assets
 

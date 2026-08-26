@@ -11,10 +11,10 @@ budgets are complete and tracked in `PERFORMANCE.md` and `docs/performance/`.
 Phase 18.3 final performance acceptance is complete and passed the frozen
 budgets. Phase 19 release code-health audit and targeted behavior-preserving
 internal refactoring is complete and accepted. Phase 20 final security and
-supply-chain hardening is implemented on its dedicated branch without changing
-the fuzzed production surfaces; PR-head CI and final acceptance remain
-pending. Release packaging is Phase 24 future work; Phase 21 is next, future,
-and not implemented; Phases 22 through 28 remain future and not implemented.
+supply-chain hardening is complete and accepted without changing the fuzzed
+production surfaces. Release packaging is Phase 24 future work; Phase 21 is
+next, future, and not implemented; Phases 22 through 28 remain future and not
+implemented.
 
 ## Threat Model and Invariants
 

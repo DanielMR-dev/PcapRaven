@@ -21,10 +21,9 @@ and Phase 17 synthetic fixtures, golden reports, and end-to-end integration test
 Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted behavior-preserving internal refactoring is
 complete and accepted; it adds no product feature semantics. Phase 20 final
-security and supply-chain hardening is implemented on its dedicated branch
-without changing product behavior; PR-head CI and final acceptance remain
-pending. Phase 21 is next, future, and not implemented; Phases 22 through 28
-remain future and not implemented.
+security and supply-chain hardening is complete and accepted without changing
+product behavior. Phase 21 is next, future, and not implemented; Phases 22
+through 28 remain future and not implemented.
 
 ## Problem Statement
 

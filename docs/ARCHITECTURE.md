@@ -21,10 +21,9 @@ seven-package runtime architecture. The architecture checker audits the fuzz
 package separately. Phase 18 robustness and performance verification is
 complete and remains outside runtime crate responsibilities. Phase 19
 code-health audit and targeted internal refactoring is complete and accepted;
-Phase 20 security and supply-chain hardening is implemented on its dedicated
-branch; PR-head CI and final acceptance remain pending. The runtime architecture
-remains unchanged. Phase 21 is next and Phases 22 through 28 are future and not
-implemented.
+Phase 20 security and supply-chain hardening is complete and accepted. The
+runtime architecture remains unchanged. Phase 21 is next and Phases 22 through
+28 are future and not implemented.
 
 ## Architectural Principles
 

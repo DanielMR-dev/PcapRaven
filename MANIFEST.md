@@ -30,10 +30,9 @@ limited to private CLI helpers. PR workflow run `32889910915` for HEAD
 the accepted performance retry passed stability `24/24`, median budgets
 `24/24`, and growth budgets `13/13`; and the independent source-read-only
 re-review found no CRITICAL or HIGH findings. Phase 20 final security and
-supply-chain hardening is implemented on the dedicated branch; local gates and
-source-read-only review pass, but PR-head CI and final acceptance remain
-pending. Phase 21 is next, future, and not implemented; Phases 22 through 28
-remain future and not implemented. No later capability or release is claimed.
+supply-chain hardening is complete and accepted. Phase 21 is next, future, and
+not implemented; Phases 22 through 28 remain future and not implemented. No
+later capability or release is claimed.
 
 ## Tracked Current Inventory
 

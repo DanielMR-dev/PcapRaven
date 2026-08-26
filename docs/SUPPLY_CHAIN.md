@@ -356,8 +356,9 @@ The review verified the 31-file scope, no production-source or lockfile diff,
 the four-class policy checks for both graphs, immutable action SHAs,
 `persist-credentials: false` on every checkout, the least-privilege workflow,
 the exact dated fuzz pin, and the absence of later-phase functionality. No
-remediation was required. Final PR-head CI remains external acceptance
-evidence and is recorded after it completes.
+remediation was required. PR workflow run `33009011617` for head `50178b7`
+passed all 14 jobs, including the security/supply-chain job and all eight
+fuzz-smoke jobs.
 
 ## Residual Risks
 
@@ -365,8 +366,9 @@ The available GitHub authentication could not read branch-protection details,
 required-status-check policy, force-push/deletion protection, or Dependabot
 security-feature visibility. The public rulesets endpoint returned no rulesets,
 but that does not prove that all repository protections are absent. No setting
-was changed or inferred. The requested PR creation was rejected by the current
-tool authorization as an external publication, so no PR-head CI run exists yet.
+was changed or inferred. The final PR workflow run `33009011617` for head
+`50178b7` passed all 14 jobs, including the complete cross-platform, fuzz-smoke,
+quality, MSRV, and security/supply-chain matrix.
 
 The audit is a point-in-time review of committed lockfiles and the advisory
 database available on the review date. Third-party unsafe/native build code
@@ -376,13 +378,13 @@ Phase 24/27 work and are not Phase 20 claims.
 
 ## Phase Status
 
-At branch start this phase was `CURRENT / IN PROGRESS`. Final local gates and
-the independent source-read-only review are complete; PR creation and final
-PR-head CI remain pending, so the current canonical status is:
+At branch start this phase was `CURRENT / IN PROGRESS`. Final local gates, the
+independent source-read-only review, and PR workflow run `33009011617` are
+complete, so the current canonical status is:
 
 ```text
 Phase 19: COMPLETE
-Phase 20: IMPLEMENTATION COMPLETE / ACCEPTANCE PENDING
+Phase 20: COMPLETE / ACCEPTED
 Phase 21: NEXT / NOT IMPLEMENTED
 Phases 22 through 28: FUTURE / NOT IMPLEMENTED
 ```
