@@ -81,4 +81,4 @@ Enterprise tactics defined with canonical identifiers:
 1. **Deterministic Ordering:** Declarations and stamped mappings attached to a finding are validated for strictly ascending technique ID order and absence of duplicates.
 2. **Bounds Enforcement:** A maximum of 16 MITRE mappings may be attached to a single finding record (`HARD_MAX_MITRE_MAPPINGS_PER_FINDING = 16`). Technique names are capped at 128 bytes and rationales at 1,024 bytes with control character prohibition.
 3. **Engine-Owned Provenance:** The detection engine validates declarations and stamps `MitreMapping` with exact provenance during finding acceptance.
-4. **Filtering:** The `pcapraven findings` and `pcapraven analyze` CLIs support filtering by MITRE technique or tactic ID via `--mitre <ID>` (e.g., `--mitre T1071.004`).
+4. **Filtering:** The `pcapraven findings` and `pcapraven analyze` CLIs support filtering by MITRE technique/sub-technique ID via `--mitre <ID>` (e.g., `--mitre T1071.004`). Tactic identifiers are not accepted by the CLI filter.

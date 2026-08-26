@@ -22,8 +22,8 @@ Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted behavior-preserving internal refactoring is
 complete and accepted; it adds no product feature semantics. Phase 20 final
 security and supply-chain hardening is complete and accepted without changing
-product behavior. Phase 21 is next, future, and not implemented; Phases 22
-through 28 remain future and not implemented.
+product behavior. Phase 21 is the active CLI v1 contract-freeze phase; Phases
+22 through 28 remain future and not implemented.
 
 ## Problem Statement
 
@@ -106,9 +106,13 @@ Malformed records should produce bounded diagnostics and permit continued
 analysis when safe. Unsupported input is not equivalent to malicious input.
 Heuristic behavior is described as possible or suspicious, not as proof.
 
-## Implemented CLI Contract (Phase 16)
+## Implemented CLI Surface (Phase 16; frozen by Phase 21)
 
 The functional CLI is implemented in `pcapraven-cli` and provides:
+
+See [CLI_V1_CONTRACT.md](CLI_V1_CONTRACT.md) for the detailed frozen command
+syntax, option scope, accepted values, compatibility rules, and stream
+contracts.
 
 ```text
 pcapraven analyze <capture> [--max-records <N>] [--max-flows <N>] [--max-flow-instances <N>] [--max-observations <N>] [--tcp-idle-timeout <SECONDS>] [--udp-idle-timeout <SECONDS>] [--min-severity <LEVEL>] [--min-confidence <LEVEL>] [--detector <ID>] [--mitre <ID>]
@@ -155,13 +159,19 @@ pcapraven --quiet <subcommand> <capture>
 
 | Option | Implemented Contract |
 | --- | --- |
-| `--output <path>` | Atomically creates the destination file with `create_new(true)`. Returns exit code 2 if the file already exists. Flushes explicitly and cleans up on write failure. |
+| `--output <path>` | Exclusively creates the destination file with `create_new(true)`. Returns exit code 2 if the file already exists. Flushes explicitly and cleans up on write failure. |
 | `--format <format>` | Selects `table`, `json`, `ndjson`, or `csv`. |
 | `--quiet` | Suppresses non-error stderr diagnostics; requested stdout result is unaffected. |
+
+The following options are command-specific to `findings` and `analyze`, not
+global:
+
+| Option | Implemented Contract |
+| --- | --- |
 | `--min-severity <level>` | Filters findings by minimum severity (`info`, `low`, `medium`, `high`, `critical`). |
 | `--min-confidence <level>` | Filters findings by minimum confidence (`low`, `medium`, `high`). |
 | `--detector <id>` | Filters findings by exact detector ID (e.g., `dns.possible_tunneling`). |
-| `--mitre <id>` | Filters findings by MITRE ATT&CK technique or tactic ID (e.g., `T1071.004`). |
+| `--mitre <id>` | Filters findings by MITRE ATT&CK technique/sub-technique ID (e.g., `T1071.004`). |
 
 ## v1 Success Criteria
 

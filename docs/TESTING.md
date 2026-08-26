@@ -22,9 +22,9 @@ complete and accepted; the authorized implementation was limited to private
 CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
 logical jobs, including all eight fuzz-smoke targets, and the independent
 source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 final
-security and supply-chain hardening is complete and accepted. Phase 21 is next,
-future, and not implemented; Phases 22 through 28 remain future and not
-implemented.
+security and supply-chain hardening is complete and accepted. Phase 21 is the
+active CLI v1 contract-freeze phase; Phases 22 through 28 remain future and
+not implemented.
 
 ## Testing Pyramid
 
@@ -274,6 +274,44 @@ are recorded in [SUPPLY_CHAIN.md](SUPPLY_CHAIN.md). The phase changes no
 product behavior, CLI contract, reporting schema, detector semantics, MITRE
 mapping, or release automation.
 
+## Phase 21 CLI v1 Contract Gate
+
+Phase 21 freezes the implemented command-line surface without adding a command,
+format, input source, dependency, report field, detector behavior, MITRE
+mapping, release artifact, or workspace package. The detailed contract is
+owned by [CLI_V1_CONTRACT.md](CLI_V1_CONTRACT.md).
+
+The gate requires:
+
+- exact help snapshots for the root and all seven product commands;
+- dynamic version grammar coverage for both version aliases;
+- representative exact usage and error snapshots, including missing CAPTURE,
+  invalid format, invalid filters, unsupported option scope, and analyze CSV
+  rejection;
+- a separate contract integration test for argument scope, aliases,
+  placement, format support, default table output, exit states, stream
+  separation, quiet behavior, diagnostics bounding, and safe output files;
+- unchanged tests/golden report payload goldens and reporting schema v1.0;
+- unchanged seven-package runtime topology, dependency graph, MSRV 1.85,
+  detector semantics, MITRE mappings, and security/supply-chain controls;
+- the contract test in the Ubuntu, Windows, and macOS workspace-check jobs;
+- conditional full Phase 18 performance reruns when production CLI source is
+  changed; no full rerun is required for a test/documentation-only freeze;
+- independent source-read-only review with CRITICAL = 0 and HIGH = 0.
+
+Representative local verification is:
+
+    cargo test -p pcapraven-cli --test contract --locked
+    cargo test -p pcapraven-reporting --test schema_contract --locked
+    cargo test -p pcapraven-cli --test golden --locked
+    python3 scripts/check_goldens.py
+    python3 scripts/check_workspace_architecture.py
+
+The full repository quality, locked MSRV, documentation, fixture, robustness,
+fuzz-smoke, security, supply-chain, and applicable performance commands remain
+required. The contract target is deliberately separate from the 49-scenario
+report golden matrix.
+
 ## Phase 0 Validation (completed)
 
 Phase 0 used read-only repository inspection rather than Cargo gates. It
@@ -495,7 +533,7 @@ Phase 16 validation confirms:
 - **Deterministic Multi-Format Serialization:** Clean formatting across `table`, `json`, `ndjson`, and `csv` with `"schema_version": "v1.0"` root anchors.
 - **CSV Formula Injection Sanitization:** Cell sanitization via `sanitize_csv_cell` ensuring any untrusted string starting with `=`, `+`, `-`, `@`, `\t`, `\r`, or `\n` is prefixed with `'`.
 - **CSV Analyze Rejection Contract:** Rejection of `pcapraven analyze --format csv` with Exit Code 2, preventing ambiguous flat projections of multi-layer hierarchical analysis data.
-- **Safe Output Files (`--output`):** Enforces `create_new(true)` atomic file creation, exiting with code 2 on collisions and keeping stdout clean.
+- **Safe Output Files (`--output`):** Enforces `create_new(true)` exclusive file creation, exiting with code 2 on collisions and keeping stdout clean.
 - **Unified Forensic Analysis CLI (`pcapraven analyze`):** Complete multi-layer analysis orchestrating capture metadata, flows, DNS, HTTP, TLS, analytical findings, and causal evidence.
 
 ## Phase 17 Quality Gates
@@ -550,8 +588,8 @@ authorized implementation was limited to private CLI helpers. PR workflow run
 `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all eight
 fuzz-smoke targets; the independent source-read-only re-review found no
 CRITICAL or HIGH findings. Phase 20 final security and supply-chain hardening
-is complete and accepted. Phase 21 is next, future, and not implemented; Phases
-22 through 28 remain future and not implemented.
+is complete and accepted. Phase 21 is the active CLI v1 contract-freeze phase;
+Phases 22 through 28 remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

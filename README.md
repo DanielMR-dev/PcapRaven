@@ -33,9 +33,9 @@ private CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all
 performance retry passed stability `24/24`, median budgets `24/24`, and growth
 budgets `13/13`; and the independent source-read-only re-review found no
 CRITICAL or HIGH findings. **Phase 20: Final security and supply-chain
-hardening** is complete and accepted. Phase 21 is next, future, and not
-implemented; Phases 22 through 28 remain future and not implemented. This
-status does not claim v1.0.0 or release readiness.
+hardening** is complete and accepted. Phase 21 is the active CLI v1
+contract-freeze phase; Phases 22 through 28 remain future and not implemented.
+This status does not claim v1.0.0 or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
@@ -45,7 +45,7 @@ status does not claim v1.0.0 or release readiness.
 - `pcapraven-reporting` provides deterministic multi-format serialization (`table`, `json`, `ndjson`, `csv`), CSV formula injection defense, and schema version anchors.
 - `pcapraven-cli` provides the functional CLI with streaming capture validation, flow inspection, DNS inspection, HTTP inspection, TLS inspection, findings inspection, and unified forensic analysis (`analyze`) with multi-format output and safe file creation.
 
-### Implemented CLI Commands (Phase 16)
+### Implemented CLI Commands (Phase 16; frozen by Phase 21)
 
 ```text
 # Unified forensic capture analysis across metadata, flows, observations, and findings:
@@ -105,12 +105,14 @@ The planned application will:
 - Keep severity separate from confidence and describe heuristics as possible or
   suspicious behavior rather than proof of malware or command-and-control.
 
-See [Product Definition](docs/PRODUCT.md) for goals, non-goals, and the intended
-v1 CLI contract.
+See [Product Definition](docs/PRODUCT.md) for goals and non-goals, and see the
+[CLI v1 Contract](docs/CLI_V1_CONTRACT.md) for the frozen command-line
+compatibility surface.
 
 ## Project Documentation
 
 - [Product definition and target CLI](docs/PRODUCT.md)
+- [Frozen v1 CLI compatibility contract](docs/CLI_V1_CONTRACT.md)
 - [Workspace architecture and crate boundaries](docs/ARCHITECTURE.md)
 - [Domain, flow, observation, and evidence model](docs/DOMAIN_MODEL.md)
 - [Detection, finding, severity, and confidence model](docs/DETECTION_MODEL.md)

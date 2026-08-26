@@ -22,8 +22,8 @@ package separately. Phase 18 robustness and performance verification is
 complete and remains outside runtime crate responsibilities. Phase 19
 code-health audit and targeted internal refactoring is complete and accepted;
 Phase 20 security and supply-chain hardening is complete and accepted. The
-runtime architecture remains unchanged. Phase 21 is next and Phases 22 through
-28 are future and not implemented.
+runtime architecture remains unchanged. Phase 21 is the active CLI v1
+contract-freeze phase; Phases 22 through 28 are future and not implemented.
 
 ## Architectural Principles
 
@@ -461,6 +461,10 @@ configuration of limits and filters, exit status mapping, and stdout/stderr
 routing. It delegates all analysis and serialization to library crates and
 contains no packet parser, flow algorithm, protocol parser, detector, or report
 encoder.
+
+The detailed command-line compatibility surface is owned by
+[CLI_V1_CONTRACT.md](CLI_V1_CONTRACT.md); this architecture document records
+only the crate boundary and ownership.
 
 ## Dependency Direction
 

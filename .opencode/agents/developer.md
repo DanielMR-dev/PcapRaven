@@ -52,7 +52,10 @@ You are the senior Rust developer for PcapRaven.
 - **Quality Gates:** Verify all changes against full workspace gates (fmt,
   clippy, test, doc, MSRV 1.85.0, architecture checker, and cargo-fuzz).
 - **Canonical Synchronization:** Update canonical documentation in `docs/` and
-  `MANIFEST.md` to match implemented reality truthfully.
+  `MANIFEST.md` to match implemented reality truthfully. For CLI work,
+  reconcile `docs/CLI_V1_CONTRACT.md`, the dedicated contract integration
+  test, and the cross-platform CI inventory without duplicating the reporting
+  schema.
 
 ## Engineering Rules
 

@@ -228,7 +228,7 @@ fn test_tls_help_subcommand() {
 fn test_version_command() {
     let (code, stdout, stderr) = run_cli(&["--version"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains(env!("CARGO_PKG_VERSION")));
+    assert_eq!(stdout, format!("pcapraven {}\n", env!("CARGO_PKG_VERSION")));
     assert!(stderr.is_empty());
 }
 

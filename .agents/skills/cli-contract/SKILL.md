@@ -7,6 +7,9 @@ description: Use for PcapRaven command-line interface design, argument validatio
 
 This skill governs the design, implementation, review, and verification of
 the `pcapraven-cli` orchestration boundary and command-line interface.
+The canonical compatibility specification is
+`docs/CLI_V1_CONTRACT.md`; this skill provides the engineering and review
+procedure and must not become a competing specification.
 
 ## Core Responsibilities
 
@@ -18,16 +21,32 @@ the `pcapraven-cli` orchestration boundary and command-line interface.
 
 ## Invariants and Rules
 
-### 1. Implemented Commands
-- `pcapraven validate <capture>`, `pcapraven flows <capture>`, `pcapraven dns <capture>`, `pcapraven http <capture>`, `pcapraven tls <capture>`, `pcapraven findings <capture>`, and `pcapraven analyze <capture>` are implemented.
-- Multi-format output (`--format <table|json|ndjson|csv>`) and safe file output (`--output <PATH>`) are supported across subcommands.
-- `pcapraven analyze --format csv` is unsupported and rejected with exit code 2.
-- `pcapraven --help` and `pcapraven --version` are fully functional.
+### 1. Frozen Commands and Options
+- The seven frozen product commands are `validate`, `flows`, `dns`,
+  `http`, `tls`, `findings`, and `analyze`.
+- The only global options are `-q/--quiet`, `--format`, and
+  `-o/--output`. The findings/analyze filters are command-specific.
+- Resource options remain command-specific: `--max-records`,
+  `--max-flows`, `--max-flow-instances`, `--max-observations`,
+  `--tcp-idle-timeout`, and `--udp-idle-timeout`.
+- The exact command/format matrix, aliases, defaults, accepted values, and
+  placements are owned by `docs/CLI_V1_CONTRACT.md`.
+- `pcapraven analyze --format csv` is unsupported and rejected with exit code
+  2. `pcapraven --help`, `pcapraven help`, `pcapraven --version`, and
+  their frozen aliases remain functional.
 
 ### 2. Argument and Limits Validation
 - Local capture paths only. No URLs, S3, cloud storage, stdin, glob expansion, or live capture.
 - Configured limits (`--max-records`, `--max-flows`, `--max-flow-instances`, `--tcp-idle-timeout`,
   `--udp-idle-timeout`) are validated against library builder safety bounds.
+- Parser storage types are `u64` for `--max-records`, `usize` for
+  `--max-flows`, `--max-flow-instances`, and `--max-observations`, and
+  `u32` for both idle timeouts. Preserve the downstream conversion and
+  architecture-dependent `usize` behavior documented by the canonical
+  contract.
+- Findings/analyze filters are `--min-severity`, `--min-confidence`,
+  `--detector`, and `--mitre`. Canonical values are documented there;
+  undocumented domain-parser tolerance is not a public compatibility promise.
 - Invalid configuration or usage errors immediately exit with code 2.
 
 ### 3. Exit Code Contract
@@ -38,10 +57,11 @@ the `pcapraven-cli` orchestration boundary and command-line interface.
   degraded temporal metrics, capture recovery/partial termination).
 
 ### 4. Output Stream Separation
-- `stdout`: Strictly requested factual result output only (validation summary or flow table).
-  No diagnostics, warnings, or debug messages.
+- `stdout`: Strictly the requested report, help, or version result. No
+  diagnostics, warnings, progress, or debug messages.
 - `stderr`: Strictly diagnostics, warnings, and fatal error messages.
-  No flow table rows or validation summaries.
+  Usage text is also on stderr for parser/configuration failures. No report
+  rows or report payload is written there.
 - Zero ANSI escape sequences / color codes.
 
 ### 5. Diagnostic Bounding and Quiet Mode
@@ -67,3 +87,43 @@ the `pcapraven-cli` orchestration boundary and command-line interface.
 - Never guess client/server roles, application protocol names (e.g. port 443 as HTTPS), or
   threat classifications (no "suspicious", "C2", or severity/confidence columns).
 - Durations and temporal metrics are displayed exactly without floating-point conversion.
+
+### 9. Output Files and Input Sources
+- `--output/-o` uses exclusive create-new semantics. Never overwrite an
+  existing file, create parent directories, or add a force option.
+- Existing-file collisions are exit 2; creation and render/flush failures are
+  exit 1. A newly created file is removed when a later render or flush fails
+  where removal is possible. Successful file output leaves stdout empty.
+- `CAPTURE` is a local filesystem path. Do not add implicit stdin, URL,
+  cloud-object, live-interface, or glob input.
+- Preserve the standard `--` option terminator behavior for positional
+  capture paths.
+
+### 10. Frozen Compatibility Policy
+- After Phase 21, removing or renaming a command or public option, removing a
+  short alias, changing option scope, canonical values, defaults, format
+  compatibility, exit categories, stream placement, quiet semantics, output
+  collision behavior, requiredness, or local-only input is an incompatible
+  change.
+- A release-blocking security correction that requires such a break must
+  explicitly reopen the Phase 21 decision with user approval. Do not hide it
+  in a later phase.
+- Consult `docs/CLI_V1_CONTRACT.md` for the authoritative exact wording and
+  compatibility list.
+
+### 11. Contract Verification Procedure
+- Read `docs/CLI_V1_CONTRACT.md` before changing CLI declarations or
+  orchestration.
+- Generate candidate help, usage, and error output outside the canonical
+  snapshot tree; inspect it byte-for-byte before accepting snapshots.
+- Keep CLI surface snapshots in `tests/cli_contract/` and report payload
+  goldens in `tests/golden/`. Do not substitute one for the other.
+- Maintain `crates/pcapraven-cli/tests/contract.rs` for the frozen surface,
+  including help/version, scope, aliases, placement, format matrix, defaults,
+  exit states, streams, quiet mode, diagnostics, and output files.
+- Run the workspace architecture inventory, formatting, lint, locked tests,
+  schema contract, unchanged report goldens, documentation, fixture,
+  robustness, security/supply-chain, and cross-platform checks required by
+  `phase-validation`.
+- If production CLI source changes, apply the conditional Phase 18
+  performance rerun requirement before acceptance.
