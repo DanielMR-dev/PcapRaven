@@ -32,9 +32,10 @@ private CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all
 13 logical jobs, including all eight fuzz-smoke targets; the accepted
 performance retry passed stability `24/24`, median budgets `24/24`, and growth
 budgets `13/13`; and the independent source-read-only re-review found no
-CRITICAL or HIGH findings. Phase 20 is next, future, and not implemented;
-Phases 21 through 28 remain future and not implemented. This status does not
-claim v1.0.0 or release readiness.
+CRITICAL or HIGH findings. **Phase 20: Final security and supply-chain
+hardening** is complete and accepted. Phase 21 is next, future, and not
+implemented; Phases 22 through 28 remain future and not implemented. This
+status does not claim v1.0.0 or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.
@@ -80,6 +81,11 @@ pcapraven --quiet analyze <capture.pcap>
 
 The synthetic corpus and read-only golden verification gate are documented in
 [Phase 17 Quality Gates](docs/TESTING.md#phase-17-quality-gates).
+
+The Phase 20 dependency, RustSec, license, provenance, CI, fuzz-toolchain, and
+runtime security evidence is recorded in
+[SUPPLY_CHAIN.md](docs/SUPPLY_CHAIN.md). Runtime operation remains offline by
+default; security database refreshes are explicit development/CI operations.
 
 PcapRaven is a new and independent project. It is not a rewrite of NetSentinel
 and does not reuse NetSentinel source code.

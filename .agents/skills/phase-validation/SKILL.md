@@ -421,3 +421,51 @@ performance acceptance evidence. The gate requires:
   phase boundaries and canonical documents agree, and no premature
   functionality is present. The gate is complete because the listed evidence
   passed and the independent Reviewer confirmed these requirements.
+
+## Phase 20 Gate
+
+Phase 20 is the final security and supply-chain hardening gate after the
+accepted Phase 19 baseline. It adds policy, evidence, CI, and governance
+controls only; it must not implement product functionality or any Phase 21
+through Phase 28 capability. The gate requires:
+
+- accepted Phase 19 baseline and the dedicated
+  `phase-20-security-supply-chain` branch;
+- final security-model review and a complete `docs/SUPPLY_CHAIN.md` evidence
+  ledger;
+- `cargo audit --file Cargo.lock --deny warnings` and the corresponding audit
+  for `fuzz/Cargo.lock`;
+- cargo-deny advisories, bans, licenses, and sources checks for both the main
+  workspace and excluded fuzz package;
+- no unresolved CRITICAL/HIGH advisory, hidden advisory ignore, unknown
+  dependency source, or unreviewed Git dependency;
+- reviewed SPDX inventory and narrow license allowlist, with exceptions and
+  clarifications explicitly documented when present;
+- reviewed duplicate/wildcard state, direct-dependency maintenance decisions,
+  transitive provenance, compile-time build/proc-macro inventory, and
+  third-party unsafe-code exposure appropriate to scope;
+- immutable full-SHA GitHub Action pins, `persist-credentials: false` on
+  read-only checkouts, least-privilege workflow permissions, and no new CI
+  secrets or privileged PR trigger;
+- review-only Dependabot surveillance for the root Cargo workspace, excluded
+  fuzz package, and GitHub Actions;
+- an exact tested dated fuzz nightly pin, with all eight bounded smoke targets
+  passing after the pin;
+- no new runtime dependency unless required by a demonstrated security
+  remediation, no product feature, no CLI freeze, no schema finalization, no
+  packaging or release automation, and no v1.0.0 claim;
+- applicable full formatting, lint, test, documentation, metadata,
+  architecture, MSRV, fixture/golden, robustness, fuzz, and performance gates;
+- conditional full fuzz/performance reruns when a production surface,
+  dependency, or relevant toolchain changes;
+- independent source-read-only Reviewer completion after Developer
+  verification, with every CRITICAL/HIGH finding remediated and re-reviewed;
+- final PR-head CI passing, including Linux quality, MSRV, all three
+  cross-platform checks, all eight fuzz-smoke jobs, and the security job;
+- `CRITICAL = 0` and `HIGH = 0`, with every remaining MEDIUM/LOW observation
+  reported and justified.
+
+The Security Model remains the policy owner; the supply-chain ledger records
+evidence. Phase 20 is complete only after the independent review and final
+PR-head CI exist. Phase 21 remains `NEXT / NOT IMPLEMENTED`, and Phases 22
+through 28 remain future.

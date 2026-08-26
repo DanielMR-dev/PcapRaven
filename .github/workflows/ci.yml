@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install pinned development toolchain
         run: |
@@ -151,6 +153,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install MSRV toolchain
         run: rustup toolchain install 1.85.0 --profile minimal --no-self-update
@@ -177,6 +181,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check workspace
         run: cargo check --workspace --locked
@@ -213,21 +219,26 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Install nightly toolchain
-        run: rustup toolchain install nightly --profile minimal --no-self-update
+      - name: Install pinned nightly toolchain
+        run: |
+          FUZZ_TOOLCHAIN=$(python3 -c 'import tomllib; print(tomllib.load(open("fuzz/rust-toolchain.toml", "rb"))["toolchain"]["channel"])')
+          rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal --no-self-update
 
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --version 0.13.2 --locked
 
       - name: Run bounded fuzz smoke campaign
         run: >-
-          cargo +nightly fuzz run "${{ matrix.target }}"
-          "fuzz/corpus/${{ matrix.target }}" --
+          cargo fuzz run "${{ matrix.target }}"
+          "corpus/${{ matrix.target }}" --
           -max_len=${{ matrix.max_len }}
           -max_total_time=30
           -timeout=5
           -rss_limit_mb=1024
+        working-directory: fuzz
 
       - name: Upload target crash artifacts on failure
         if: ${{ failure() }}
@@ -237,3 +248,97 @@ jobs:
           path: fuzz/artifacts/${{ matrix.target }}/
           if-no-files-found: warn
           retention-days: 7
+
+  security-supply-chain:
+    name: Security and supply chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned development toolchain
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tomllib
+
+          expected = tomllib.loads(
+              Path("rust-toolchain.toml").read_text()
+          )["toolchain"]["channel"]
+          subprocess.run(
+              [
+                  "rustup",
+                  "toolchain",
+                  "install",
+                  expected,
+                  "--profile",
+                  "minimal",
+                  "--no-self-update",
+              ],
+              check=True,
+          )
+          PY
+
+      - name: Install cargo-audit
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tomllib
+
+          expected = tomllib.loads(
+              Path("rust-toolchain.toml").read_text()
+          )["toolchain"]["channel"]
+          subprocess.run(
+              [
+                  "cargo",
+                  f"+{expected}",
+                  "install",
+                  "cargo-audit",
+                  "--version",
+                  "0.22.2",
+                  "--locked",
+              ],
+              check=True,
+          )
+          PY
+
+      - name: Install cargo-deny
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tomllib
+
+          expected = tomllib.loads(
+              Path("rust-toolchain.toml").read_text()
+          )["toolchain"]["channel"]
+          subprocess.run(
+              [
+                  "cargo",
+                  f"+{expected}",
+                  "install",
+                  "cargo-deny",
+                  "--version",
+                  "0.20.2",
+                  "--locked",
+              ],
+              check=True,
+          )
+          PY
+
+      - name: Audit main lockfile with RustSec
+        run: cargo audit --file Cargo.lock --deny warnings
+
+      - name: Audit fuzz lockfile with RustSec
+        run: cargo audit --file fuzz/Cargo.lock --deny warnings
+
+      - name: Check main dependency policy
+        run: cargo deny --all-features --config deny.toml --locked check advisories bans licenses sources
+
+      - name: Check fuzz dependency policy
+        run: cargo deny --manifest-path fuzz/Cargo.toml --all-features --config deny.toml --locked check advisories bans licenses sources

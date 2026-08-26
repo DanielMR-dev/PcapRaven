@@ -29,9 +29,10 @@ limited to private CLI helpers. PR workflow run `32889910915` for HEAD
 `674c8fd` passed all 13 logical jobs, including all eight fuzz-smoke targets;
 the accepted performance retry passed stability `24/24`, median budgets
 `24/24`, and growth budgets `13/13`; and the independent source-read-only
-re-review found no CRITICAL or HIGH findings. Phase 20 is next, future, and not
-implemented; Phases 21 through 28 remain future and not implemented. No later
-capability or release is claimed.
+re-review found no CRITICAL or HIGH findings. Phase 20 final security and
+supply-chain hardening is complete and accepted. Phase 21 is next, future, and
+not implemented; Phases 22 through 28 remain future and not implemented. No
+later capability or release is claimed.
 
 ## Tracked Current Inventory
 
@@ -44,11 +45,15 @@ capability or release is claimed.
 | `AGENTS.md` | Authoritative AI-agent engineering and review workflow. |
 | `MANIFEST.md` | Repository structure, current inventory, and phase status. |
 | `docs/CODE_HEALTH.md` | Phase 19 production Rust code-health audit, evidence, and dispositions. |
+| `docs/SUPPLY_CHAIN.md` | Phase 20 dependency, advisory, license, provenance, CI, and runtime security evidence ledger. |
+| `.agents/skills/security-supply-chain/SKILL.md` | Reusable dependency and supply-chain audit procedure. |
+| `deny.toml` | Minimal machine-enforced advisory, license, source, wildcard, and duplicate dependency policy. |
 | `.gitignore` | Rust build, editor, operating-system, and local-environment ignores. |
 | `.gitattributes` | Cross-platform LF checkout policy for repository text and binary protocol/capture fixture exclusions. |
-| `Cargo.toml` | Virtual Edition 2024 workspace, package metadata, lints, and internal path dependencies. |
+| `Cargo.toml` | Virtual Edition 2024 workspace, package metadata, lints, internal path dependencies, and shared dev-test dependency policy. |
 | `Cargo.lock` | Cargo-generated locked dependency graph for the seven-package main workspace. |
 | `rust-toolchain.toml` | Exact pinned stable development toolchain and components. |
+| `fuzz/rust-toolchain.toml` | Exact tested dated nightly toolchain for the excluded fuzz package. |
 | `scripts/check_workspace_architecture.py` | Dependency-free Cargo-metadata package, internal-graph, and audited-dependency checker. |
 | `scripts/verification_support.py` | Shared trusted-root-relative component validation, streaming bounded discovery, Unix descriptor-anchored no-follow reads, portable observable-state checks, and bounded diagnostics. |
 | `scripts/test_verification_support.py` | Focused adversarial self-tests for discovery/read bounds, fail-before-read ordering, static symlink-ancestor rejection without target consumption, metadata failures, and observable replacement. |
@@ -61,7 +66,8 @@ capability or release is claimed.
 | `scripts/test_phase18_performance.py` | Focused dependency-free regression tests for the Phase 18.2 benchmark matrix, growth groups, budget arithmetic, and invalid-input rejection. |
 | `scripts/evaluate_phase18_acceptance.py` | Dependency-free strict integer-only evaluator for exactly three Phase 18.3 acceptance measurements against the frozen Phase 18.2 budgets. |
 | `scripts/test_phase18_acceptance.py` | Focused dependency-free tests for Phase 18.3 acceptance evidence validation, aggregation, stability, budget failures, null growth, and deterministic results. |
-| `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, and eight-target bounded Linux fuzz-smoke CI. |
+| `.github/workflows/ci.yml` | Pull-request and `main` push quality, MSRV, cross-platform, eight-target bounded fuzz-smoke, and security/supply-chain CI. |
+| `.github/dependabot.yml` | Review-only weekly surveillance for root Cargo, excluded fuzz Cargo, and GitHub Actions updates. |
 | `tests/fixtures/pcaps/README.md` | Provenance and inventory documentation for synthetic PCAP fixture corpus. |
 | `tests/fixtures/pcaps/manifest.json` | Canonical schema-v1/generator-v1 path-sorted fixture provenance, behavior, and SHA-256 manifest. |
 | `tests/fixtures/pcaps/checksums.sha256` | SHA-256 integrity checksums for synthetic PCAP fixture corpus. |

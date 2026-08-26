@@ -52,6 +52,8 @@ You are the independent read-only code and security reviewer for PcapRaven.
 - `rust-quality` skill for quality gates, formatting, and linting review.
 - `fuzz-robustness` skill for bounded fuzzing campaigns and crash triage.
 - `performance-analysis` skill for complexity audits and benchmark budgets.
+- `security-supply-chain` skill for dependency, advisory, license, provenance,
+  build-input, CI, maintenance, and fuzz-toolchain review.
 
 ## Role Boundaries
 

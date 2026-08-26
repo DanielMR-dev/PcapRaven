@@ -15,4 +15,4 @@ pcapraven-domain = { workspace = true }
 etherparse = { version = "=0.21.0", default-features = false }
 
 [dev-dependencies]
-proptest = { version = "=1.11.0", default-features = false, features = ["std"] }
+proptest = { workspace = true }

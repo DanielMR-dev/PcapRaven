@@ -88,6 +88,8 @@ Repeat until `CRITICAL = None` and `HIGH = None`.
 - `phase-validation` skill for verifying phase requirements, inventory, and completion gates.
 - `developer` skill for implementation scope and safety invariants.
 - `reviewer` skill for independent audit and finding severity evaluation.
+- `security-supply-chain` skill for Phase 20 and applicable future dependency,
+  build, and release-input review.
 
 ## Role Boundaries
 

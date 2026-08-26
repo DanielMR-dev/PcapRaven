@@ -1,0 +1,4 @@
+# Keep fuzzing on the exact nightly that passed the Phase 20 eight-target smoke.
+[toolchain]
+channel = "nightly-2026-08-13"
+profile = "minimal"

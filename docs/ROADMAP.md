@@ -7,9 +7,9 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, and Phase 18 are complete.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, and Phase 20 are complete.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 is next, future, and not implemented; Phases 21 through 28 remain future and not implemented.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is complete and accepted. Phase 21 is next, future, and not implemented; Phases 22 through 28 remain future and not implemented.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -288,11 +288,50 @@ measurement SHA `dbcf108` passed stability `24/24`, median budgets `24/24`, and
 growth budgets `13/13`; the independent source-read-only re-review found no
 CRITICAL or HIGH findings.
 
-## Phase 20 - Final security and supply-chain hardening (NEXT; FUTURE; NOT IMPLEMENTED)
+## Phase 20 - Final security and supply-chain hardening (COMPLETE; ACCEPTED)
 
-Perform the final security, dependency, license, provenance, and supply-chain
-hardening review after Phase 19 is accepted. No Phase 20 capability is
-implemented or advertised by Phase 19.
+Phase 20 completed the final pre-release security and supply-chain review after
+the accepted Phase 19 gate. It adds no product capability and does not consume
+the CLI, schema, cross-platform runtime, packaging, release-candidate, or
+v1.0.0 scope owned by Phases 21 through 28.
+
+- Audited the runtime trust boundaries, hostile-input bounds, privacy
+  non-retention, output safety, filesystem lifecycle, offline behavior,
+  process/environment access, and project unsafe-code posture. No
+  release-blocking production security defect was found.
+- Inventoried the complete main and excluded fuzz dependency graphs, including
+  direct runtime/dev/fuzz dependencies, transitive packages, registry/path
+  provenance, checksums, duplicate versions, build scripts, proc macros,
+  native fuzz tooling, and relevant third-party unsafe implementation.
+- Added the minimal evidence-backed `deny.toml` policy: RustSec advisory and
+  yanked/unmaintained/unsound enforcement, private-package license checking,
+  actual SPDX license allowlist, wildcard and duplicate denial, and crates.io
+  source-only policy. Both graphs pass advisories, bans, licenses, and sources.
+- Installed and pinned the development security tools `cargo-audit 0.22.2` and
+  `cargo-deny 0.20.2` with locked installer graphs. Both committed lockfiles
+  pass `cargo audit --deny warnings` with no advisory ignores.
+- Pinned fuzzing from mutable `nightly` to the tested
+  `nightly-2026-08-13`, reran all eight bounded smoke targets, and retained the
+  application MSRV at Rust 1.85.
+- Hardened all read-only CI checkouts with `persist-credentials: false`,
+  preserved immutable action SHAs and `contents: read`, and added the bounded
+  `Security and supply chain` CI job. Added review-only Dependabot monitoring
+  for the root Cargo workspace, excluded fuzz package, and GitHub Actions.
+- Centralized the existing dev-only `proptest = 1.11.0` declaration to satisfy
+  workspace duplicate policy and added explicit MIT metadata to the excluded
+  fuzz package. No dependency version or lockfile changed.
+- Recorded the evidence in [SUPPLY_CHAIN.md](SUPPLY_CHAIN.md), updated the
+  Security Model, Testing, contributor, agent, and manifest documents, and
+  preserved CLI behavior, schema v1.0, detector semantics, MITRE mappings,
+  seven-package architecture, fixtures, goldens, and Phase 18 budgets.
+
+The final local quality, locked MSRV, architecture, fixture/golden, advisory,
+license/source, and fuzz-smoke gates passed. The independent source-read-only
+review passed with no findings, and PR workflow run `33009011617` for head
+`50178b7` passed all 14 jobs, including all eight fuzz-smoke jobs and the
+security/supply-chain job. Repository settings that were not readable through
+the available authentication are reported as limitations in
+`SUPPLY_CHAIN.md` rather than inferred.
 
 ## Phase 21 - Freeze CLI v1 contract (FUTURE; NOT IMPLEMENTED)
 

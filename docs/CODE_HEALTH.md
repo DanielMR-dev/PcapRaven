@@ -423,6 +423,8 @@ changes; any such change must be re-audited before that exception is used.
 
 Phase 18.3 remains complete. Phase 19 is COMPLETE and accepted: the complete
 production audit, targeted private refactors, final post-change gates, and
-independent Reviewer pass are recorded. Phase 20 is next, future, and not
-implemented; Phases 21 through 28 remain future and not implemented. No Phase
-19 feature, release, or later-phase capability is claimed.
+independent Reviewer pass are recorded. Phase 20 final security and
+supply-chain hardening is complete and accepted; its evidence is recorded in
+`docs/SUPPLY_CHAIN.md`. Phase 21 is next, future, and not implemented; Phases
+22 through 28 remain future and not implemented. No Phase 19 feature, release,
+or later-phase capability is claimed.
