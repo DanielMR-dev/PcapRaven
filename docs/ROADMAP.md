@@ -7,9 +7,9 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, and Phase 20 are complete.
+Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, and Phase 18 are complete. Phase 20 implementation is complete locally, pending final acceptance.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is complete and accepted. Phase 21 is next, future, and not implemented; Phases 22 through 28 remain future and not implemented.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is implemented on its dedicated branch; PR-head CI and final acceptance remain pending. Phase 21 is next, future, and not implemented; Phases 22 through 28 remain future and not implemented.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -288,7 +288,7 @@ measurement SHA `dbcf108` passed stability `24/24`, median budgets `24/24`, and
 growth budgets `13/13`; the independent source-read-only re-review found no
 CRITICAL or HIGH findings.
 
-## Phase 20 - Final security and supply-chain hardening (COMPLETE; ACCEPTED)
+## Phase 20 - Final security and supply-chain hardening (IMPLEMENTATION COMPLETE; ACCEPTANCE PENDING)
 
 Phase 20 completed the final pre-release security and supply-chain review after
 the accepted Phase 19 gate. It adds no product capability and does not consume
@@ -327,9 +327,10 @@ v1.0.0 scope owned by Phases 21 through 28.
 
 The final local quality, locked MSRV, architecture, fixture/golden, advisory,
 license/source, and fuzz-smoke gates passed. The independent source-read-only
-review and final PR-head CI are required acceptance evidence; repository
-settings that were not readable through the available authentication are
-reported as limitations in `SUPPLY_CHAIN.md` rather than inferred.
+review also passed with no findings. Final PR-head CI is required acceptance
+evidence; repository settings that were not readable through the available
+authentication are reported as limitations in `SUPPLY_CHAIN.md` rather than
+inferred.
 
 ## Phase 21 - Freeze CLI v1 contract (FUTURE; NOT IMPLEMENTED)
 

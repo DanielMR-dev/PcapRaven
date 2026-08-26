@@ -6,10 +6,10 @@ Phases 0 through 18, including the Phase 17.1 corpus/golden hardening gate and
 the Phase 18.3 final acceptance gate, are complete. Phase 19 release code-health
 audit and targeted behavior-preserving internal refactoring is complete and
 accepted; its authorized implementation was limited to private CLI helpers.
-Phase 20 final security and supply-chain hardening is complete and accepted.
-Contributors must implement only explicitly delegated scope. Phase 21 is next,
-future, and not implemented; Phases 22 through 28 remain future and not
-implemented.
+Phase 20 final security and supply-chain hardening is implemented on its
+dedicated branch; PR-head CI and final acceptance remain pending. Contributors
+must implement only explicitly delegated scope. Phase 21 is next, future, and
+not implemented; Phases 22 through 28 remain future and not implemented.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md) before proposing a change.

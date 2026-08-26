@@ -365,7 +365,8 @@ The available GitHub authentication could not read branch-protection details,
 required-status-check policy, force-push/deletion protection, or Dependabot
 security-feature visibility. The public rulesets endpoint returned no rulesets,
 but that does not prove that all repository protections are absent. No setting
-was changed or inferred.
+was changed or inferred. The requested PR creation was rejected by the current
+tool authorization as an external publication, so no PR-head CI run exists yet.
 
 The audit is a point-in-time review of committed lockfiles and the advisory
 database available on the review date. Third-party unsafe/native build code
@@ -375,13 +376,13 @@ Phase 24/27 work and are not Phase 20 claims.
 
 ## Phase Status
 
-At branch start this phase was `CURRENT / IN PROGRESS`. After final local gates,
-independent review, remediation if needed, and final PR-head CI, the canonical
-status may transition to:
+At branch start this phase was `CURRENT / IN PROGRESS`. Final local gates and
+the independent source-read-only review are complete; PR creation and final
+PR-head CI remain pending, so the current canonical status is:
 
 ```text
 Phase 19: COMPLETE
-Phase 20: COMPLETE / ACCEPTED
+Phase 20: IMPLEMENTATION COMPLETE / ACCEPTANCE PENDING
 Phase 21: NEXT / NOT IMPLEMENTED
 Phases 22 through 28: FUTURE / NOT IMPLEMENTED
 ```

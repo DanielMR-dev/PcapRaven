@@ -22,9 +22,9 @@ complete and accepted; the authorized implementation was limited to private
 CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
 logical jobs, including all eight fuzz-smoke targets, and the independent
 source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 final
-security and supply-chain hardening is complete and accepted. Phase 21 is next,
-future, and not implemented; Phases 22 through 28 remain future and not
-implemented.
+security and supply-chain hardening is implemented on its dedicated branch;
+PR-head CI and final acceptance remain pending. Phase 21 is next, future, and
+not implemented; Phases 22 through 28 remain future and not implemented.
 
 ## Testing Pyramid
 
@@ -550,8 +550,9 @@ authorized implementation was limited to private CLI helpers. PR workflow run
 `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all eight
 fuzz-smoke targets; the independent source-read-only re-review found no
 CRITICAL or HIGH findings. Phase 20 final security and supply-chain hardening
-is complete and accepted. Phase 21 is next, future, and not implemented; Phases
-22 through 28 remain future and not implemented.
+is implemented on its dedicated branch; PR-head CI and final acceptance remain
+pending. Phase 21 is next, future, and not implemented; Phases 22 through 28
+remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

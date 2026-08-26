@@ -28,10 +28,11 @@ measurement SHA `dbcf108f1ec4f8f9c9bf14f83ef2bfb0ed3de0e6` passed stability
 sets remain disclosed in `docs/CODE_HEALTH.md`. Final PR workflow run
 `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, and the
 source-read-only Reviewer re-review found no CRITICAL or HIGH findings. Phase
-20 final security and supply-chain hardening is complete and accepted; it
-changed no production behavior or runtime dependency, so no new performance
-comparison was required. Phase 21 is next, future, and not implemented; Phases
-22 through 28 remain future and not implemented.
+20 final security and supply-chain hardening is implemented on its dedicated
+branch; it changed no production behavior or runtime dependency, so no new
+performance comparison was required. PR-head CI and final acceptance remain
+pending. Phase 21 is next, future, and not implemented; Phases 22 through 28
+remain future and not implemented.
 
 ## Benchmark Infrastructure
 
