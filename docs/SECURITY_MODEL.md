@@ -24,8 +24,9 @@ and Phase 17 adds the manifest-backed synthetic fixture corpus, golden reports,
 and end-to-end regression testing. Phase 18 robustness and performance
 verification is complete. Phase 19 release code-health audit and targeted
 behavior-preserving internal refactoring is complete and accepted; this stage
-claims no new security capability or v1.0.0 release. Phase 20 is next, future,
-and not implemented; Phases 21 through 28 remain future and not implemented.
+claims no new security capability or v1.0.0 release. Phase 20 final security
+and supply-chain hardening is complete and accepted. Phase 21 is next, future,
+and not implemented; Phases 22 through 28 remain future and not implemented.
 
 ## Assets
 
@@ -284,22 +285,56 @@ not establish attribution. The canonical policy is in
 
 Project unsafe code follows the exception process in
 [Architecture](ARCHITECTURE.md#unsafe-rust-policy). Third-party dependencies
-expand the attack surface.
+expand the attack surface. The complete current graph, maintenance review,
+license evidence, provenance, and tool output are recorded in the
+[Phase 20 supply-chain ledger](SUPPLY_CHAIN.md).
 
-- `pcap-parser = 0.17.0` (in `pcapraven-pcap`): normal dependency, default/data/serialize
-  features disabled. MIT/Apache-2.0, MSRV 1.65.
-- `etherparse = 0.21.0` (in `pcapraven-protocols`): normal dependency, default features
-  disabled. Direct dependency `arrayvec` (locked `0.7.8`). MIT/Apache-2.0, MSRV 1.83.0.
-- `pcapraven-flows`: zero third-party production dependencies.
-- `pcapraven-detection`: zero third-party production dependencies (`std` and `pcapraven-domain` only).
-- `clap = "=4.6.4"` (in `pcapraven-cli`): normal dependency, `default-features = false`,
-  features `["std", "help", "usage", "error-context"]`. Audited transitive tree:
-  `clap_builder 4.6.2`, `clap_lex 1.1.0`, `anstyle 1.0.14`. MIT/Apache-2.0, MSRV 1.85.
-- `proptest = 1.11.0`: dev-only in test targets, `std` feature only. MIT/Apache-2.0, MSRV 1.85.
-- `libfuzzer-sys = 0.4.13`: separate `fuzz/` package only.
+- Runtime direct dependencies are deliberately small and feature-restricted:
+  `pcap-parser = 0.17.0` (default, `data`, and `serialize` disabled),
+  `etherparse = 0.21.0` (default features disabled), `serde = 1.0.219`
+  (default features disabled with `alloc` and `derive`),
+  `serde_json = 1.0.140` (default features disabled with `alloc`),
+  `csv = 1.3.1` (default features disabled), and
+  `clap = 4.6.4` (default features disabled with `std`, `help`, `usage`, and
+  `error-context`).
+- `pcapraven-domain`, `pcapraven-flows`, and `pcapraven-detection` have zero
+  third-party production dependencies. The shared `proptest = 1.11.0`
+  declaration is dev-only, with default features disabled and only `std`
+  enabled; it is not linked into production binaries.
+- `libfuzzer-sys = 0.4.13`, plus the fuzz manifest's `serde_json` and `csv`,
+  are fuzz-only dependencies. The excluded fuzz package is outside the
+  seven-package production graph. Its native `cc`/libFuzzer build path is
+  reviewed separately and is never an application runtime service.
+- Compile-time inputs include expected `serde_derive` and
+  `zerocopy-derive` proc macros and the build-script packages identified in
+  the locked metadata. Build scripts and proc macros are supply-chain inputs,
+  but their execution during compilation does not enable runtime network,
+  telemetry, or secret collection.
+- Both committed lockfiles are required for reproducible resolution. Every
+  external package must come from the approved crates.io index, carry a Cargo
+  checksum, and pass RustSec and cargo-deny checks. Unknown registries, Git
+  sources, wildcard dependency requirements, and duplicate versions are
+  denied by `deny.toml`; private workspace packages are license-checked.
+- RustSec advisories, yanked releases, unmaintained packages, and unsoundness
+  reports are release-blocking unless an exact package-specific exception is
+  independently reviewed and documented. The current policy has no advisory
+  ignores, license exceptions, source exceptions, or duplicate-version skips.
+  The license allowlist is derived from the current main and fuzz inventories,
+  not from a generic permissive-license list.
+- Direct dependency changes require review of the exact version, features,
+  MSRV, source, license, advisory state, maintenance, compile-time behavior,
+  and transitive footprint. Newer does not by itself mean safer; no
+  freshness-only update or broad `cargo update` is permitted.
+- Read-only CI checkouts disable persisted credentials, and workflow actions
+  are pinned to immutable full commit SHAs. The workflow token remains
+  `contents: read`; no release, registry, signing, or OIDC secret is present.
 
 No dependency may introduce default telemetry or network behavior that
 contradicts this model.
+
+SBOM generation, release signing, artifact attestation, binary provenance, and
+release publication belong to future Phase 24/27 work. They are not Phase 20
+capabilities or release-readiness claims.
 
 ## Fixtures and Development Data
 

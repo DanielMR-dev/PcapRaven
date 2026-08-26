@@ -21,8 +21,9 @@ code-health audit and targeted behavior-preserving internal refactoring is
 complete and accepted; the authorized implementation was limited to private
 CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
 logical jobs, including all eight fuzz-smoke targets, and the independent
-source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 is next,
-future, and not implemented; Phases 21 through 28 remain future and not
+source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 final
+security and supply-chain hardening is complete and accepted. Phase 21 is next,
+future, and not implemented; Phases 22 through 28 remain future and not
 implemented.
 
 ## Testing Pyramid
@@ -97,17 +98,18 @@ sanitization, strict machine-reference token validation, complete
 packet/flow/observation/evidence/source-finding reference closure, canonical
 source ordering, malformed JSON values, and writer failures.
 The targets call only public bounded APIs and do not access files or networks.
-The checked-in CI build commands are:
+The checked-in CI fuzz commands run from `fuzz/`, which supplies the exact
+dated nightly through `fuzz/rust-toolchain.toml`:
 
 ```text
-cargo +nightly fuzz build fuzz_pcap_reader
-cargo +nightly fuzz build fuzz_packet_normalizer
-cargo +nightly fuzz build fuzz_flow_reconstructor
-cargo +nightly fuzz build fuzz_dns_parser
-cargo +nightly fuzz build fuzz_http_parser
-cargo +nightly fuzz build fuzz_tls_parser
-cargo +nightly fuzz build fuzz_detection_engine
-cargo +nightly fuzz build fuzz_reporting
+cargo fuzz run fuzz_pcap_reader corpus/fuzz_pcap_reader -- -max_len=4096 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_packet_normalizer corpus/fuzz_packet_normalizer -- -max_len=8192 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_flow_reconstructor corpus/fuzz_flow_reconstructor -- -max_len=4096 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_dns_parser corpus/fuzz_dns_parser -- -max_len=4096 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_http_parser corpus/fuzz_http_parser -- -max_len=8192 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_tls_parser corpus/fuzz_tls_parser -- -max_len=32768 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_detection_engine corpus/fuzz_detection_engine -- -max_len=4096 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
+cargo fuzz run fuzz_reporting corpus/fuzz_reporting -- -max_len=8192 -max_total_time=30 -timeout=5 -rss_limit_mb=1024
 ```
 
 Exactly two curated synthetic seeds are tracked under each
@@ -223,10 +225,11 @@ python3 scripts/check_workspace_architecture.py
 ```
 
 The separate Linux CI fuzz matrix verifies the excluded fuzz harnesses using the
-nightly toolchain and pinned `cargo-fuzz = 0.13.2`. Each matrix entry runs:
+dated nightly in `fuzz/rust-toolchain.toml` and pinned `cargo-fuzz = 0.13.2`.
+Each matrix entry runs from `fuzz/`:
 
 ```text
-cargo +nightly fuzz run <target> fuzz/corpus/<target> -- \
+cargo fuzz run <target> corpus/<target> -- \
   -max_len=<target-limit> -max_total_time=30 -timeout=5 -rss_limit_mb=1024
 ```
 
@@ -242,6 +245,34 @@ dependencies, and dependency directions. The workspace lint policy rejects
 project `unsafe` code by default. The fuzz package remains excluded from the
 seven-package main workspace and its exact dependencies and eight binary targets
 are validated separately by the architecture checker.
+
+## Phase 20 Security and Supply-Chain Gates
+
+Phase 20 adds a dedicated advisory, license, provenance, duplicate, and
+source-policy gate. Run the exact tools used by CI with the pinned development
+toolchain; these tools are development utilities and do not change the Rust
+1.85 application MSRV:
+
+```text
+cargo audit --file Cargo.lock --deny warnings
+cargo audit --file fuzz/Cargo.lock --deny warnings
+cargo deny --all-features --config deny.toml check advisories bans licenses sources
+cargo deny --manifest-path fuzz/Cargo.toml --all-features --config deny.toml check advisories bans licenses sources
+```
+
+The audit commands may access the network when refreshing RustSec advisory
+data. Ordinary application tests, fixture generation/checking, golden checks,
+and runtime analysis remain offline and make no network requests by default.
+The independent Reviewer remains source-read-only and does not use network
+tools. The current CI executes these commands in the dedicated
+`security-supply-chain` job with exact `cargo-audit 0.22.2` and
+`cargo-deny 0.20.2` installations, and does not use `continue-on-error`.
+
+The complete Phase 20 evidence, dependency inventory, maintenance decisions,
+build/proc-macro review, action pin review, and repository-settings limitations
+are recorded in [SUPPLY_CHAIN.md](SUPPLY_CHAIN.md). The phase changes no
+product behavior, CLI contract, reporting schema, detector semantics, MITRE
+mapping, or release automation.
 
 ## Phase 0 Validation (completed)
 
@@ -506,7 +537,7 @@ python3 scripts/check_workspace_architecture.py
 cargo +1.85.0 check --workspace --all-targets --locked
 cargo +1.85.0 build --workspace --locked
 cargo +1.85.0 test --workspace --locked
-cargo +nightly fuzz build
+cargo fuzz build <target>  # from fuzz/, using fuzz/rust-toolchain.toml
 python3 scripts/run_phase18_benchmarks.py --smoke
 ```
 
@@ -518,8 +549,9 @@ behavior-preserving internal refactoring is complete and accepted. The
 authorized implementation was limited to private CLI helpers. PR workflow run
 `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all eight
 fuzz-smoke targets; the independent source-read-only re-review found no
-CRITICAL or HIGH findings. Phase 20 is next, future, and not implemented;
-Phases 21 through 28 remain future and not implemented.
+CRITICAL or HIGH findings. Phase 20 final security and supply-chain hardening
+is complete and accepted. Phase 21 is next, future, and not implemented; Phases
+22 through 28 remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

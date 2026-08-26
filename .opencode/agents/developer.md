@@ -76,6 +76,9 @@ You are the senior Rust developer for PcapRaven.
 - `cli-contract` skill for command-line interface, streaming orchestration, and exit status contracts.
 - `fuzz-robustness` skill for bounded fuzz harnesses, corpora, campaigns, and triage.
 - `performance-analysis` skill for complexity audits, scalable benchmarks, and regression analysis.
+- `security-supply-chain` skill for dependency classification, RustSec,
+  cargo-deny policy, provenance, licensing, build/proc-macro trust, CI
+  hardening, and dependency-update review.
 - `phase-validation` skill for phase verification checklists.
 - `developer` skill for developer role instructions and safety invariants.
 - `orchestrator` skill for orchestrator workflow and delegation rules.

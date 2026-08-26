@@ -28,3 +28,4 @@ pcapraven-protocols = { path = "crates/pcapraven-protocols", version = "0.0.0" }
 pcapraven-flows = { path = "crates/pcapraven-flows", version = "0.0.0" }
 pcapraven-detection = { path = "crates/pcapraven-detection", version = "0.0.0" }
 pcapraven-reporting = { path = "crates/pcapraven-reporting", version = "0.0.0" }
+proptest = { version = "=1.11.0", default-features = false, features = ["std"] }

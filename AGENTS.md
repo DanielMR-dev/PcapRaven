@@ -37,8 +37,10 @@ run `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all
 eight fuzz-smoke targets; the accepted performance retry at measurement SHA
 `dbcf108` passed stability `24/24`, median budgets `24/24`, and growth budgets
 `13/13`; and the independent source-read-only re-review found no CRITICAL or
-HIGH findings. Phase 20 is next, future, and not implemented; Phases 21
-through 28 remain future and not implemented.
+HIGH findings. Phase 20 final security and supply-chain hardening is complete
+and accepted. Phase 21 is next, future, and not implemented; Phases 22 through
+28 remain future and not implemented. No v1.0.0 or release-readiness claim is
+made.
 
 Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
@@ -59,7 +61,8 @@ Phase 17 synthetic fixture corpus generation, golden report matrix, cross-crate 
 end-to-end regression testing, and the Phase 17.1 hardening gate are complete.
 Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted internal-refactoring scope is complete and
-accepted. Phase 20 is next and future, not implemented; Phases 21 through 28
+accepted. Phase 20 final security and supply-chain hardening is complete and
+accepted. Phase 21 is next and future, not implemented; Phases 22 through 28
 remain future and not implemented. No Phase 19 feature, release, or later
 capability may be claimed as implemented.
 
@@ -217,7 +220,9 @@ for fuzz robustness and triage, use `fuzz-robustness`;
 for performance analysis and benchmarking, use `performance-analysis`;
 for multi-agent orchestration, use `orchestrator`;
 for implementation development, use `developer`;
-for independent review, use `reviewer`.
+for independent review, use `reviewer`; for Phase 20, dependency changes, or
+applicable future build/release dependency review, use
+`security-supply-chain`.
 Inspect every changed or created file, verify referenced paths, and confirm the
 repository contains no out-of-phase artifacts.
 

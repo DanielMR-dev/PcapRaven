@@ -21,8 +21,9 @@ seven-package runtime architecture. The architecture checker audits the fuzz
 package separately. Phase 18 robustness and performance verification is
 complete and remains outside runtime crate responsibilities. Phase 19
 code-health audit and targeted internal refactoring is complete and accepted;
-the governance/audit stage leaves the runtime architecture unchanged. Phases 20
-through 28 are future and not implemented.
+Phase 20 security and supply-chain hardening is complete and accepted. The
+runtime architecture remains unchanged. Phase 21 is next and Phases 22 through
+28 are future and not implemented.
 
 ## Architectural Principles
 
@@ -66,6 +67,9 @@ development toolchain is pinned separately in `rust-toolchain.toml` and is
 intentionally newer than the declared MSRV. The only dependencies are the
 documented path edges below and the audited external dependencies. Every member
 opts into the workspace lint policy, which forbids project `unsafe` code by default.
+The shared `proptest = 1.11.0` workspace dependency is dev-only and is not part
+of the runtime graph. Full dependency, source, license, build-input, and
+maintenance evidence is in [SUPPLY_CHAIN.md](SUPPLY_CHAIN.md).
 
 The `pcapraven-reporting` package defines deterministic multi-format serialization
 (Table, JSON, NDJSON, CSV), CSV formula injection defenses, and frozen schema version anchors.

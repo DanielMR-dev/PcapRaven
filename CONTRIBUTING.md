@@ -6,8 +6,9 @@ Phases 0 through 18, including the Phase 17.1 corpus/golden hardening gate and
 the Phase 18.3 final acceptance gate, are complete. Phase 19 release code-health
 audit and targeted behavior-preserving internal refactoring is complete and
 accepted; its authorized implementation was limited to private CLI helpers.
-Contributors must implement only explicitly delegated scope. Phase 20 is next,
-future, and not implemented; Phases 21 through 28 remain future and not
+Phase 20 final security and supply-chain hardening is complete and accepted.
+Contributors must implement only explicitly delegated scope. Phase 21 is next,
+future, and not implemented; Phases 22 through 28 remain future and not
 implemented.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
@@ -49,6 +50,15 @@ resource use, and the unsafe-code exception policy.
 Architecture changes must update the relevant canonical documentation in the
 same contribution. Compatibility shims or additional crates require a concrete
 need and explicit review; they must not be introduced speculatively.
+
+Dependency changes require an exact-version, feature, license, source,
+RustSec, maintenance, MSRV, and transitive-footprint review. Review build
+scripts, proc macros, native tooling, and unsafe exposure as well. Do not run a
+broad freshness update or modify a lockfile manually. Run the Phase 20 machine
+gates in [Testing](docs/TESTING.md#phase-20-security-and-supply-chain-gates),
+update the architecture checker when the approved graph changes, and record
+the evidence in [SUPPLY_CHAIN.md](docs/SUPPLY_CHAIN.md). Dependabot PRs are
+review proposals only and remain subject to the same review.
 
 ## Testing and Quality
 

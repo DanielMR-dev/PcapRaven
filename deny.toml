@@ -1,0 +1,44 @@
+# Phase 20 dependency policy. Keep this file small and evidence-driven.
+
+[graph]
+all-features = true
+
+[advisories]
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+ignore = []
+
+[licenses]
+include-dev = true
+include-build = true
+confidence-threshold = 0.93
+# MIT/Apache-2.0 satisfy the permissive alternatives; NCSA is required by the
+# fuzz-only libfuzzer-sys expression and Unicode-3.0 by unicode-ident.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "NCSA",
+    "Unicode-3.0",
+]
+exceptions = []
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "deny"
+multiple-versions-include-dev = true
+wildcards = "deny"
+highlight = "simplest-path"
+
+[bans.workspace-dependencies]
+duplicates = "deny"
+include-path-dependencies = true
+unused = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
