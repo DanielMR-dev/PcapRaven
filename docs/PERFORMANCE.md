@@ -30,8 +30,11 @@ sets remain disclosed in `docs/CODE_HEALTH.md`. Final PR workflow run
 source-read-only Reviewer re-review found no CRITICAL or HIGH findings. Phase
 20 final security and supply-chain hardening is complete and accepted; it
 changed no production behavior or runtime dependency, so no new performance
-comparison was required. Phase 21 is the active CLI v1 contract-freeze phase;
-Phases 22 through 28 remain future and not implemented.
+comparison was required. The Phase 21 conditional performance requirement
+passed using the frozen methodology. Formal Phase 21 closure remains pending
+independent Reviewer and governance completion.
+Phase 22 is next and not implemented; Phases 23 through 28 remain future and
+not implemented.
 
 ## Benchmark Infrastructure
 
@@ -269,6 +272,103 @@ unstable at `validate_50000`, `dns_1000`, `analyze_multi_signal_1000`,
 17,391 basis points. Their raw files remain external diagnostics only and are
 not tracked acceptance evidence; no individual run or scenario was selected
 from either dataset.
+
+## Phase 21 Conditional Performance Revalidation
+
+Phase 21 changed production CLI source, so its acceptance gate required a new
+comparison using the frozen Phase 18.2 runner, workloads, budgets, and
+Phase 18.3 evaluator. The candidate was measured from clean branch
+`phase-21-acceptance-closure` at SHA
+`1d787b59fc43a7028271877ff098a4d3998801a3`. No WSL restart completed before
+this campaign; a restart command had been attempted earlier and aborted.
+The benchmark runner and evaluator, frozen budgets, lockfiles, workload matrix,
+and measurement semantics were not changed.
+
+The exact sequential commands were:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-closure-run-1.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-closure-run-2.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-closure-run-3.json
+python3 scripts/evaluate_phase18_acceptance.py docs/performance/phase18-2-budgets.json /tmp/pcapraven-phase21-closure-run-1.json /tmp/pcapraven-phase21-closure-run-2.json /tmp/pcapraven-phase21-closure-run-3.json > /tmp/pcapraven-phase21-closure-performance-result.json
+```
+
+All three full benchmark commands exited `0`; the unchanged evaluator exited
+`0` with `acceptance_status = passed` and `overall_pass = true`:
+
+| Check | Result |
+| --- | ---: |
+| Sequential full runs | 3 |
+| Scenarios per run | 24 |
+| Warmup samples per scenario | 1 |
+| Measured samples per scenario | 5 |
+| Stability checks | 24/24 |
+| Absolute median budgets | 24/24 |
+| Meaningful growth budgets | 13/13 |
+| Maximum acceptance spread | 1,463 bp (`analyze_dns_heavy_10000`) |
+| Failed scenarios | `[]` |
+| Unstable scenarios | `[]` |
+| Frozen budget SHA-256 | `d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1` |
+
+The acceptance result recorded the following environment and compatibility
+evidence:
+
+```text
+os: Linux
+kernel: 6.18.33.2-microsoft-standard-WSL2
+machine: x86_64
+platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43
+cpu_model: AMD Ryzen 5 5600G with Radeon Graphics
+logical_cpu_count: 12
+page_size_bytes: 4096
+physical_pages: 4076706
+total_memory_bytes: 16698187776
+available_memory_bytes: 13568749568
+rustc: rustc 1.97.1 (8bab26f4f 2026-07-14)
+  binary: rustc
+  commit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452
+  commit-date: 2026-07-14
+  host: x86_64-unknown-linux-gnu
+  release: 1.97.1
+  LLVM version: 22.1.6
+active_toolchain: 1.97.1-x86_64-unknown-linux-gnu (overridden by '/home/danielmr-dev/Dev/PcapRaven/rust-toolchain.toml')
+cargo: cargo 1.97.1 (c980f4866 2026-06-30)
+python: 3.14.4
+build_profile: release
+git_sha: 1d787b59fc43a7028271877ff098a4d3998801a3
+git_dirty: false
+git_worktree_status: clean
+background_load: not controlled, pinned, or sampled
+power_mode: unreported; power state was not controlled
+limitations: Whole-process timings include CLI startup and filesystem cache effects; CPU affinity, power state, thermal state, and background load are uncontrolled.
+```
+
+The frozen baseline total memory was `16698191872` bytes. The candidate value
+was `16698187776` bytes, a positive page-aligned difference of exactly `4096`
+bytes. The unchanged evaluator recorded compatibility status
+`equivalent_within_one_page` under
+`phase18.3-linux-wsl2-total-memory-one-page-v1`; `total_memory_bytes` was the
+only differing stable field. This is the existing Linux WSL2 one-page policy,
+not a new or general cross-machine tolerance.
+
+The exact external raw JSON evidence remains at the paths used by the
+evaluator. Their SHA-256 values are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `/tmp/pcapraven-phase21-closure-run-1.json` | `724f405ae7b73afcc7a4ab701b4e8878f4b69eb602659d19563be738b7f9727c` |
+| `/tmp/pcapraven-phase21-closure-run-2.json` | `4f4fc6c5fe2d409b298dbc10a5ae6b54fb7a8e21dec9db48e6b489344ece3d0b` |
+| `/tmp/pcapraven-phase21-closure-run-3.json` | `61d8881a5b4c6e1c88bef0b080b5f5a67d174daeb34364e7f713f6dea15af679` |
+| `/tmp/pcapraven-phase21-closure-performance-result.json` | `3fb393e5338c2615525b37148d8a188c2be79896fb48e6924eb5d9f55e56141f` |
+
+The raw files remain outside the checkout because the frozen methodology
+requires each measured run to observe a clean worktree. No individual run or
+scenario was discarded from this passing dataset.
+
+This dataset replaces the previously rejected Phase 21 comparison: that
+candidate was two 4096-byte pages below the frozen total-memory value and was
+rejected by the unchanged evaluator before timing acceptance. None of its runs
+or scenarios were reused here.
 
 ## Source-Level Complexity Audit
 
