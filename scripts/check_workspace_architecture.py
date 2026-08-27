@@ -120,13 +120,13 @@ EXPECTED_EXTERNAL = {
     },
     "pcapraven-reporting": {
         "serde": {
-            "req": "=1.0.219",
+            "req": "=1.0.229",
             "kind": None,
             "features": ["alloc", "derive"],
             "uses_default_features": False,
         },
         "serde_json": {
-            "req": "=1.0.140",
+            "req": "=1.0.143",
             "kind": None,
             "features": ["alloc"],
             "uses_default_features": False,
@@ -146,7 +146,7 @@ EXPECTED_EXTERNAL = {
     },
     "pcapraven-cli": {
         "clap": {
-            "req": "=4.6.4",
+            "req": "=4.6.6",
             "kind": None,
             "features": ["std", "help", "usage", "error-context"],
             "uses_default_features": False,
@@ -263,7 +263,7 @@ def validate_fuzz_package(repository_root: Path) -> str | None:
     if dependencies.get("libfuzzer-sys") != {"version": "=0.4.13"}:
         return "fuzz package libfuzzer-sys declaration is not exact 0.4.13"
     if dependencies.get("serde_json") != {
-        "version": "=1.0.140",
+        "version": "=1.0.143",
         "default-features": False,
         "features": ["alloc"],
     }:
