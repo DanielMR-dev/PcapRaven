@@ -772,8 +772,10 @@ fn run_analyze(
 mod output_tests {
     use super::{convert_validation_outcome, render_and_flush, with_output_sink};
     use pcapraven_pcap::{
-        CaptureCompletion, CaptureDiagnostic, CaptureDiagnosticKind, CaptureDiagnosticStage,
-        CaptureFormat, CaptureLocation, CaptureMetadata, CaptureReadOutcome,
+        ByteOrder, CaptureCompletion, CaptureDiagnostic, CaptureDiagnosticKind,
+        CaptureDiagnosticStage, CaptureFormat, CaptureInterface, CaptureInterfaceSlot,
+        CaptureLocation, CaptureMetadata, CaptureReadOutcome, CaptureReaderError, CaptureSection,
+        CaptureTimestampResolution, MalformedCapture,
     };
     use pcapraven_reporting::ReportError;
     use std::io::{self, Write};
@@ -953,5 +955,74 @@ mod output_tests {
             assert_eq!(emitted[index].kind, *expected_kind);
             assert_eq!(emitted[index].byte_offset, Some(index.to_string()));
         }
+    }
+
+    #[test]
+    fn validation_conversion_maps_pcapng_metadata_and_failed_completion() {
+        let terminal_error = CaptureReaderError::Malformed {
+            detail: MalformedCapture::Boundary,
+            location: CaptureLocation {
+                offset: 37,
+                section_ordinal: Some(0),
+                interface_ordinal: None,
+                block_type: Some(0x0000_0006),
+                packet_ordinal: None,
+            },
+        };
+        let outcome = CaptureReadOutcome {
+            metadata: CaptureMetadata {
+                format: CaptureFormat::PcapNg,
+                legacy: None,
+                sections: vec![CaptureSection {
+                    ordinal: 0,
+                    byte_order: ByteOrder::Big,
+                    version_major: 1,
+                    version_minor: 0,
+                    section_length: -1,
+                    interfaces: vec![
+                        CaptureInterfaceSlot::Valid(CaptureInterface {
+                            section_ordinal: 0,
+                            interface_ordinal: 0,
+                            linktype: 1,
+                            snaplen: 65_535,
+                            byte_order: ByteOrder::Big,
+                            timestamp_resolution: CaptureTimestampResolution::Decimal {
+                                exponent: 6,
+                                units_per_second: 1_000_000,
+                            },
+                            timestamp_offset_seconds: 0,
+                        }),
+                        CaptureInterfaceSlot::Unusable {
+                            section_ordinal: 0,
+                            interface_ordinal: 1,
+                        },
+                    ],
+                }],
+            },
+            records: Vec::new(),
+            diagnostics: Vec::new(),
+            completion: CaptureCompletion::FailedBeforeUsefulRecords { terminal_error },
+        };
+
+        let (metadata, summary, completion, diagnostics) = convert_validation_outcome(&outcome, 0);
+
+        assert_eq!(metadata.format, "pcapng");
+        assert_eq!(metadata.byte_order, "big_endian");
+        assert_eq!(metadata.section_count.as_deref(), Some("1"));
+        assert_eq!(metadata.interface_count.as_deref(), Some("2"));
+        assert_eq!(metadata.usable_interfaces.as_deref(), Some("1"));
+        assert_eq!(metadata.unusable_interfaces.as_deref(), Some("1"));
+        assert_eq!(metadata.version_major, Some(1));
+        assert_eq!(metadata.version_minor, Some(0));
+        assert_eq!(summary.records_emitted, "0");
+        assert_eq!(summary.total_diagnostics, "0");
+        assert!(!summary.had_diagnostics);
+        assert_eq!(completion.status, "failed");
+        assert!(!completion.is_complete);
+        assert_eq!(
+            completion.terminal_error.as_deref(),
+            Some("malformed capture (Boundary) at byte 37")
+        );
+        assert!(diagnostics.is_empty());
     }
 }
