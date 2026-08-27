@@ -291,7 +291,7 @@ license evidence, provenance, and tool output are recorded in the
 
 - Runtime direct dependencies are deliberately small and feature-restricted:
   `pcap-parser = 0.17.0` (default, `data`, and `serialize` disabled),
-  `etherparse = 0.21.0` (default features disabled), `serde = 1.0.219`
+  `etherparse = 0.21.0` (default features disabled), `serde = 1.0.229`
   (default features disabled with `alloc` and `derive`),
   `serde_json = 1.0.140` (default features disabled with `alloc`),
   `csv = 1.3.1` (default features disabled), and
