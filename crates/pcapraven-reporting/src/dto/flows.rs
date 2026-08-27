@@ -38,7 +38,7 @@ impl FlowsReportDto {
 /// A reconstructed bidirectional flow record.
 #[derive(Debug, Clone, Serialize)]
 pub struct FlowRecordDto {
-    /// Monotonic flow identifier string (e.g. "flow:0").
+    /// Monotonic flow identifier string (e.g. "Flow(0)").
     pub id: String,
     /// Ordinal index as a decimal string.
     pub ordinal: String,

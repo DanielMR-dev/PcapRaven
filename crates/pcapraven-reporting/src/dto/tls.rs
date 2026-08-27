@@ -50,7 +50,7 @@ pub struct TlsObservationDto {
     pub destination_ip: String,
     /// Destination TCP port number.
     pub destination_port: u16,
-    /// TLS record layer version string (e.g. "TLSv1.0", "TLSv1.2").
+    /// TLS record layer version string (e.g. "TLS 1.0", "TLS 1.2").
     pub record_version: String,
     /// Handshake message kind ("client_hello", "server_hello", "hello_retry_request", "other").
     pub handshake_kind: String,
