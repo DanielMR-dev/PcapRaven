@@ -7,9 +7,10 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Phase 15, Phase 16, Phase 17, Phase 18, and Phase 20 are complete.
+Phases 0 through 20 are complete and accepted. Phase 21 is the active CLI v1
+contract-freeze phase. Phases 22 through 28 remain future and not implemented.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
-Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is complete and accepted. Phase 21 is next, future, and not implemented; Phases 22 through 28 remain future and not implemented.
+Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is complete and accepted.
 
 ## Phase 0 - Product definition, architecture and engineering foundation
 
@@ -89,7 +90,7 @@ eliminated production `.expect()` calls in `FlowReconstructor`. Implemented exac
 codes (`0` complete, `1` fatal failure before useful result, `2` usage/config error, `3`
 useful partial result), strict stdout/stderr stream separation, bounded diagnostics
 budget (100 lines default) with suppression summary unless `--quiet`, audited minimal
-`clap = "=4.6.6"` dependency, and comprehensive end-to-end integration tests in
+`clap = "=4.6.4"` dependency, and comprehensive end-to-end integration tests in
 `crates/pcapraven-cli/tests/cli.rs`.
 
 ## Phase 7 - DNS protocol analysis
@@ -333,10 +334,17 @@ security/supply-chain job. Repository settings that were not readable through
 the available authentication are reported as limitations in
 `SUPPLY_CHAIN.md` rather than inferred.
 
-## Phase 21 - Freeze CLI v1 contract (FUTURE; NOT IMPLEMENTED)
+## Phase 21 - Freeze CLI v1 contract (IN PROGRESS)
 
 Freeze the documented CLI v1 commands, flags, diagnostics, stdout/stderr
 boundaries, and exit-code contract after the preceding gates are accepted.
+The detailed compatibility owner is [CLI_V1_CONTRACT.md](CLI_V1_CONTRACT.md).
+The phase adds a separate CLI-surface contract test and deterministic help,
+usage, and error snapshots while preserving the report golden matrix, schema
+v1.0, detector semantics, MITRE mappings, dependency graph, and seven-package
+workspace topology. Acceptance also requires the existing security,
+robustness, fuzz-smoke, and performance gates where applicable, cross-platform
+contract CI, and independent source-read-only review.
 
 ## Phase 22 - Reporting schema v1 final audit (FUTURE; NOT IMPLEMENTED)
 
