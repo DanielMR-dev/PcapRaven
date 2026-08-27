@@ -7,8 +7,9 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phases 0 through 21 are complete and accepted. Phase 22 is in progress. Phases
-23 through 28 remain future and not implemented.
+Phases 0 through 22 are complete and accepted. Phase 22 was the reporting
+schema v1 final audit. Phase 23 cross-platform runtime acceptance is NEXT / NOT
+IMPLEMENTED; Phases 24 through 28 remain FUTURE / NOT IMPLEMENTED.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
 Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is complete and accepted.
 
@@ -349,14 +350,15 @@ stability, median-budget, and growth-budget checks. The exact performance
 evidence is recorded in [PERFORMANCE.md](PERFORMANCE.md). No Phase 22
 functionality is included.
 
-## Phase 22 - Reporting schema v1 final audit (IN PROGRESS)
+## Phase 22 - Reporting schema v1 final audit (COMPLETE / ACCEPTED)
 
-Perform the final reporting schema v1 audit and compatibility review without
+Completed the final reporting schema v1 audit and compatibility review without
 redesigning the accepted wire format. The evidence ledger is
-[REPORTING_SCHEMA_V1_AUDIT.md](REPORTING_SCHEMA_V1_AUDIT.md); final acceptance
-remains pending independent review and final PR-head CI.
+[REPORTING_SCHEMA_V1_AUDIT.md](REPORTING_SCHEMA_V1_AUDIT.md). The independent
+review and required PR-head CI passed without redesigning the accepted wire
+format.
 
-## Phase 23 - Cross-platform runtime acceptance (FUTURE; NOT IMPLEMENTED)
+## Phase 23 - Cross-platform runtime acceptance (NEXT / NOT IMPLEMENTED)
 
 Run the required supported-platform runtime acceptance matrix after the prior
 security, CLI, and schema gates are complete.

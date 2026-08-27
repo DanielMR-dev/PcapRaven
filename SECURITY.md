@@ -9,7 +9,8 @@ behavior-preserving internal refactoring is complete and accepted. Phase 20
 final security and supply-chain hardening is complete and accepted. It has no
 released or supported software versions yet. Phase 21 CLI v1 contract-freeze
 acceptance is complete and accepted. Phase 22 reporting schema v1 final audit
-work is in progress; Phases 23 through 28 remain future and not implemented.
+is complete and accepted. Phase 23 cross-platform runtime acceptance is NEXT /
+NOT IMPLEMENTED; Phases 24 through 28 remain FUTURE / NOT IMPLEMENTED.
 This policy covers
 vulnerabilities in repository configuration, documentation, the bounded PCAP/PCAPNG reader,
 protocol normalizer, flow reconstructor and metrics engine, DNS, HTTP/1.x, and TLS 1.2 / TLS 1.3 protocol parsers,

@@ -32,8 +32,9 @@ the accepted performance retry passed stability `24/24`, median budgets
 re-review found no CRITICAL or HIGH findings. Phase 20 final security and
 supply-chain hardening is complete and accepted. Phase 21 CLI v1 contract-freeze
 acceptance is complete and accepted. Phase 22 reporting schema v1 final audit
-is in progress. Phases 23 through 28 remain future and not implemented. No
-later capability or release is claimed.
+is complete and accepted. Phase 23 cross-platform runtime acceptance is NEXT /
+NOT IMPLEMENTED; Phases 24 through 28 remain FUTURE / NOT IMPLEMENTED. No later
+capability or release is claimed.
 
 ## Tracked Current Inventory
 

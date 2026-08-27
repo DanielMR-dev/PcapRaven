@@ -7,10 +7,10 @@ the Phase 18.3 final acceptance gate, are complete. Phase 19 release code-health
 audit and targeted behavior-preserving internal refactoring is complete and
 accepted; its authorized implementation was limited to private CLI helpers.
 Phase 20 final security and supply-chain hardening is complete and accepted.
-Phase 21 CLI v1 contract-freeze acceptance is complete and accepted. Phase 22
-reporting schema v1 final audit work is in progress; Phases 23 through 28
-remain future and not implemented. Contributors must implement only explicitly
-delegated scope.
+Phase 21 CLI v1 contract-freeze acceptance and Phase 22 reporting schema v1
+final audit are complete and accepted. Phase 23 cross-platform runtime
+acceptance is NEXT / NOT IMPLEMENTED; Phases 24 through 28 remain FUTURE / NOT
+IMPLEMENTED. Contributors must implement only explicitly delegated scope.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
 [repository manifest](MANIFEST.md), and the

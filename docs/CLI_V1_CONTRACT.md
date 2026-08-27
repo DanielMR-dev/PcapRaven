@@ -430,4 +430,5 @@ Phase 21 CLI v1 contract-freeze acceptance is complete and accepted. The Phase
 20 prerequisite, contract artifacts and tests, required PR-head CI, independent
 source-read-only review, and conditional frozen performance comparison all
 passed with no CRITICAL or HIGH findings. Phase 22 reporting schema v1 final
-audit work is in progress; later phases remain future and unimplemented.
+audit is complete and accepted. Phase 23 cross-platform runtime acceptance is
+NEXT / NOT IMPLEMENTED; Phases 24 through 28 remain FUTURE / NOT IMPLEMENTED.

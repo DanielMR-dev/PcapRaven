@@ -35,8 +35,9 @@ budgets `13/13`; and the independent source-read-only re-review found no
 CRITICAL or HIGH findings. **Phase 20: Final security and supply-chain
 hardening** is complete and accepted. **Phase 21: CLI v1 contract-freeze
 acceptance** is complete and accepted. **Phase 22: Reporting schema v1 final
-audit** is in progress. Phases 23 through 28 remain future and not implemented.
-This status does not claim v1.0.0 or release readiness.
+audit** is complete and accepted. **Phase 23: Cross-platform runtime
+acceptance** is NEXT / NOT IMPLEMENTED; Phases 24 through 28 remain FUTURE /
+NOT IMPLEMENTED. This status does not claim v1.0.0 or release readiness.
 
 - `pcapraven-pcap` provides the streaming capture reader.
 - `pcapraven-domain` defines normalized packet, flow, DNS, HTTP, TLS, observation, evidence, finding, and MITRE ATT&CK mapping domain models, traffic statistics, exact temporal metrics, unified protocol observations, explicit flow associations, structured evidence records, exact rational `EvidenceRatio`, and schema anchors.

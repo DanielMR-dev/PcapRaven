@@ -28,9 +28,10 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository baseline is Phase 21 after the mandatory Phase 18.3
-final robustness and performance acceptance gate and the CLI v1 contract
-freeze. Phase 18.1 full fuzz acceptance, Phase 18.2 performance baseline/budget
+The accepted repository baseline is Phase 22 after the mandatory Phase 18.3
+final robustness and performance acceptance gate, the CLI v1 contract freeze,
+and the reporting schema v1 final audit. Phase 18.1 full fuzz acceptance, Phase
+18.2 performance baseline/budget
 work, and Phase 18.3 final acceptance are complete. Phase 19 release code-health
 audit and targeted behavior-preserving internal refactoring is complete and
 accepted. Its
@@ -42,8 +43,10 @@ eight fuzz-smoke targets; the accepted performance retry at measurement SHA
 `13/13`; and the independent source-read-only re-review found no CRITICAL or
 HIGH findings. Phase 20 final security and supply-chain hardening is complete
 and accepted. Phase 21 CLI v1 contract-freeze acceptance is complete and
-accepted. Phase 22 documentation/audit work is IN PROGRESS; Phases 23 through
-28 remain future and not implemented. No v1.0.0 or release-readiness claim is made.
+accepted. Phase 22 reporting schema v1 final audit is complete and accepted.
+Phase 23 cross-platform runtime acceptance is NEXT / NOT IMPLEMENTED; Phases
+24 through 28 remain FUTURE / NOT IMPLEMENTED. No v1.0.0 or release-readiness
+claim is made.
 
 Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
@@ -66,9 +69,10 @@ Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted internal-refactoring scope is complete and
 accepted. Phase 20 final security and supply-chain hardening is complete and
 accepted. Phase 21 CLI v1 contract-freeze acceptance is complete and accepted.
-Phase 22 documentation/audit work is IN PROGRESS; Phases 23 through 28 remain
-future and not implemented. No Phase 19 feature, release, or later capability
-may be claimed as implemented.
+Phase 22 reporting schema v1 final audit is complete and accepted. Phase 23
+cross-platform runtime acceptance is NEXT / NOT IMPLEMENTED; Phases 24 through
+28 remain FUTURE / NOT IMPLEMENTED. No Phase 19 feature, release, Phase 23, or
+later capability may be claimed as implemented.
 
 ## Project Invariants
 
