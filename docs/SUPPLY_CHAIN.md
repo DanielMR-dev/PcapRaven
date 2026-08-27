@@ -92,7 +92,7 @@ it does not mean that a freshness-only update is required.
 | `serde` | `=1.0.219` | runtime | default disabled; `alloc`, `derive` | crates.io | MIT OR Apache-2.0 | active; newer `1.0.229` reviewed (2026-07-18) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `serde_json` | `=1.0.140` | runtime and fuzz | default disabled; `alloc` | crates.io | MIT OR Apache-2.0 | active; newer `1.0.151` reviewed (2026-07-20) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `csv` | `=1.3.1` | runtime and fuzz | default disabled | crates.io | MIT OR Unlicense | maintained; newer `1.4.0` reviewed (2025-10-17) | clean in both applicable RustSec/cargo-deny checks | KEEP |
-| `clap` | `=4.6.4` | runtime | default disabled; `std`, `help`, `usage`, `error-context` | crates.io | MIT OR Apache-2.0 | active; newer `4.6.6` reviewed (2026-08-06) | clean in both applicable RustSec/cargo-deny checks | KEEP |
+| `clap` | `=4.6.6` | runtime | default disabled; `std`, `help`, `usage`, `error-context` | crates.io | MIT OR Apache-2.0 | active; `4.6.6` reviewed (2026-08-06) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `proptest` | `=1.11.0` | dev only | default disabled; `std` | crates.io | MIT OR Apache-2.0 | passive maintenance stated upstream; latest reviewed `1.11.0` | clean in main cargo-deny check | KEEP |
 | `libfuzzer-sys` | `=0.4.13` | fuzz only | default features | crates.io | MIT OR Apache-2.0 OR NCSA | active; latest reviewed `0.4.13` (2026-06-04) | clean in fuzz RustSec/cargo-deny checks | KEEP |
 
@@ -257,7 +257,7 @@ immutable full commit SHA:
 | Action | Pin and documented tag | Use |
 | --- | --- | --- |
 | `actions/checkout` | `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`) | all jobs |
-| `actions/upload-artifact` | `ea165f8d65b6e75b540449e92b4886f43607fa02` (`v4.6.2`) | fuzz failure artifacts |
+| `actions/upload-artifact` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` (`v7.0.1`) | fuzz failure artifacts |
 
 The workflow keeps `permissions: contents: read`, uses ordinary `pull_request`
 and `push` to `main` triggers, adds no privileged trigger, and adds no secret
