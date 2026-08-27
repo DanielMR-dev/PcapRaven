@@ -381,9 +381,11 @@ the sole production-tree edit is entirely under `#[cfg(test)]`. The conditional
 full fuzz-acceptance campaign and full Phase 18 performance comparison were
 therefore not required because no fuzzed or benchmarked production behavior
 changed. The local eight-target fuzz smoke and benchmark smoke passed as
-recorded above. The final audit-ledger commit itself is documentation-only and
-is not represented by this run; after it is committed and pushed, its exact
-head must receive its own PR CI verification.
+recorded above. Run `33123524823` is for the tested `ac72ea1` remediation head.
+The remaining audit-ledger commit is documentation-only, and the final
+exact-head CI verification applies to the resulting branch head after that
+change is committed and pushed; the recorded run does not claim coverage of
+this unpushed commit.
 
 ## Reviewer Findings
 
@@ -452,17 +454,22 @@ review of the later audit-ledger commit.
   `354dd3d`, `6e2fcec`, and `1d278c0`; `schema_contract.rs` has no uncommitted
   change. The current ledger update is documentation-only and does not modify
   that file.
-- The final audit-ledger commit is not yet represented by CI. After this
-  documentation-only change is committed and pushed, its exact-head PR CI is
-  the last mechanical verification required for the ledger.
+- Run `33123524823` is recorded for the tested `ac72ea1` remediation head. The
+  remaining audit-ledger change is documentation-only, and the final
+  exact-head PR CI verification applies to the resulting branch head after
+  this change is committed and pushed; the recorded run does not claim
+  coverage of this unpushed commit.
 
 ## Phase Status
 
 Phase 21: `COMPLETE / ACCEPTED`
 
-Phase 22: `COMPLETE / ACCEPTED` for the tested remediation state at
-`ac72ea15b4e68aca3f90e6954932ea191317e674`; the audit-ledger commit itself
-remains subject to its own exact-head PR CI after push.
+Phase 22: `COMPLETE / ACCEPTED`. Run `33123524823` verifies the tested
+`ac72ea15b4e68aca3f90e6954932ea191317e674` remediation head. The remaining
+audit-ledger change is documentation-only, and the final exact-head CI
+verification applies to the resulting branch head after this change is
+committed and pushed; the recorded run does not claim coverage of this
+unpushed commit.
 
 Phase 23: `NEXT / NOT IMPLEMENTED`
 
