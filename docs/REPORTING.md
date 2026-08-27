@@ -247,8 +247,10 @@ enum naming convention.
 | validation diagnostic kind | `unsupported`, `malformed`, `incomplete`, `invalid_reference`, `resource_limit`, `io`, `internal` |
 | DNS message/completeness | `query`, `response`; `complete`, `partial` |
 | HTTP message/completeness | `request`, `response`; `complete`, `partial` |
+| HTTP version | `HTTP/1.0`, `HTTP/1.1` ([domain](../crates/pcapraven-domain/src/http.rs), [reporting DTO](../crates/pcapraven-reporting/src/dto/http.rs)) |
 | HTTP Content-Length | `not_present`, `invalid`, or a decimal `u64` string |
 | TLS handshake | `client_hello`, `server_hello`, `hello_retry_request`, `other` |
+| TLS version | `SSLv3`, `TLS 1.0`, `TLS 1.1`, `TLS 1.2`, `TLS 1.3`, `Unknown` ([domain](../crates/pcapraven-domain/src/tls.rs), [reporting DTO](../crates/pcapraven-reporting/src/dto/tls.rs)); `Unknown` is the bounded DTO token for unknown wire codes |
 | association status/direction | `associated`, `excluded`, `unassociated`; `a_to_b`, `b_to_a`, `same_endpoint` |
 | flow exclusion | `MissingNetworkLayer`, `MissingTransportLayer`, `FragmentedWithoutTransport`, `UnsupportedTransport` |
 | finding severity/confidence | `info`, `low`, `medium`, `high`, `critical`; `low`, `medium`, `high` |
