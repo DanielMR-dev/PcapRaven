@@ -687,7 +687,7 @@ The excluded fuzz package uses exact `libfuzzer-sys = 0.4.13`, licensed
 `(MIT OR Apache-2.0) AND NCSA`. It is excluded from the production workspace and
 runtime.
 
-### `serde_json = 1.0.140` (Fuzz-only reuse)
+### `serde_json = 1.0.143` (Fuzz-only reuse)
 
 The excluded fuzz package reuses the exact already-locked reporting version
 with `default-features = false` and `features = ["alloc"]`. It validates emitted

@@ -112,7 +112,7 @@ Phase 2 uses `pcap-parser = 0.17.0` as a normal dependency with default,
 the capture crate boundary. `proptest = 1.11.0` is dev-only for capture tests.
 The excluded `fuzz/` package is not part of the seven-package production graph.
 Its independent manifest uses exact audited fuzz-only dependencies, including
-`libfuzzer-sys = 0.4.13`, `serde_json = 1.0.140`, and `csv = 1.3.1`; the latter
+`libfuzzer-sys = 0.4.13`, `serde_json = 1.0.143`, and `csv = 1.3.1`; the latter
 two have default features disabled and validate emitted reports only.
 
 ## Phase 3 Protocol Normalization Boundary

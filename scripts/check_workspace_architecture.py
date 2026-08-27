@@ -126,7 +126,7 @@ EXPECTED_EXTERNAL = {
             "uses_default_features": False,
         },
         "serde_json": {
-            "req": "=1.0.140",
+            "req": "=1.0.143",
             "kind": None,
             "features": ["alloc"],
             "uses_default_features": False,
@@ -263,7 +263,7 @@ def validate_fuzz_package(repository_root: Path) -> str | None:
     if dependencies.get("libfuzzer-sys") != {"version": "=0.4.13"}:
         return "fuzz package libfuzzer-sys declaration is not exact 0.4.13"
     if dependencies.get("serde_json") != {
-        "version": "=1.0.140",
+        "version": "=1.0.143",
         "default-features": False,
         "features": ["alloc"],
     }:

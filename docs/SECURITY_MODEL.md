@@ -294,7 +294,7 @@ license evidence, provenance, and tool output are recorded in the
   `pcap-parser = 0.17.0` (default, `data`, and `serialize` disabled),
   `etherparse = 0.21.0` (default features disabled), `serde = 1.0.229`
   (default features disabled with `alloc` and `derive`),
-  `serde_json = 1.0.140` (default features disabled with `alloc`),
+  `serde_json = 1.0.143` (default features disabled with `alloc`),
   `csv = 1.3.1` (default features disabled), and
   `clap = 4.6.6` (default features disabled with `std`, `help`, `usage`, and
   `error-context`).
