@@ -148,6 +148,7 @@ pub struct AnalyzeArgs {
 #[must_use]
 pub fn build_cli() -> Command {
     Command::new("pcapraven")
+        .bin_name("pcapraven")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Offline network forensics and threat-hunting analyzer.")
         .subcommand_required(true)

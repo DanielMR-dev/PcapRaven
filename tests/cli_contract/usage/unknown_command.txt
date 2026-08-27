@@ -1,0 +1,5 @@
+error: unrecognized subcommand 'nonexistent'
+
+Usage: pcapraven [OPTIONS] <COMMAND>
+
+For more information, try '--help'.

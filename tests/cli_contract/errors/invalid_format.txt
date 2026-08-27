@@ -1,0 +1,4 @@
+error: invalid value 'invalid' for '--format <FORMAT>'
+  [possible values: table, json, ndjson, csv]
+
+For more information, try '--help'.

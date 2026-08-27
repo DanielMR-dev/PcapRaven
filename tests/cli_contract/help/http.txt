@@ -1,0 +1,13 @@
+Inspect cleartext HTTP/1.x message headers.
+
+Usage: pcapraven http [OPTIONS] <CAPTURE>
+
+Arguments:
+  <CAPTURE>  Path to the capture file
+
+Options:
+      --max-records <N>  Maximum capture records to process
+  -q, --quiet            Suppress nonfatal diagnostics on stderr
+      --format <FORMAT>  Output format (table, json, ndjson, csv) [default: table] [possible values: table, json, ndjson, csv]
+  -o, --output <PATH>    Write report to destination file (fails safely if file exists)
+  -h, --help             Print help

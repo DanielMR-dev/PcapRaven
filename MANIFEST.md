@@ -30,9 +30,9 @@ limited to private CLI helpers. PR workflow run `32889910915` for HEAD
 the accepted performance retry passed stability `24/24`, median budgets
 `24/24`, and growth budgets `13/13`; and the independent source-read-only
 re-review found no CRITICAL or HIGH findings. Phase 20 final security and
-supply-chain hardening is complete and accepted. Phase 21 is next, future, and
-not implemented; Phases 22 through 28 remain future and not implemented. No
-later capability or release is claimed.
+supply-chain hardening is complete and accepted. Phase 21 is the active CLI v1
+contract-freeze phase; Phases 22 through 28 remain future and not implemented.
+No later capability or release is claimed.
 
 ## Tracked Current Inventory
 
@@ -87,7 +87,34 @@ later capability or release is claimed.
 | `tests/golden/stderr/corrupt_packet.txt` | Frozen failed-before-useful capture diagnostics/error. |
 | `tests/golden/stderr/analyze_csv_rejected.txt` | Frozen exit-2 unsupported-format error. |
 | `tests/golden/stderr/local_http_partial_with_dns_detection.txt` | Frozen expected local HTTP degradation diagnostic. |
-| `docs/PRODUCT.md` | Product identity, scope, goals, non-goals, and target CLI behavior. |
+| `tests/cli_contract/README.md` | Documentation and update policy for the separate CLI surface contract snapshots. |
+| `tests/cli_contract/help/root.txt` | Byte-exact root help output snapshot. |
+| `tests/cli_contract/help/validate.txt` | Byte-exact validate help output snapshot. |
+| `tests/cli_contract/help/flows.txt` | Byte-exact flows help output snapshot. |
+| `tests/cli_contract/help/dns.txt` | Byte-exact dns help output snapshot. |
+| `tests/cli_contract/help/http.txt` | Byte-exact http help output snapshot. |
+| `tests/cli_contract/help/tls.txt` | Byte-exact tls help output snapshot. |
+| `tests/cli_contract/help/findings.txt` | Byte-exact findings help output snapshot. |
+| `tests/cli_contract/help/analyze.txt` | Byte-exact analyze help output snapshot. |
+| `tests/cli_contract/usage/no_args.txt` | Byte-exact no-argument usage snapshot. |
+| `tests/cli_contract/usage/unknown_command.txt` | Byte-exact unknown-command usage snapshot. |
+| `tests/cli_contract/usage/validate_missing_capture.txt` | Byte-exact validate missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/usage/flows_missing_capture.txt` | Byte-exact flows missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/usage/dns_missing_capture.txt` | Byte-exact dns missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/usage/http_missing_capture.txt` | Byte-exact http missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/usage/tls_missing_capture.txt` | Byte-exact tls missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/usage/findings_missing_capture.txt` | Byte-exact findings missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/usage/analyze_missing_capture.txt` | Byte-exact analyze missing-CAPTURE usage snapshot. |
+| `tests/cli_contract/errors/invalid_format.txt` | Byte-exact invalid-format error snapshot. |
+| `tests/cli_contract/errors/validate_filter_scope.txt` | Byte-exact validate filter-scope error snapshot. |
+| `tests/cli_contract/errors/dns_flow_scope.txt` | Byte-exact dns flow-option scope error snapshot. |
+| `tests/cli_contract/errors/invalid_severity.txt` | Byte-exact invalid-severity error snapshot. |
+| `tests/cli_contract/errors/invalid_confidence.txt` | Byte-exact invalid-confidence error snapshot. |
+| `tests/cli_contract/errors/invalid_detector.txt` | Byte-exact invalid-detector error snapshot. |
+| `tests/cli_contract/errors/invalid_mitre.txt` | Byte-exact invalid-MITRE error snapshot. |
+| `tests/cli_contract/errors/analyze_csv.txt` | Byte-exact analyze-CSV rejection snapshot. |
+| `docs/PRODUCT.md` | Product identity, scope, goals, non-goals, and high-level target CLI behavior. |
+| `docs/CLI_V1_CONTRACT.md` | Frozen v1 command-line syntax, option scope, aliases, defaults, values, statuses, streams, and compatibility rules. |
 | `docs/ARCHITECTURE.md` | Workspace, crate boundaries, dependency direction, errors, logging, and unsafe Rust. |
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
@@ -223,6 +250,7 @@ later capability or release is claimed.
 | `crates/pcapraven-cli/src/app.rs` | CLI application orchestration for validation, flow inspection, DNS, HTTP, TLS, findings, and unified analysis inspection. |
 | `crates/pcapraven-cli/src/diagnostics.rs` | Bounded diagnostic emission and suppression tracking. |
 | `crates/pcapraven-cli/tests/cli.rs` | End-to-end integration tests for the PcapRaven CLI across subcommands, formats, and safe output writing. |
+| `crates/pcapraven-cli/tests/contract.rs` | Independent byte-exact v1 CLI surface contract tests for syntax, streams, statuses, limits, and output files. |
 | `crates/pcapraven-cli/tests/corpus.rs` | Cross-crate integration tests with trusted-root fixture preflight before manifest reads or CLI execution. |
 | `crates/pcapraven-cli/tests/golden.rs` | End-to-end golden regressions with fixture/golden structural preflight before execution and expected-byte reads. |
 | `crates/pcapraven-cli/tests/support/mod.rs` | Shared trusted-root-relative bounded traversal/read support with component validation and static symlink-ancestor regressions. |
