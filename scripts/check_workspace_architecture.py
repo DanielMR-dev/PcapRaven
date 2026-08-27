@@ -120,7 +120,7 @@ EXPECTED_EXTERNAL = {
     },
     "pcapraven-reporting": {
         "serde": {
-            "req": "=1.0.219",
+            "req": "=1.0.229",
             "kind": None,
             "features": ["alloc", "derive"],
             "uses_default_features": False,
