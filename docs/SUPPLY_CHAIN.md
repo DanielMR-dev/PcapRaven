@@ -385,9 +385,10 @@ complete, so the current canonical status is:
 ```text
 Phase 19: COMPLETE
 Phase 20: COMPLETE / ACCEPTED
-Phase 21: ACTIVE CLI V1 CONTRACT FREEZE
-Phases 22 through 28: FUTURE / NOT IMPLEMENTED
+Phase 21: COMPLETE / ACCEPTED
+Phase 22: NEXT / NOT IMPLEMENTED
+Phases 23 through 28: FUTURE / NOT IMPLEMENTED
 ```
 
-No CLI freeze, reporting-schema finalization, packaging, release automation,
-release candidate, v1.0.0, or other later-phase capability is implemented.
+No reporting-schema finalization, packaging, release automation, release
+candidate, v1.0.0, or other later-phase capability is implemented.

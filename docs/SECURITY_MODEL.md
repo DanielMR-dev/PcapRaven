@@ -25,9 +25,9 @@ and end-to-end regression testing. Phase 18 robustness and performance
 verification is complete. Phase 19 release code-health audit and targeted
 behavior-preserving internal refactoring is complete and accepted; this stage
 claims no new security capability or v1.0.0 release. Phase 20 final security
-and supply-chain hardening is complete and accepted. Phase 21 is the active CLI
-v1 contract-freeze phase; Phases 22 through 28 remain future and not
-implemented.
+and supply-chain hardening is complete and accepted. Phase 21 CLI v1
+contract-freeze acceptance is complete and accepted. Phase 22 is next and not
+implemented; Phases 23 through 28 remain future and not implemented.
 
 ## Assets
 

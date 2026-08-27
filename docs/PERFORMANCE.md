@@ -30,8 +30,14 @@ sets remain disclosed in `docs/CODE_HEALTH.md`. Final PR workflow run
 source-read-only Reviewer re-review found no CRITICAL or HIGH findings. Phase
 20 final security and supply-chain hardening is complete and accepted; it
 changed no production behavior or runtime dependency, so no new performance
-comparison was required. Phase 21 is the active CLI v1 contract-freeze phase;
-Phases 22 through 28 remain future and not implemented.
+comparison was required. The Phase 21 conditional performance requirement
+passed using the frozen methodology, as recorded in the clean tracked result
+`docs/performance/phase21-acceptance-result.json`. The independent
+source-read-only Reviewer found no CRITICAL or HIGH findings, and PR-head CI
+run `33091771181` passed. Phase 21 CLI v1 contract-freeze acceptance is
+complete and accepted.
+Phase 22 is next and not implemented; Phases 23 through 28 remain future and
+not implemented.
 
 ## Benchmark Infrastructure
 
@@ -269,6 +275,107 @@ unstable at `validate_50000`, `dns_1000`, `analyze_multi_signal_1000`,
 17,391 basis points. Their raw files remain external diagnostics only and are
 not tracked acceptance evidence; no individual run or scenario was selected
 from either dataset.
+
+## Phase 21 Conditional Performance Revalidation
+
+Phase 21 changed production CLI source, so its acceptance gate required a new
+comparison using the frozen Phase 18.2 runner, workloads, budgets, and
+Phase 18.3 evaluator. The candidate was measured from clean branch
+`phase-21-acceptance-closure` at SHA
+`1e651373c8ddf120e46612dd47c5b547185afcb5`. No WSL restart completed during
+this campaign; a restart command had been attempted earlier and aborted.
+The benchmark runner and evaluator, frozen budgets, lockfiles, workload matrix,
+and measurement semantics were not changed.
+
+The exact sequential commands were:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-acceptance-clean-run-1.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-acceptance-clean-run-2.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-acceptance-clean-run-3.json
+python3 scripts/evaluate_phase18_acceptance.py docs/performance/phase18-2-budgets.json /tmp/pcapraven-phase21-acceptance-clean-run-1.json /tmp/pcapraven-phase21-acceptance-clean-run-2.json /tmp/pcapraven-phase21-acceptance-clean-run-3.json > /tmp/pcapraven-phase21-acceptance-clean-result.json
+```
+
+All three full benchmark commands exited `0`; the unchanged evaluator exited
+`0` with `acceptance_status = passed` and `overall_pass = true`:
+
+| Check | Result |
+| --- | ---: |
+| Sequential full runs | 3 |
+| Scenarios per run | 24 |
+| Warmup samples per scenario | 1 |
+| Measured samples per scenario | 5 |
+| Stability checks | 24/24 |
+| Absolute median budgets | 24/24 |
+| Meaningful growth budgets | 13/13 |
+| Maximum acceptance spread | 1,481 bp (`validate_10000`) |
+| Failed scenarios | `[]` |
+| Unstable scenarios | `[]` |
+| Frozen budget SHA-256 | `d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1` |
+
+The acceptance result recorded the following environment and compatibility
+evidence:
+
+```text
+os: Linux
+kernel: 6.18.33.2-microsoft-standard-WSL2
+machine: x86_64
+platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43
+cpu_model: AMD Ryzen 5 5600G with Radeon Graphics
+logical_cpu_count: 12
+page_size_bytes: 4096
+physical_pages: 4076706
+total_memory_bytes: 16698187776
+available_memory_bytes: 14762438656
+rustc: rustc 1.97.1 (8bab26f4f 2026-07-14)
+  binary: rustc
+  commit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452
+  commit-date: 2026-07-14
+  host: x86_64-unknown-linux-gnu
+  release: 1.97.1
+  LLVM version: 22.1.6
+active_toolchain: 1.97.1-x86_64-unknown-linux-gnu (overridden by '/home/danielmr-dev/Dev/PcapRaven/rust-toolchain.toml')
+cargo: cargo 1.97.1 (c980f4866 2026-06-30)
+python: 3.14.4
+build_profile: release
+git_sha: 1e651373c8ddf120e46612dd47c5b547185afcb5
+git_dirty: false
+git_worktree_status: clean
+background_load: not controlled, pinned, or sampled
+power_mode: unreported; power state was not controlled
+limitations: Whole-process timings include CLI startup and filesystem cache effects; CPU affinity, power state, thermal state, and background load are uncontrolled.
+```
+
+The frozen baseline total memory was `16698191872` bytes. The candidate value
+was `16698187776` bytes, a positive page-aligned difference of exactly `4096`
+bytes. The unchanged evaluator recorded compatibility status
+`equivalent_within_one_page` under
+`phase18.3-linux-wsl2-total-memory-one-page-v1`; `total_memory_bytes` was the
+only differing stable field. This is the existing Linux WSL2 one-page policy,
+not a new or general cross-machine tolerance.
+
+The exact raw measurement and evaluator JSON files are tracked under
+`docs/performance/`. Each tracked file is a byte-for-byte copy of the exact
+temporary path used by the evaluator; the evaluator was run while the
+worktree was clean, before these copies were added to the checkout. Their
+SHA-256 values are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `docs/performance/phase21-acceptance-run-1.json` (source `/tmp/pcapraven-phase21-acceptance-clean-run-1.json`) | `3d19b8c5b5e02e3248432de7f891158af2a97b03b3c64f58a5c45d277ab0e6ea` |
+| `docs/performance/phase21-acceptance-run-2.json` (source `/tmp/pcapraven-phase21-acceptance-clean-run-2.json`) | `0b3e25f208544edd33fd331dcb064462c3e12641e026dbfb3efa4cb97bd50e79` |
+| `docs/performance/phase21-acceptance-run-3.json` (source `/tmp/pcapraven-phase21-acceptance-clean-run-3.json`) | `ad9344bb8c53466d544f7c9cbb2d61dad939e51fa41a44ec8cdd1fb82fbc88f8` |
+| `docs/performance/phase21-acceptance-result.json` (source `/tmp/pcapraven-phase21-acceptance-clean-result.json`) | `4b2db4b51a21df0ccc913f4f87189bd86d628ba517c3d20c9455da831aa7dea8` |
+
+All three tracked run artifacts retain `git_dirty = false`,
+`git_worktree_status = clean`, the candidate SHA above, and all 24 measured
+scenarios. No individual run or scenario was discarded from this passing
+dataset.
+
+This dataset replaces the previously rejected Phase 21 comparison: that
+candidate was two 4096-byte pages below the frozen total-memory value and was
+rejected by the unchanged evaluator before timing acceptance. None of its runs
+or scenarios were reused here.
 
 ## Source-Level Complexity Audit
 

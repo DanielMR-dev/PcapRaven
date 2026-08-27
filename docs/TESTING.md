@@ -22,9 +22,9 @@ complete and accepted; the authorized implementation was limited to private
 CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
 logical jobs, including all eight fuzz-smoke targets, and the independent
 source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 final
-security and supply-chain hardening is complete and accepted. Phase 21 is the
-active CLI v1 contract-freeze phase; Phases 22 through 28 remain future and
-not implemented.
+security and supply-chain hardening is complete and accepted. Phase 21 CLI v1
+contract-freeze acceptance is complete and accepted. Phase 22 is next and not
+implemented; Phases 23 through 28 remain future and not implemented.
 
 ## Testing Pyramid
 
@@ -307,6 +307,12 @@ Representative local verification is:
     python3 scripts/check_goldens.py
     python3 scripts/check_workspace_architecture.py
 
+The conditional full Phase 18 comparison required for the Phase 21 production
+CLI change passed stability `24/24`, absolute median budgets `24/24`, and
+meaningful growth budgets `13/13`. Exact commands, environment, compatibility
+evidence, result, and raw-artifact hashes are recorded in
+[PERFORMANCE.md](PERFORMANCE.md).
+
 The full repository quality, locked MSRV, documentation, fixture, robustness,
 fuzz-smoke, security, supply-chain, and applicable performance commands remain
 required. The contract target is deliberately separate from the 49-scenario
@@ -588,8 +594,9 @@ authorized implementation was limited to private CLI helpers. PR workflow run
 `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all eight
 fuzz-smoke targets; the independent source-read-only re-review found no
 CRITICAL or HIGH findings. Phase 20 final security and supply-chain hardening
-is complete and accepted. Phase 21 is the active CLI v1 contract-freeze phase;
-Phases 22 through 28 remain future and not implemented.
+is complete and accepted. Phase 21 CLI v1 contract-freeze acceptance is
+complete and accepted. Phase 22 is next and not implemented; Phases 23 through
+28 remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

@@ -7,8 +7,8 @@ not be implemented before its prerequisite phase is accepted. Completion means
 the phase deliverables, tests, documentation, and security review are complete;
 it does not mean all later capabilities are available.
 
-Phases 0 through 20 are complete and accepted. Phase 21 is the active CLI v1
-contract-freeze phase. Phases 22 through 28 remain future and not implemented.
+Phases 0 through 21 are complete and accepted. Phase 22 is next and not
+implemented. Phases 23 through 28 remain future and not implemented.
 Phase 16 delivered deterministic multi-format reporting architecture (`table`, `json`, `ndjson`, `csv`) in `pcapraven-reporting`, safe output file creation via `with_output_sink`, and unified forensic analysis (`pcapraven analyze`) in `pcapraven-cli`.
 Phase 17 delivered the synthetic fixture corpus, golden report matrix, cross-crate integration, end-to-end regression testing, and mandatory Phase 17.1 hardening gate. Phase 18 (property testing, fuzzing, robustness, and performance verification) is complete. Phase 19 release code-health audit and targeted behavior-preserving internal refactoring is complete and accepted. Phase 20 final security and supply-chain hardening is complete and accepted.
 
@@ -334,7 +334,7 @@ security/supply-chain job. Repository settings that were not readable through
 the available authentication are reported as limitations in
 `SUPPLY_CHAIN.md` rather than inferred.
 
-## Phase 21 - Freeze CLI v1 contract (IN PROGRESS)
+## Phase 21 - Freeze CLI v1 contract (COMPLETE; ACCEPTED)
 
 Freeze the documented CLI v1 commands, flags, diagnostics, stdout/stderr
 boundaries, and exit-code contract after the preceding gates are accepted.
@@ -342,14 +342,17 @@ The detailed compatibility owner is [CLI_V1_CONTRACT.md](CLI_V1_CONTRACT.md).
 The phase adds a separate CLI-surface contract test and deterministic help,
 usage, and error snapshots while preserving the report golden matrix, schema
 v1.0, detector semantics, MITRE mappings, dependency graph, and seven-package
-workspace topology. Acceptance also requires the existing security,
-robustness, fuzz-smoke, and performance gates where applicable, cross-platform
-contract CI, and independent source-read-only review.
+workspace topology. The contract artifacts and cross-platform PR workflow
+passed, the independent source-read-only review found no CRITICAL or HIGH
+findings, and the conditional full Phase 18 comparison passed the frozen
+stability, median-budget, and growth-budget checks. The exact performance
+evidence is recorded in [PERFORMANCE.md](PERFORMANCE.md). No Phase 22
+functionality is included.
 
-## Phase 22 - Reporting schema v1 final audit (FUTURE; NOT IMPLEMENTED)
+## Phase 22 - Reporting schema v1 final audit (NEXT; NOT IMPLEMENTED)
 
-Perform the final reporting schema v1 audit and compatibility review without
-claiming that future schema work is available now.
+This is the next scoped phase. Perform the final reporting schema v1 audit and
+compatibility review without claiming that future schema work is available now.
 
 ## Phase 23 - Cross-platform runtime acceptance (FUTURE; NOT IMPLEMENTED)
 
