@@ -509,3 +509,40 @@ placement, canonical and invalid values, format support, default output,
 aliases, exit states, stream separation, quiet behavior, diagnostics, output
 files, collisions, and analyze CSV rejection. No Phase 22 schema audit or
 Phase 23 platform-runtime claim is part of this gate.
+
+## Phase 22 Gate
+
+Phase 22 is the final audit of the accepted reporting schema v1. It may start
+only after Phase 21 is formally `COMPLETE / ACCEPTED` and must use the
+dedicated `phase-22-reporting-schema-v1-final-audit` branch. It audits, without
+redesigning the wire format:
+
+- `REPORT_SCHEMA_VERSION == "v1.0"` and the complete DTO inventory for
+  validation, flows, DNS, HTTP, TLS, findings/evidence, and unified analysis;
+- exact JSON roots and nested fields, JSON types, nullability, arrays,
+  reference grammar, and categorical token registry, including actual
+  validation diagnostic tokens and the PascalCase `EvidenceValueDto` tags;
+- wide-integer string representation, native bounded numeric/boolean fields,
+  exact duration/ratio representation, and absence/empty collection behavior;
+- NDJSON envelope fields, record-type sequences, canonical ordering, LF/no-BOM
+  behavior, and CSV headers, projections, missing values, formula safety,
+  escaping, LF/no-BOM behavior, with `analyze` CSV still rejected;
+- HTTP sensitive-header and TLS non-retention, terminal safety, deterministic
+  ordering, and offline/privacy invariants;
+- reconciliation of [`docs/REPORTING.md`](../../docs/REPORTING.md) with source
+  and the evidence ledger
+  [`docs/REPORTING_SCHEMA_V1_AUDIT.md`](../../docs/REPORTING_SCHEMA_V1_AUDIT.md);
+- exhaustive `crates/pcapraven-reporting/tests/schema_contract.rs` coverage,
+  unchanged 49 report goldens, unchanged Phase 21 CLI contract, seven-package
+  workspace, dependencies, lockfiles, and MSRV 1.85 policy;
+- applicable fuzz/performance gates, Linux quality, MSRV, security/supply-chain,
+  all eight fuzz-smoke jobs, and schema-contract/golden/CLI-contract checks on
+  Ubuntu, Windows, and macOS;
+- completed final PR-head CI, independent source-read-only Reviewer, and
+  `CRITICAL = 0` / `HIGH = 0` before acceptance.
+
+Documentation/tests/audit-only changes do not trigger the conditional full
+reporting fuzz campaign or full Phase 18 performance comparison, but all eight
+fuzz-smoke jobs and benchmark smoke remain required. Any production reporting
+or CLI behavior change triggers the applicable full campaigns. Phase 23
+remains outside Phase 22 and must not be implemented or claimed.
