@@ -78,7 +78,7 @@ EXPECTED_TEST_TARGETS = {
         "filtering",
     },
     "pcapraven-reporting": {"reporting", "schema_contract"},
-    "pcapraven-cli": {"cli", "corpus", "golden"},
+    "pcapraven-cli": {"cli", "contract", "corpus", "golden"},
 }
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 EXPECTED_EXTERNAL = {
