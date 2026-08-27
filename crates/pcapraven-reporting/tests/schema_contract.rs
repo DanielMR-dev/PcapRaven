@@ -3412,3 +3412,157 @@ fn test_csv_formula_safety_and_sensitive_header_non_retention() {
     let host_index = headers.iter().position(|header| header == "host").unwrap();
     assert_eq!(&record[host_index], "'=SUM(1,2)");
 }
+
+#[test]
+fn test_csv_missing_projection_cells_are_frozen() {
+    let http_report = HttpReportDto::from_domain_observations(&[
+        schema_http_observation(),
+        schema_http_response_observation(),
+    ]);
+    let mut http_csv = Vec::new();
+    pcapraven_reporting::csv::render_http_csv(&http_report, &mut http_csv).unwrap();
+
+    assert!(!http_csv.starts_with(&[0xef, 0xbb, 0xbf]));
+    assert!(http_csv.ends_with(b"\n"));
+    assert!(!http_csv.contains(&b'\r'));
+    let mut http_reader = csv::ReaderBuilder::new().from_reader(http_csv.as_slice());
+    assert_eq!(
+        http_reader.headers().unwrap(),
+        &csv::StringRecord::from(vec![
+            "packet_ordinal",
+            "transport",
+            "source_ip",
+            "source_port",
+            "destination_ip",
+            "destination_port",
+            "message_kind",
+            "version",
+            "method",
+            "target",
+            "status_code",
+            "host",
+            "content_type",
+            "content_length",
+            "transfer_encoding",
+            "server",
+            "user_agent",
+            "authorization_present",
+            "cookie_present",
+            "set_cookie_present",
+            "proxy_authorization_present",
+            "completeness",
+        ])
+    );
+    let http_rows: Vec<csv::StringRecord> = http_reader
+        .records()
+        .map(|record| record.unwrap())
+        .collect();
+    assert_eq!(
+        http_rows[0].iter().collect::<Vec<_>>(),
+        vec![
+            "0",
+            "tcp",
+            "192.168.1.10",
+            "54321",
+            "93.184.216.34",
+            "80",
+            "request",
+            "HTTP/1.1",
+            "GET",
+            "/index.html",
+            "-",
+            "example.com",
+            "'-",
+            "not_present",
+            "'-",
+            "'-",
+            "curl/8.0",
+            "false",
+            "false",
+            "false",
+            "false",
+            "complete",
+        ]
+    );
+    assert_eq!(
+        http_rows[1].iter().collect::<Vec<_>>(),
+        vec![
+            "1",
+            "tcp",
+            "192.168.1.10",
+            "80",
+            "93.184.216.34",
+            "54321",
+            "response",
+            "HTTP/1.0",
+            "'-",
+            "'-",
+            "204",
+            "'-",
+            "text/plain",
+            "42",
+            "chunked",
+            "example",
+            "'-",
+            "false",
+            "false",
+            "false",
+            "false",
+            "partial",
+        ]
+    );
+
+    let tls_report =
+        TlsReportDto::from_domain_observations(&[schema_tls_server_hello_observation()]);
+    let mut tls_csv = Vec::new();
+    pcapraven_reporting::csv::render_tls_csv(&tls_report, &mut tls_csv).unwrap();
+
+    assert!(!tls_csv.starts_with(&[0xef, 0xbb, 0xbf]));
+    assert!(tls_csv.ends_with(b"\n"));
+    assert!(!tls_csv.contains(&b'\r'));
+    let mut tls_reader = csv::ReaderBuilder::new().from_reader(tls_csv.as_slice());
+    assert_eq!(
+        tls_reader.headers().unwrap(),
+        &csv::StringRecord::from(vec![
+            "packet_ordinal",
+            "source_ip",
+            "source_port",
+            "destination_ip",
+            "destination_port",
+            "record_version",
+            "handshake_kind",
+            "client_version",
+            "server_version",
+            "selected_version",
+            "selected_cipher_suite",
+            "server_name",
+            "alpn_protocols",
+            "ciphers_count",
+            "extensions_count",
+            "completeness",
+        ])
+    );
+    let tls_rows: Vec<csv::StringRecord> =
+        tls_reader.records().map(|record| record.unwrap()).collect();
+    assert_eq!(
+        tls_rows[0].iter().collect::<Vec<_>>(),
+        vec![
+            "2",
+            "192.168.1.10",
+            "443",
+            "93.184.216.34",
+            "54321",
+            "TLS 1.3",
+            "server_hello",
+            "'-",
+            "TLS 1.2",
+            "TLS 1.3",
+            "0x1301",
+            "'-",
+            "h2",
+            "-",
+            "2",
+            "complete",
+        ]
+    );
+}
