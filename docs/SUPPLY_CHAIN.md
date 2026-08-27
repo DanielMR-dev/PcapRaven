@@ -385,7 +385,7 @@ complete, so the current canonical status is:
 ```text
 Phase 19: COMPLETE
 Phase 20: COMPLETE / ACCEPTED
-Phase 21: NEXT / NOT IMPLEMENTED
+Phase 21: ACTIVE CLI V1 CONTRACT FREEZE
 Phases 22 through 28: FUTURE / NOT IMPLEMENTED
 ```
 
