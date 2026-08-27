@@ -89,7 +89,7 @@ eliminated production `.expect()` calls in `FlowReconstructor`. Implemented exac
 codes (`0` complete, `1` fatal failure before useful result, `2` usage/config error, `3`
 useful partial result), strict stdout/stderr stream separation, bounded diagnostics
 budget (100 lines default) with suppression summary unless `--quiet`, audited minimal
-`clap = "=4.6.4"` dependency, and comprehensive end-to-end integration tests in
+`clap = "=4.6.6"` dependency, and comprehensive end-to-end integration tests in
 `crates/pcapraven-cli/tests/cli.rs`.
 
 ## Phase 7 - DNS protocol analysis
