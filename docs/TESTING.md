@@ -23,8 +23,9 @@ CLI helpers. PR workflow run `32889910915` for HEAD `674c8fd` passed all 13
 logical jobs, including all eight fuzz-smoke targets, and the independent
 source-read-only re-review found no CRITICAL or HIGH findings. Phase 20 final
 security and supply-chain hardening is complete and accepted. Phase 21 CLI v1
-contract-freeze acceptance is complete and accepted. Phase 22 is next and not
-implemented; Phases 23 through 28 remain future and not implemented.
+contract-freeze acceptance is complete and accepted. Phase 22 reporting schema
+v1 final audit is in progress; Phases 23 through 28 remain future and not
+implemented.
 
 ## Testing Pyramid
 
@@ -318,6 +319,21 @@ fuzz-smoke, security, supply-chain, and applicable performance commands remain
 required. The contract target is deliberately separate from the 49-scenario
 report golden matrix.
 
+## Phase 22 Reporting Schema v1 Audit Gate
+
+Phase 22 audits the accepted seven-kind reporting schema without changing its
+wire bytes. The canonical contract remains [REPORTING.md](REPORTING.md), and
+the source-backed evidence ledger is
+[REPORTING_SCHEMA_V1_AUDIT.md](REPORTING_SCHEMA_V1_AUDIT.md). The gate covers
+DTO fields/types/nullability/arrays, JSON roots and types, wide integers,
+exact durations/ratios, tokens, NDJSON envelopes/sequences, CSV headers and
+formula safety, privacy, deterministic ordering, 49 unchanged report goldens,
+and the unchanged Phase 21 CLI contract. It also requires the applicable local
+quality/security checks, cross-platform schema/golden/contract checks, all
+eight fuzz-smoke jobs, final PR-head CI, and independent review before Phase 22
+can become complete and accepted. Documentation/tests/audit-only changes do
+not require the conditional full fuzz or full performance reruns.
+
 ## Phase 0 Validation (completed)
 
 Phase 0 used read-only repository inspection rather than Cargo gates. It
@@ -595,8 +611,8 @@ authorized implementation was limited to private CLI helpers. PR workflow run
 fuzz-smoke targets; the independent source-read-only re-review found no
 CRITICAL or HIGH findings. Phase 20 final security and supply-chain hardening
 is complete and accepted. Phase 21 CLI v1 contract-freeze acceptance is
-complete and accepted. Phase 22 is next and not implemented; Phases 23 through
-28 remain future and not implemented.
+complete and accepted. Phase 22 reporting schema v1 final audit is in progress;
+Phases 23 through 28 remain future and not implemented.
 
 Phase 18 hardening also verifies that Python and Rust canonical-tree discovery
 streams entries under explicit depth, examined-entry, file-count, and byte

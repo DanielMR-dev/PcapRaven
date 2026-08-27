@@ -36,8 +36,8 @@ passed using the frozen methodology, as recorded in the clean tracked result
 source-read-only Reviewer found no CRITICAL or HIGH findings, and PR-head CI
 run `33091771181` passed. Phase 21 CLI v1 contract-freeze acceptance is
 complete and accepted.
-Phase 22 is next and not implemented; Phases 23 through 28 remain future and
-not implemented.
+Phase 22 reporting schema v1 final audit work is in progress; Phases 23
+through 28 remain future and not implemented.
 
 ## Benchmark Infrastructure
 

@@ -42,8 +42,8 @@ eight fuzz-smoke targets; the accepted performance retry at measurement SHA
 `13/13`; and the independent source-read-only re-review found no CRITICAL or
 HIGH findings. Phase 20 final security and supply-chain hardening is complete
 and accepted. Phase 21 CLI v1 contract-freeze acceptance is complete and
-accepted. Phase 22 is next and not implemented; Phases 23 through 28 remain
-future and not implemented. No v1.0.0 or release-readiness claim is made.
+accepted. Phase 22 documentation/audit work is IN PROGRESS; Phases 23 through
+28 remain future and not implemented. No v1.0.0 or release-readiness claim is made.
 
 Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
@@ -66,9 +66,9 @@ Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted internal-refactoring scope is complete and
 accepted. Phase 20 final security and supply-chain hardening is complete and
 accepted. Phase 21 CLI v1 contract-freeze acceptance is complete and accepted.
-Phase 22 is next and not implemented; Phases 23 through 28 remain future and
-not implemented. No Phase 19 feature, release, or later capability may be
-claimed as implemented.
+Phase 22 documentation/audit work is IN PROGRESS; Phases 23 through 28 remain
+future and not implemented. No Phase 19 feature, release, or later capability
+may be claimed as implemented.
 
 ## Project Invariants
 

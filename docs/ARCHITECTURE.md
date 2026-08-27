@@ -23,8 +23,8 @@ complete and remains outside runtime crate responsibilities. Phase 19
 code-health audit and targeted internal refactoring is complete and accepted;
 Phase 20 security and supply-chain hardening is complete and accepted. The
 runtime architecture remains unchanged. Phase 21 CLI v1 contract-freeze
-acceptance is complete and accepted. Phase 22 is next and not implemented;
-Phases 23 through 28 remain future and not implemented.
+acceptance is complete and accepted. Phase 22 reporting schema v1 final audit
+work is in progress; Phases 23 through 28 remain future and not implemented.
 
 ## Architectural Principles
 
