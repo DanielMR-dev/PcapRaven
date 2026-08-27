@@ -302,12 +302,18 @@ headers, in order, are:
 | TLS | `packet_ordinal,source_ip,source_port,destination_ip,destination_port,record_version,handshake_kind,client_version,server_version,selected_version,selected_cipher_suite,server_name,alpn_protocols,ciphers_count,extensions_count,completeness` |
 | findings | `id,ordinal,detector_id,detector_version,title,summary,rationale,severity,confidence,packets,flows,observations,evidence_references,source_finding_references,mitre_techniques` |
 
-Validation emits eight property/value rows. Missing flat values are `-`;
-HTTP method/target/status and optional headers use `-`; flow unavailable
-durations use `-`, except `duration_display`, which uses the unavailable
-reason; DNS uses the first question and `-` when absent; TLS selects the
-applicable Hello projection and uses `-`; findings joins lists with `;` and
-MITRE fields as `technique_id:tactic_id`. These projections are implemented in
+Validation emits eight property/value rows. The missing flat-value sentinel is
+`-`. When that sentinel is passed through `sanitize_csv_cell`, the emitted cell
+bytes are `'-` (a single quote followed by a hyphen), because `-` is a formula
+trigger. Thus HTTP method/target and optional headers, DNS first-question
+name/type, and TLS Hello string projections use `'-` when missing; flow
+`duration_display` uses its unavailable-reason text when present and `'-` only
+when that reason is absent. Validation version/linktype/snaplen, flow duration
+numerator/denominator, DNS `qclass`, HTTP status, and TLS count projections
+intentionally write the
+controlled raw sentinel `-` without sanitization alongside their numeric or
+boolean fields. DNS uses the first question when present; findings join lists
+with `;` and MITRE fields as `technique_id:tactic_id`. These projections are implemented in
 [csv/mod.rs](../crates/pcapraven-reporting/src/csv/mod.rs#L21-L471).
 
 Untrusted cell text beginning with `=`, `+`, `-`, `@`, tab, CR, or LF, or with
