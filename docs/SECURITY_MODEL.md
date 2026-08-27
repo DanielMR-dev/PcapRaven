@@ -295,7 +295,7 @@ license evidence, provenance, and tool output are recorded in the
   (default features disabled with `alloc` and `derive`),
   `serde_json = 1.0.140` (default features disabled with `alloc`),
   `csv = 1.3.1` (default features disabled), and
-  `clap = 4.6.4` (default features disabled with `std`, `help`, `usage`, and
+  `clap = 4.6.6` (default features disabled with `std`, `help`, `usage`, and
   `error-context`).
 - `pcapraven-domain`, `pcapraven-flows`, and `pcapraven-detection` have zero
   third-party production dependencies. The shared `proptest = 1.11.0`
