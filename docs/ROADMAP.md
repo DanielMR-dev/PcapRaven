@@ -386,5 +386,5 @@ and release-readiness checks before the v1.0.0 decision.
 ## Phase 28 - Release v1.0.0 (FUTURE; NOT IMPLEMENTED)
 
 Release v1.0.0 only after every ordered prerequisite and final release gate is
-accepted. No v1.0.0 release is available or claimed by the current Phase 19
-scope.
+accepted. The accepted Phase 22 baseline makes no v1.0.0 or release-readiness
+claim.

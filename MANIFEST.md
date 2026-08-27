@@ -249,7 +249,7 @@ capability or release is claimed.
 | `crates/pcapraven-reporting/src/ndjson/mod.rs` | Deterministic newline-delimited JSON streaming serializer. |
 | `crates/pcapraven-reporting/src/csv/mod.rs` | Deterministic 2D tabular CSV serializer with formula injection sanitization. |
 | `crates/pcapraven-reporting/tests/reporting.rs` | Integration, schema anchor, format projection, CSV formula defense, and property tests for reporting. |
-| `crates/pcapraven-reporting/tests/schema_contract.rs` | Schema contract tests verifying wide integer string formatting, null preservation, and NDJSON envelope structures. |
+| `crates/pcapraven-reporting/tests/schema_contract.rs` | Phase 22 schema contract tests covering exact DTO shapes, categorical tokens, nullability, wide-integer strings, exact duration/ratio values, NDJSON envelopes, CSV projections, privacy, deterministic ordering, and compatibility invariants. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
 | `crates/pcapraven-cli/src/main.rs` | Functional CLI binary entry point and exit-code mapping. |
 | `crates/pcapraven-cli/src/analysis.rs` | Shared capture analysis pipeline and detection engine orchestration. |

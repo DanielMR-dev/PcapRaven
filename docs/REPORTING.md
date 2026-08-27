@@ -64,14 +64,16 @@ complete analysis returns `0`, while a useful partial result returns `3`
 - Struct field order below is serialized field order. DTOs derive `Serialize`
   without `skip_serializing_if`; every field is emitted.
 - `Option::None` is JSON `null`; empty `Vec` values are JSON `[]`.
-- Report totals, ordinals, packet/flow/observation/evidence/finding references,
-  sample counts, and all `u64`, `i64`, `u128`, `i128`, and `usize` values are
-  decimal JSON strings. Bounded `u8`, `u16`, `u32`, and `bool` fields remain
-  JSON numbers or booleans.
-- Reference strings are `Flow(n)`, `obs:packet:protocol:ordinal`, `evi:n`, and
-  `find:n`; packet ordinals in fields named `packet_*` or `packets` are decimal
+- Report totals, ordinal and count fields (including packet ordinals and sample
+  counts), and all `u64`, `i64`, `u128`, `i128`, and `usize` values are decimal
+  JSON strings. Bounded `u8`, `u16`, `u32`, and `bool` fields remain JSON
+  numbers or booleans.
+- Structured reference identifiers retain their established grammars:
+  `Flow(n)`, `obs:packet:protocol:ordinal`, `evi:n`, and `find:n`. Packet
+  ordinal references in fields named `packet_*` or `packets` remain decimal
   strings. See the domain `Display` implementations ([flow.rs](../crates/pcapraven-domain/src/flow.rs#L232-L254),
   [observation.rs](../crates/pcapraven-domain/src/observation.rs#L57-L106),
+  [evidence.rs](../crates/pcapraven-domain/src/evidence.rs#L75-L97),
   [finding.rs](../crates/pcapraven-domain/src/finding.rs#L546-L567)).
 - Exact duration and ratio components are decimal strings; exact values never
   use floating-point numbers.
