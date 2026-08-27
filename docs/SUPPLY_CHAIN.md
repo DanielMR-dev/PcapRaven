@@ -64,17 +64,17 @@ The application MSRV was not raised to satisfy a security-tool requirement.
 
 Runtime direct external dependencies are six crates: `pcap-parser`,
 `etherparse`, `serde`, `serde_json`, `csv`, and `clap`. The main graph contains
-41 registry packages and seven local path packages. The one unique main-graph
+43 registry packages and seven local path packages. The one unique main-graph
 dev dependency is `proptest`; it is used by four crates through the shared
 workspace declaration and is not linked into production binaries. The fuzz
 graph contains three direct external packages (`libfuzzer-sys`, `serde_json`,
 and `csv`) plus six local PcapRaven path dependencies. Its complete resolved
-graph contains 28 registry packages and seven local path packages.
+graph contains 30 registry packages and seven local path packages.
 
 The compile-time surface is part of this review. Main-graph metadata identifies
-the proc-macro packages `serde_derive 1.0.219` and `zerocopy-derive 0.8.56`, and
+the proc-macro packages `serde_derive 1.0.229` and `zerocopy-derive 0.8.56`, and
 custom-build targets in `getrandom 0.3.4`, `libc 0.2.189`, `num-traits 0.2.19`,
-`proc-macro2 1.0.107`, `quote 1.0.47`, `serde 1.0.219`, `serde_json 1.0.140`,
+`proc-macro2 1.0.107`, `quote 1.0.47`, `serde 1.0.229`, `serde_json 1.0.143`,
 `wit-bindgen 0.46.0`, and `zerocopy 0.8.56`. The fuzz graph additionally has
 the `libfuzzer-sys 0.4.13` build target and uses `getrandom 0.4.3` and
 `libc 0.2.189`. These are build-time inputs, not hidden runtime services.
@@ -89,10 +89,10 @@ it does not mean that a freshness-only update is required.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `pcap-parser` | `=0.17.0` | runtime | default, `data`, `serialize` disabled | crates.io | MIT OR Apache-2.0 | active; latest reviewed `0.17.0` (2025-07-25) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `etherparse` | `=0.21.0` | runtime | default disabled | crates.io | MIT OR Apache-2.0 | active; latest reviewed `0.21.0` (2026-07-21) | clean in both applicable RustSec/cargo-deny checks | KEEP |
-| `serde` | `=1.0.219` | runtime | default disabled; `alloc`, `derive` | crates.io | MIT OR Apache-2.0 | active; newer `1.0.229` reviewed (2026-07-18) | clean in both applicable RustSec/cargo-deny checks | KEEP |
-| `serde_json` | `=1.0.140` | runtime and fuzz | default disabled; `alloc` | crates.io | MIT OR Apache-2.0 | active; newer `1.0.151` reviewed (2026-07-20) | clean in both applicable RustSec/cargo-deny checks | KEEP |
+| `serde` | `=1.0.229` | runtime | default disabled; `alloc`, `derive` | crates.io | MIT OR Apache-2.0 | active; `1.0.229` reviewed (2026-07-18) | clean in both applicable RustSec/cargo-deny checks | KEEP |
+| `serde_json` | `=1.0.143` | runtime and fuzz | default disabled; `alloc` | crates.io | MIT OR Apache-2.0 | active; `1.0.143` reviewed (2026-08-26) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `csv` | `=1.3.1` | runtime and fuzz | default disabled | crates.io | MIT OR Unlicense | maintained; newer `1.4.0` reviewed (2025-10-17) | clean in both applicable RustSec/cargo-deny checks | KEEP |
-| `clap` | `=4.6.4` | runtime | default disabled; `std`, `help`, `usage`, `error-context` | crates.io | MIT OR Apache-2.0 | active; newer `4.6.6` reviewed (2026-08-06) | clean in both applicable RustSec/cargo-deny checks | KEEP |
+| `clap` | `=4.6.6` | runtime | default disabled; `std`, `help`, `usage`, `error-context` | crates.io | MIT OR Apache-2.0 | active; `4.6.6` reviewed (2026-08-06) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `proptest` | `=1.11.0` | dev only | default disabled; `std` | crates.io | MIT OR Apache-2.0 | passive maintenance stated upstream; latest reviewed `1.11.0` | clean in main cargo-deny check | KEEP |
 | `libfuzzer-sys` | `=0.4.13` | fuzz only | default features | crates.io | MIT OR Apache-2.0 OR NCSA | active; latest reviewed `0.4.13` (2026-06-04) | clean in fuzz RustSec/cargo-deny checks | KEEP |
 
@@ -145,10 +145,10 @@ yanked package, warning, or ignore was reported.
 
 ```text
 cargo audit --file Cargo.lock --deny warnings       PASS
-  scanned 48 crate dependencies; loaded 1226 advisories
+  scanned 50 crate dependencies; loaded 1226 advisories
 
 cargo audit --file fuzz/Cargo.lock --deny warnings  PASS
-  scanned 35 crate dependencies; loaded 1226 advisories
+  scanned 37 crate dependencies; loaded 1226 advisories
 ```
 
 The machine policy also runs `cargo deny` advisories checks for both graphs.
@@ -257,7 +257,7 @@ immutable full commit SHA:
 | Action | Pin and documented tag | Use |
 | --- | --- | --- |
 | `actions/checkout` | `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`) | all jobs |
-| `actions/upload-artifact` | `ea165f8d65b6e75b540449e92b4886f43607fa02` (`v4.6.2`) | fuzz failure artifacts |
+| `actions/upload-artifact` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` (`v7.0.1`) | fuzz failure artifacts |
 
 The workflow keeps `permissions: contents: read`, uses ordinary `pull_request`
 and `push` to `main` triggers, adds no privileged trigger, and adds no secret
