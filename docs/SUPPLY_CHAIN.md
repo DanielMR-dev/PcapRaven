@@ -69,7 +69,7 @@ dev dependency is `proptest`; it is used by four crates through the shared
 workspace declaration and is not linked into production binaries. The fuzz
 graph contains three direct external packages (`libfuzzer-sys`, `serde_json`,
 and `csv`) plus six local PcapRaven path dependencies. Its complete resolved
-graph contains 30 registry packages and seven local path packages.
+graph contains 29 registry packages and seven local path packages.
 
 The compile-time surface is part of this review. Main-graph metadata identifies
 the proc-macro packages `serde_derive 1.0.229` and `zerocopy-derive 0.8.56`, and
@@ -148,7 +148,7 @@ cargo audit --file Cargo.lock --deny warnings       PASS
   scanned 50 crate dependencies; loaded 1226 advisories
 
 cargo audit --file fuzz/Cargo.lock --deny warnings  PASS
-  scanned 37 crate dependencies; loaded 1226 advisories
+  scanned 36 crate dependencies; loaded 1226 advisories
 ```
 
 The machine policy also runs `cargo deny` advisories checks for both graphs.
