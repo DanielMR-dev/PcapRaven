@@ -23,9 +23,9 @@ use pcapraven_domain::{
     HttpResponseMetadata, IpAddress, MitreAttackCatalogVersion, MitreAttackDomain, MitreAttackId,
     MitreAttackObjectVersion, MitreAttackRelationship, MitreMapping, MitreMappingDeclaration,
     MitreMappingProvenance, MitreMappingRationale, MitreTactic, ObservationFlowAssociation,
-    ObservationReference, PacketReference, PacketTimestamp, ProtocolKind, ProtocolObservation,
-    ProtocolObservationData, Severity, TlsHandshakeKind, TlsObservationCompleteness,
-    TlsServerHelloMetadata, TlsVersion, TransportProtocol,
+    ObservationReference, PacketReference, PacketTimestamp, PacketTimestampResolution,
+    ProtocolKind, ProtocolObservation, ProtocolObservationData, Severity, TlsHandshakeKind,
+    TlsObservationCompleteness, TlsServerHelloMetadata, TlsVersion, TransportProtocol,
 };
 use pcapraven_reporting::dto::analysis::*;
 use pcapraven_reporting::dto::dns::*;
@@ -1395,6 +1395,39 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert_eq!(flow["temporal"]["duration"]["display"], "15/2s");
     assert!(flow["temporal"]["first_packet_timestamp"].is_null());
     assert!(flow["temporal"]["last_packet_timestamp"].is_null());
+    let timestamp_dto = PacketTimestampDto::from_domain(&PacketTimestamp::Available {
+        seconds: -1,
+        fractional_units: 500_000,
+        resolution: PacketTimestampResolution::Decimal {
+            exponent: 6,
+            units_per_second: 1_000_000,
+        },
+        offset_seconds: -18_000,
+    })
+    .expect("schema packet timestamp is available");
+    let timestamp = schema_json(&timestamp_dto);
+    assert_exact_keys(
+        &timestamp_dto,
+        &[
+            "seconds",
+            "fractional_units",
+            "units_per_second",
+            "offset_seconds",
+        ],
+    );
+    assert_string_fields(
+        &timestamp,
+        &[
+            "seconds",
+            "fractional_units",
+            "units_per_second",
+            "offset_seconds",
+        ],
+    );
+    assert_eq!(timestamp["seconds"], "-1");
+    assert_eq!(timestamp["fractional_units"], "500000");
+    assert_eq!(timestamp["units_per_second"], "1000000");
+    assert_eq!(timestamp["offset_seconds"], "-18000");
     assert_exact_keys(
         &flow_dto.temporal.timestamp_coverage,
         &[
@@ -1936,8 +1969,16 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert!(protocol_dtos[4].data.tls.is_none());
 
     let (finding_domain, evidence_domain) = schema_finding();
-    let findings_dto =
-        FindingsReportDto::from_domain_findings(&[&finding_domain], &[&evidence_domain], None);
+    let findings_dto = FindingsReportDto::from_domain_findings(
+        &[&finding_domain],
+        &[&evidence_domain],
+        Some(FindingFilterDto {
+            min_severity: Some("medium".to_string()),
+            min_confidence: Some("high".to_string()),
+            detector_id: Some("dns.possible_tunneling".to_string()),
+            mitre_attack_id: Some("T1071.004".to_string()),
+        }),
+    );
     let findings = schema_json(&findings_dto);
     assert_exact_keys(
         &findings_dto,
@@ -1951,7 +1992,38 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
             "evidence",
         ],
     );
-    assert!(findings["filter"].is_null());
+    let filter_dto = findings_dto
+        .filter
+        .as_ref()
+        .expect("schema findings filter is present");
+    assert_exact_keys(
+        filter_dto,
+        &[
+            "min_severity",
+            "min_confidence",
+            "detector_id",
+            "mitre_attack_id",
+        ],
+    );
+    assert_string_fields(
+        &findings["filter"],
+        &[
+            "min_severity",
+            "min_confidence",
+            "detector_id",
+            "mitre_attack_id",
+        ],
+    );
+    assert_eq!(findings["filter"]["min_severity"], "medium");
+    assert_eq!(findings["filter"]["min_confidence"], "high");
+    assert_eq!(findings["filter"]["detector_id"], "dns.possible_tunneling");
+    assert_eq!(findings["filter"]["mitre_attack_id"], "T1071.004");
+    let unfiltered_findings = schema_json(&FindingsReportDto::from_domain_findings(
+        &[&finding_domain],
+        &[&evidence_domain],
+        None,
+    ));
+    assert!(unfiltered_findings["filter"].is_null());
     let finding = &findings["findings"][0];
     let finding_dto = &findings_dto.findings[0];
     assert_exact_keys(
@@ -2247,14 +2319,22 @@ fn test_token_registries_boundaries_and_nullable_empty_values() {
         schema_version: REPORT_SCHEMA_VERSION,
         kind: "validation",
         source_path: None,
-        metadata: ValidationMetadataDto::default(),
+        metadata: ValidationMetadataDto {
+            format: "pcapng".to_string(),
+            byte_order: "big_endian".to_string(),
+            ..ValidationMetadataDto::default()
+        },
         summary: ValidationSummaryDto {
             records_emitted: "0".to_string(),
             total_diagnostics: diagnostics.len().to_string(),
             had_diagnostics: true,
         },
         diagnostics,
-        completion: ValidationCompletionDto::default(),
+        completion: ValidationCompletionDto {
+            status: "failed".to_string(),
+            is_complete: false,
+            terminal_error: Some("bounded terminal error".to_string()),
+        },
     };
     let value = schema_json(&report);
     let actual_stages: BTreeSet<String> = value["diagnostics"]
@@ -2278,6 +2358,14 @@ fn test_token_registries_boundaries_and_nullable_empty_values() {
         kinds.into_iter().map(str::to_string).collect()
     );
     assert_eq!(value["summary"]["total_diagnostics"], "42");
+    assert_eq!(value["metadata"]["format"], "pcapng");
+    assert_eq!(value["metadata"]["byte_order"], "big_endian");
+    assert_eq!(value["completion"]["status"], "failed");
+    assert_eq!(value["completion"]["is_complete"], false);
+    assert_eq!(
+        value["completion"]["terminal_error"],
+        "bounded terminal error"
+    );
     assert!(value["diagnostics"][0]["byte_offset"].is_null());
 
     let flow = schema_flow();
@@ -2419,6 +2507,17 @@ fn test_token_registries_boundaries_and_nullable_empty_values() {
     assert_eq!(http["transport"], "tcp");
     assert_eq!(http["message_kind"], "request");
     assert_eq!(http["completeness"], "complete");
+
+    let mut http_invalid_content_length = schema_http_observation();
+    http_invalid_content_length.headers.content_length =
+        pcapraven_domain::HttpContentLengthState::Invalid;
+    let http_invalid_content_length = schema_json(&HttpObservationDto::from_domain(
+        &http_invalid_content_length,
+    ));
+    assert_eq!(
+        http_invalid_content_length["headers"]["content_length"],
+        "invalid"
+    );
 
     let http_response = schema_json(&HttpObservationDto::from_domain(
         &schema_http_response_observation(),
