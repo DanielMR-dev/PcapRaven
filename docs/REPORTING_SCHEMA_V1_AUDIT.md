@@ -273,8 +273,11 @@ presentation. `BLOCKING_SCHEMA_DEFECT_REQUIRES_USER_DECISION` was not required.
 
 ## Production Code Changes
 
-`NONE`. No Rust source under `crates/pcapraven-reporting/src/` or any other
-production crate was edited.
+The only production-tree path edited for direct validation coverage was
+`crates/pcapraven-cli/src/app.rs`. Its addition is entirely under `#[cfg(test)]`
+and exercises `convert_validation_outcome`; it does not alter production
+runtime behavior. No reporting serializer source under
+`crates/pcapraven-reporting/src/` was edited.
 
 ## Compatibility Conclusion
 
@@ -333,10 +336,24 @@ SHA-256 `e4c1615538cfec6852e3c3b405548a9580f29b1def8ea57a21b27125f08d0dba`
 and `fuzz/Cargo.lock` SHA-256
 `f3c37867b80c9389e287e91d38e0f0446585c199444bcd671985a72f9106329f`.
 
-Final PR-head CI, Windows/macOS cross-platform CI, full Phase 18 performance
-comparison, and full fuzz acceptance remain `NOT RUN` at this interim developer
-stage. They are not implied by the local PASS results above and remain required
-before final acceptance.
+### Final PR-head CI evidence
+
+PR #32 for `DanielMR-dev/PcapRaven` was verified at exact head
+`aaa3d34b6860fdf9537f9d5786588cd880548735` by CI workflow run
+`33109219281` (run number 107). The run completed with conclusion `success`:
+all 14 jobs completed successfully, including Linux quality, MSRV 1.85.0,
+security and supply-chain checks, all eight Linux fuzz-smoke targets, and the
+Ubuntu, Windows, and macOS cross-platform workspace checks. The cross-platform
+contract, golden, and schema steps passed. Each fuzz job's conditional
+`Upload target crash artifacts on failure` step was skipped as expected while
+the job itself succeeded.
+
+This branch changes tests, documentation, audit evidence, and governance only;
+the sole production-tree edit is entirely under `#[cfg(test)]`. The conditional
+full fuzz-acceptance campaign and full Phase 18 performance comparison were
+therefore not required because no fuzzed or benchmarked production behavior
+changed. The local eight-target fuzz smoke and benchmark smoke passed as
+recorded above.
 
 ## Reviewer Findings
 
@@ -347,7 +364,7 @@ reported.
 | Severity | Finding | Disposition |
 | --- | --- | --- |
 | HIGH | Direct coverage for `app.rs` `convert_validation_outcome` was missing. | `REMEDIATED` by `51e9b4d`, which adds `app.rs:886-955` coverage for all 42 stage/kind combinations; the CLI-bin test passed 11/11. |
-| HIGH | Mandatory Phase 22 acceptance evidence was missing. | `PENDING / NOT REMEDIATED`: final PR-head CI, Windows/macOS cross-platform CI, full Phase 18 performance comparison, and full fuzz acceptance remain `NOT RUN`. |
+| HIGH | Mandatory Phase 22 acceptance evidence was missing. | `ADDRESSED`: exact-head PR CI run `33109219281` completed successfully at `aaa3d34b6860fdf9537f9d5786588cd880548735`; all 14 jobs passed, satisfying the final gate. The conditional full fuzz-acceptance and full Phase 18 performance reruns were not required because no fuzzed or benchmarked production behavior changed. |
 | MEDIUM | The token registry omitted bounded HTTP and TLS version rows. | `REMEDIATED` by `30707e0`, which records the HTTP/1.0, HTTP/1.1, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, TLS 1.3, and `Unknown` tokens. |
 | MEDIUM | The CSV disposition incorrectly labeled supported machine-readable CSV as non-machine table behavior. | `REMEDIATED` in this audit update; D-005 now distinguishes supported machine-readable CSV projections from human-facing table rendering. |
 
@@ -365,21 +382,21 @@ REVIEW`.
 | LOW | 1 | The generated artifact `scripts/__pycache__/run_phase18_benchmarks.cpython-314.pyc` was identified. |
 
 The exact generated artifact was removed before delivery, and no tracked
-implementation change resulted. The LOW finding is therefore resolved; final
-acceptance-gate evidence remains pending below.
+implementation change resulted. The LOW finding is therefore resolved. Final
+acceptance-gate evidence is recorded above.
 
 ## Residual Limitations
 
-- Final PR-head CI remains required; the independent re-review approved
-  implementation review as recorded above.
-- Windows and macOS schema/golden/CLI contract results are not available from
-  this local WSL run; cross-platform CI remains `NOT RUN`.
+- Local WSL validation is not native Windows or macOS execution; authoritative
+  CI run `33109219281` supplied the passing Windows and macOS cross-platform
+  contract, golden, and schema evidence.
 - The local eight-target fuzz smoke pass required the documented
   `LSAN_OPTIONS=detect_leaks=0` workaround after the initial unmodified
-  `fuzz_pcap_reader` zero-byte ptrace-only sanitizer failure; full fuzz
-  acceptance and authoritative CI sanitizer evidence remain `NOT RUN`.
-- Full Phase 18 performance comparison remains `NOT RUN`; local benchmark
-  methodology/smoke checks do not replace it.
+  `fuzz_pcap_reader` zero-byte ptrace-only sanitizer teardown issue;
+  authoritative CI fuzz smoke passed all eight targets.
+- Full fuzz acceptance and the full Phase 18 performance comparison were not
+  rerun because this branch did not change fuzzed or benchmarked production
+  behavior. Local eight-target fuzz smoke and benchmark smoke passed.
 - The final re-review's sole LOW cache artifact finding was resolved before
   delivery by removing `scripts/__pycache__/run_phase18_benchmarks.cpython-314.pyc`;
   it caused no tracked implementation change and is not a remaining limitation.
@@ -389,12 +406,12 @@ acceptance-gate evidence remains pending below.
 
 ## Phase Status
 
-Phase 21: `COMPLETE / ACCEPTED`.
+Phase 21: `COMPLETE / ACCEPTED`
 
-Phase 22: `IN PROGRESS` during this documentation/audit stage; not complete or
-accepted.
+Phase 22: `COMPLETE / ACCEPTED`
 
-Phase 23: `NEXT / NOT IMPLEMENTED` after Phase 22 acceptance.
+Phase 23: `NEXT / NOT IMPLEMENTED`
 
-Phases 24–28: `FUTURE / NOT IMPLEMENTED`. No v1.0.0 or release-readiness claim
-is made.
+Phases 24–28: `FUTURE / NOT IMPLEMENTED`
+
+No v1.0.0 or release-readiness claim is made.
