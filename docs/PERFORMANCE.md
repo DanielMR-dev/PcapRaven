@@ -279,7 +279,7 @@ Phase 21 changed production CLI source, so its acceptance gate required a new
 comparison using the frozen Phase 18.2 runner, workloads, budgets, and
 Phase 18.3 evaluator. The candidate was measured from clean branch
 `phase-21-acceptance-closure` at SHA
-`1d787b59fc43a7028271877ff098a4d3998801a3`. No WSL restart completed before
+`1e651373c8ddf120e46612dd47c5b547185afcb5`. No WSL restart completed during
 this campaign; a restart command had been attempted earlier and aborted.
 The benchmark runner and evaluator, frozen budgets, lockfiles, workload matrix,
 and measurement semantics were not changed.
@@ -287,10 +287,10 @@ and measurement semantics were not changed.
 The exact sequential commands were:
 
 ```text
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-closure-run-1.json
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-closure-run-2.json
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-closure-run-3.json
-python3 scripts/evaluate_phase18_acceptance.py docs/performance/phase18-2-budgets.json /tmp/pcapraven-phase21-closure-run-1.json /tmp/pcapraven-phase21-closure-run-2.json /tmp/pcapraven-phase21-closure-run-3.json > /tmp/pcapraven-phase21-closure-performance-result.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-acceptance-clean-run-1.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-acceptance-clean-run-2.json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/run_phase18_benchmarks.py > /tmp/pcapraven-phase21-acceptance-clean-run-3.json
+python3 scripts/evaluate_phase18_acceptance.py docs/performance/phase18-2-budgets.json /tmp/pcapraven-phase21-acceptance-clean-run-1.json /tmp/pcapraven-phase21-acceptance-clean-run-2.json /tmp/pcapraven-phase21-acceptance-clean-run-3.json > /tmp/pcapraven-phase21-acceptance-clean-result.json
 ```
 
 All three full benchmark commands exited `0`; the unchanged evaluator exited
@@ -305,7 +305,7 @@ All three full benchmark commands exited `0`; the unchanged evaluator exited
 | Stability checks | 24/24 |
 | Absolute median budgets | 24/24 |
 | Meaningful growth budgets | 13/13 |
-| Maximum acceptance spread | 1,463 bp (`analyze_dns_heavy_10000`) |
+| Maximum acceptance spread | 1,481 bp (`validate_10000`) |
 | Failed scenarios | `[]` |
 | Unstable scenarios | `[]` |
 | Frozen budget SHA-256 | `d873a70258b6a52ae4a58e99515fb3caa8790fb75fa4f4a97d76a901e5b301c1` |
@@ -323,7 +323,7 @@ logical_cpu_count: 12
 page_size_bytes: 4096
 physical_pages: 4076706
 total_memory_bytes: 16698187776
-available_memory_bytes: 13568749568
+available_memory_bytes: 14762438656
 rustc: rustc 1.97.1 (8bab26f4f 2026-07-14)
   binary: rustc
   commit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452
@@ -335,7 +335,7 @@ active_toolchain: 1.97.1-x86_64-unknown-linux-gnu (overridden by '/home/danielmr
 cargo: cargo 1.97.1 (c980f4866 2026-06-30)
 python: 3.14.4
 build_profile: release
-git_sha: 1d787b59fc43a7028271877ff098a4d3998801a3
+git_sha: 1e651373c8ddf120e46612dd47c5b547185afcb5
 git_dirty: false
 git_worktree_status: clean
 background_load: not controlled, pinned, or sampled
@@ -351,19 +351,23 @@ bytes. The unchanged evaluator recorded compatibility status
 only differing stable field. This is the existing Linux WSL2 one-page policy,
 not a new or general cross-machine tolerance.
 
-The exact external raw JSON evidence remains at the paths used by the
-evaluator. Their SHA-256 values are:
+The exact raw measurement and evaluator JSON files are tracked under
+`docs/performance/`. Each tracked file is a byte-for-byte copy of the exact
+temporary path used by the evaluator; the evaluator was run while the
+worktree was clean, before these copies were added to the checkout. Their
+SHA-256 values are:
 
 | Artifact | SHA-256 |
 | --- | --- |
-| `/tmp/pcapraven-phase21-closure-run-1.json` | `724f405ae7b73afcc7a4ab701b4e8878f4b69eb602659d19563be738b7f9727c` |
-| `/tmp/pcapraven-phase21-closure-run-2.json` | `4f4fc6c5fe2d409b298dbc10a5ae6b54fb7a8e21dec9db48e6b489344ece3d0b` |
-| `/tmp/pcapraven-phase21-closure-run-3.json` | `61d8881a5b4c6e1c88bef0b080b5f5a67d174daeb34364e7f713f6dea15af679` |
-| `/tmp/pcapraven-phase21-closure-performance-result.json` | `3fb393e5338c2615525b37148d8a188c2be79896fb48e6924eb5d9f55e56141f` |
+| `docs/performance/phase21-acceptance-run-1.json` (source `/tmp/pcapraven-phase21-acceptance-clean-run-1.json`) | `3d19b8c5b5e02e3248432de7f891158af2a97b03b3c64f58a5c45d277ab0e6ea` |
+| `docs/performance/phase21-acceptance-run-2.json` (source `/tmp/pcapraven-phase21-acceptance-clean-run-2.json`) | `0b3e25f208544edd33fd331dcb064462c3e12641e026dbfb3efa4cb97bd50e79` |
+| `docs/performance/phase21-acceptance-run-3.json` (source `/tmp/pcapraven-phase21-acceptance-clean-run-3.json`) | `ad9344bb8c53466d544f7c9cbb2d61dad939e51fa41a44ec8cdd1fb82fbc88f8` |
+| `docs/performance/phase21-acceptance-result.json` (source `/tmp/pcapraven-phase21-acceptance-clean-result.json`) | `4b2db4b51a21df0ccc913f4f87189bd86d628ba517c3d20c9455da831aa7dea8` |
 
-The raw files remain outside the checkout because the frozen methodology
-requires each measured run to observe a clean worktree. No individual run or
-scenario was discarded from this passing dataset.
+All three tracked run artifacts retain `git_dirty = false`,
+`git_worktree_status = clean`, the candidate SHA above, and all 24 measured
+scenarios. No individual run or scenario was discarded from this passing
+dataset.
 
 This dataset replaces the previously rejected Phase 21 comparison: that
 candidate was two 4096-byte pages below the frozen total-memory value and was
