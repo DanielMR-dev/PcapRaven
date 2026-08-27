@@ -94,7 +94,7 @@ after each run and removes those mutations before review.
 | `fuzz_detection_engine` | 4096 | at most 16 flows/32 observations, bounded engine output, canonical references, correlation evidence reuse |
 | `fuzz_reporting` | 8192 | deterministic Table/JSON/NDJSON/CSV rendering, strict machine-reference token types, packet/flow/observation/evidence/source-finding closure, canonical source ordering, terminal safety, and writer failures |
 
-`serde_json = 1.0.140` is an exact fuzz-only dependency used to validate emitted
+`serde_json = 1.0.143` is an exact fuzz-only dependency used to validate emitted
 JSON/NDJSON and exercise bounded malformed JSON values. It is already the exact
 version audited and locked for `pcapraven-reporting`; it does not change a
 runtime crate dependency. `csv = 1.3.1` is likewise exact, uses
