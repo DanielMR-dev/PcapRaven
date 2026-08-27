@@ -1,0 +1,1 @@
+error: hierarchical multi-section analysis report cannot be represented as a single flat CSV table; use table, json, or ndjson

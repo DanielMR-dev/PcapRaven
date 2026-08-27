@@ -1,0 +1,1 @@
+error: Invalid --detector 'DNS.Tunnel': detector identifier contains invalid character 'D'

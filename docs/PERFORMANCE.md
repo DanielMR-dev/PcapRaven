@@ -30,8 +30,8 @@ sets remain disclosed in `docs/CODE_HEALTH.md`. Final PR workflow run
 source-read-only Reviewer re-review found no CRITICAL or HIGH findings. Phase
 20 final security and supply-chain hardening is complete and accepted; it
 changed no production behavior or runtime dependency, so no new performance
-comparison was required. Phase 21 is next, future, and not implemented; Phases
-22 through 28 remain future and not implemented.
+comparison was required. Phase 21 is the active CLI v1 contract-freeze phase;
+Phases 22 through 28 remain future and not implemented.
 
 ## Benchmark Infrastructure
 

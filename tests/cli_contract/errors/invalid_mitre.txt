@@ -1,0 +1,1 @@
+error: Invalid --mitre 'TA0011': invalid MITRE ATT&CK technique ID format 'TA0011': expected 'T####' or 'T####.###'

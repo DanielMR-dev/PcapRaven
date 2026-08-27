@@ -1,0 +1,7 @@
+error: unexpected argument '--min-severity' found
+
+  tip: to pass '--min-severity' as a value, use '-- --min-severity'
+
+Usage: pcapraven validate [OPTIONS] <CAPTURE>
+
+For more information, try '--help'.

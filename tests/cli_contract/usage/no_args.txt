@@ -1,0 +1,20 @@
+Offline network forensics and threat-hunting analyzer.
+
+Usage: pcapraven [OPTIONS] <COMMAND>
+
+Commands:
+  validate  Validate capture file structure and factual metadata.
+  flows     Inspect reconstructed network flows and factual traffic statistics.
+  dns       Inspect normalized DNS observations.
+  http      Inspect cleartext HTTP/1.x message headers.
+  tls       Inspect visible TLS 1.2 / TLS 1.3 handshake metadata.
+  findings  Inspect analytical security findings with severity, confidence, and MITRE filtering.
+  analyze   Perform full unified capture analysis across all protocol and detection layers.
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -q, --quiet            Suppress nonfatal diagnostics on stderr
+      --format <FORMAT>  Output format (table, json, ndjson, csv) [default: table] [possible values: table, json, ndjson, csv]
+  -o, --output <PATH>    Write report to destination file (fails safely if file exists)
+  -h, --help             Print help
+  -V, --version          Print version

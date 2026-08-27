@@ -1,0 +1,1 @@
+error: Invalid --min-severity 'urgent': invalid severity 'urgent': expected info, low, medium, high, or critical

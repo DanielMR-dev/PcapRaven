@@ -422,7 +422,7 @@ performance acceptance evidence. The gate requires:
   functionality is present. The gate is complete because the listed evidence
   passed and the independent Reviewer confirmed these requirements.
 
-## Phase 20 Gate
+## Phase 20 Gate (COMPLETE; ACCEPTED)
 
 Phase 20 is the final security and supply-chain hardening gate after the
 accepted Phase 19 baseline. It adds policy, evidence, CI, and governance
@@ -467,5 +467,45 @@ through Phase 28 capability. The gate requires:
 
 The Security Model remains the policy owner; the supply-chain ledger records
 evidence. Phase 20 is complete only after the independent review and final
-PR-head CI exist. Phase 21 remains `NEXT / NOT IMPLEMENTED`, and Phases 22
-through 28 remain future.
+PR-head CI exist. Phase 21 is the next scoped gate, and Phases 22 through 28
+remain future.
+
+## Phase 21 Gate
+
+Phase 21 freezes the implemented PcapRaven CLI v1 surface after the accepted
+Phase 20 prerequisite. The detailed contract is owned by
+`docs/CLI_V1_CONTRACT.md`; this gate verifies that implementation, tests, and
+governance agree. The gate requires:
+
+- the dedicated `phase-21-cli-v1-contract-freeze` branch;
+- a complete implemented CLI inventory and exact seven-command freeze;
+- `docs/CLI_V1_CONTRACT.md`;
+- exact global-option freeze and command-specific option scope;
+- exact public aliases, including `-h`, `-V`, `-q`, and `-o` where
+  exposed;
+- default table format and the command/format compatibility matrix;
+- exact exit-code classifications 0, 1, 2, and 3;
+- stdout/stderr separation, quiet semantics, diagnostic bounding, and safe
+  output-file semantics;
+- help snapshots and a dynamic version grammar test;
+- usage/error snapshots and a dedicated CLI contract integration test;
+- all 49 existing report goldens unchanged;
+- schema v1.0 unchanged;
+- no detector or MITRE semantic change;
+- no dependency change unless independently justified;
+- MSRV 1.85 unchanged and seven-package topology unchanged;
+- the cross-platform contract test passing on Ubuntu, Windows, and macOS;
+- the existing security/supply-chain job passing;
+- all eight fuzz-smoke jobs passing;
+- conditional full Phase 18 performance revalidation when production CLI
+  source changes;
+- an independent source-read-only Reviewer;
+- CRITICAL = 0 and HIGH = 0, with remaining MEDIUM/LOW observations reported
+  and justified.
+
+The dedicated contract test must remain separate from the report golden
+matrix. It must verify help and version behavior, argument scope and
+placement, canonical and invalid values, format support, default output,
+aliases, exit states, stream separation, quiet behavior, diagnostics, output
+files, collisions, and analyze CSV rejection. No Phase 22 schema audit or
+Phase 23 platform-runtime claim is part of this gate.

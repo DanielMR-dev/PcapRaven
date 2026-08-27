@@ -1,0 +1,22 @@
+Inspect analytical security findings with severity, confidence, and MITRE filtering.
+
+Usage: pcapraven findings [OPTIONS] <CAPTURE>
+
+Arguments:
+  <CAPTURE>  Path to the capture file
+
+Options:
+      --max-records <N>              Maximum capture records to process
+  -q, --quiet                        Suppress nonfatal diagnostics on stderr
+      --format <FORMAT>              Output format (table, json, ndjson, csv) [default: table] [possible values: table, json, ndjson, csv]
+      --max-flows <N>                Maximum simultaneous active flows to track
+      --max-flow-instances <N>       Maximum total flow instances across analysis
+  -o, --output <PATH>                Write report to destination file (fails safely if file exists)
+      --max-observations <N>         Maximum protocol observations to retain
+      --tcp-idle-timeout <SECONDS>   TCP flow idle timeout in seconds
+      --udp-idle-timeout <SECONDS>   UDP flow idle timeout in seconds
+      --min-severity <SEVERITY>      Minimum severity threshold (info, low, medium, high, critical)
+      --min-confidence <CONFIDENCE>  Minimum confidence threshold (low, medium, high)
+      --detector <ID>                Filter by detector identifier (e.g. dns.possible_tunneling)
+      --mitre <TECHNIQUE_ID>         Filter by MITRE ATT&CK technique ID (e.g. T1071.004)
+  -h, --help                         Print help

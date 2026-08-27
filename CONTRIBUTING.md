@@ -7,12 +7,13 @@ the Phase 18.3 final acceptance gate, are complete. Phase 19 release code-health
 audit and targeted behavior-preserving internal refactoring is complete and
 accepted; its authorized implementation was limited to private CLI helpers.
 Phase 20 final security and supply-chain hardening is complete and accepted.
-Contributors must implement only explicitly delegated scope. Phase 21 is next,
-future, and not implemented; Phases 22 through 28 remain future and not
-implemented.
+Contributors must implement only explicitly delegated scope. Phase 21 is the
+active CLI v1 contract-freeze phase; Phases 22 through 28 remain future and
+not implemented.
 
 Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
-[repository manifest](MANIFEST.md) before proposing a change.
+[repository manifest](MANIFEST.md), and the
+[CLI v1 contract](docs/CLI_V1_CONTRACT.md) before proposing a change.
 
 ## Contribution Process
 
@@ -21,6 +22,8 @@ Review [the roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md), and
    coherent update.
 3. Update the canonical document when changing a contract; update links and
    summaries without creating a second contradictory policy.
+   CLI surface changes must first account for the frozen compatibility rules
+   in docs/CLI_V1_CONTRACT.md.
 4. Check every changed link, term, phase claim, and planned/current status.
 5. Request independent review focused on behavior, security, phase leakage,
    and missing verification.

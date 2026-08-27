@@ -1,0 +1,7 @@
+error: unexpected argument '--max-flows' found
+
+  tip: to pass '--max-flows' as a value, use '-- --max-flows'
+
+Usage: pcapraven dns [OPTIONS] <CAPTURE>
+
+For more information, try '--help'.
