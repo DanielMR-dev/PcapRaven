@@ -8,19 +8,24 @@
 //! - Exact rational arithmetic is preserved in `RatioDto` and `DurationDto`.
 
 use std::collections::BTreeSet;
+use std::fmt;
 
 use pcapraven_domain::{
-    Confidence, DnsFlags, DnsMessageKind, DnsName, DnsObservation, DnsObservationCompleteness,
-    DnsQuestion, DnsRdataMetadata, DnsResourceRecord, DnsSection, DnsTransport, EvidenceComparison,
-    EvidenceDescription, EvidenceDraftBuilder, EvidenceKind, EvidenceMeasurement,
-    EvidenceMetricKey, EvidenceRatio, EvidenceRecord, EvidenceUnit, EvidenceValue, FindingDraft,
-    FindingRationale, FindingRecord, FindingSubject, FindingSummary, FindingTitle, FlowDuration,
-    FlowEndReason, FlowEndpoint, FlowInterArrivalMetrics, FlowKey, FlowRecord, FlowReference,
-    FlowTemporalMetrics, FlowTemporalUnavailableReason, FlowTemporalValue, FlowTimestampCoverage,
-    FlowTrafficCounters, IpAddress, MitreAttackCatalogVersion, MitreAttackDomain, MitreAttackId,
+    Confidence, DnsEdnsMetadata, DnsEdnsOptionMetadata, DnsFlags, DnsMessageKind, DnsName,
+    DnsObservation, DnsObservationCompleteness, DnsQuestion, DnsRdataMetadata, DnsResourceRecord,
+    DnsSection, DnsTransport, EvidenceComparison, EvidenceDescription, EvidenceDraftBuilder,
+    EvidenceKind, EvidenceLimitation, EvidenceMeasurement, EvidenceMetricKey, EvidenceRatio,
+    EvidenceRecord, EvidenceReference, EvidenceUnit, EvidenceValue, FindingDraft, FindingRationale,
+    FindingRecord, FindingSubject, FindingSummary, FindingTitle, FlowDirection, FlowDuration,
+    FlowEndReason, FlowEndpoint, FlowExclusionReason, FlowInterArrivalMetrics, FlowKey, FlowRecord,
+    FlowReference, FlowTemporalMetrics, FlowTemporalUnavailableReason, FlowTemporalValue,
+    FlowTimestampCoverage, FlowTrafficCounters, HttpMessageKind, HttpObservationCompleteness,
+    HttpResponseMetadata, IpAddress, MitreAttackCatalogVersion, MitreAttackDomain, MitreAttackId,
     MitreAttackObjectVersion, MitreAttackRelationship, MitreMapping, MitreMappingDeclaration,
-    MitreMappingProvenance, MitreMappingRationale, MitreTactic, PacketReference, PacketTimestamp,
-    Severity, TransportProtocol,
+    MitreMappingProvenance, MitreMappingRationale, MitreTactic, ObservationFlowAssociation,
+    ObservationReference, PacketReference, PacketTimestamp, ProtocolKind, ProtocolObservation,
+    ProtocolObservationData, Severity, TlsHandshakeKind, TlsObservationCompleteness,
+    TlsServerHelloMetadata, TlsVersion, TransportProtocol,
 };
 use pcapraven_reporting::dto::analysis::*;
 use pcapraven_reporting::dto::dns::*;
@@ -33,6 +38,7 @@ use pcapraven_reporting::{
     REPORT_SCHEMA_VERSION, ReportError, ReportFormat, ReportKind, report_analysis, report_dns,
     report_findings, report_flows, report_http, report_tls, report_validation, sanitize_csv_cell,
 };
+use serde::de::{Deserializer, IgnoredAny, MapAccess, Visitor};
 use serde_json::Value;
 
 #[test]
@@ -423,15 +429,65 @@ fn schema_json<T: serde::Serialize>(value: &T) -> Value {
     serde_json::to_value(value).expect("schema value must serialize")
 }
 
-fn assert_exact_keys(value: &Value, expected: &[&str]) {
-    let actual: BTreeSet<String> = value
-        .as_object()
-        .expect("schema value must be an object")
-        .keys()
-        .cloned()
-        .collect();
+fn assert_object_keys(value: &Value, expected: &[&str]) {
+    let object = value.as_object().expect("schema value must be an object");
+    let actual: BTreeSet<String> = object.keys().cloned().collect();
     let expected: BTreeSet<String> = expected.iter().map(|key| (*key).to_string()).collect();
     assert_eq!(actual, expected);
+}
+
+fn assert_exact_keys<T: serde::Serialize>(value: &T, expected: &[&str]) {
+    let bytes = serde_json::to_vec(value).expect("schema value must serialize");
+    let parsed: Value = serde_json::from_slice(&bytes).expect("schema value must be JSON");
+    assert_object_keys(&parsed, expected);
+
+    let actual_order = ordered_object_keys_from_bytes(&bytes);
+    let expected_order: Vec<String> = expected.iter().map(|key| (*key).to_string()).collect();
+    assert_eq!(
+        actual_order, expected_order,
+        "serialized object key order changed"
+    );
+}
+
+fn ordered_object_keys_from_bytes(bytes: &[u8]) -> Vec<String> {
+    struct ObjectKeysVisitor;
+
+    impl<'de> Visitor<'de> for ObjectKeysVisitor {
+        type Value = Vec<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a JSON object")
+        }
+
+        fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            let mut keys = Vec::new();
+            while let Some(key) = access.next_key::<String>()? {
+                keys.push(key);
+                let _: IgnoredAny = access.next_value()?;
+            }
+            Ok(keys)
+        }
+    }
+
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    deserializer
+        .deserialize_map(ObjectKeysVisitor)
+        .expect("serialized DTO must be a JSON object")
+}
+
+fn assert_exact_keys_from_bytes(bytes: &[u8], expected: &[&str]) -> Value {
+    let value: Value = serde_json::from_slice(bytes).expect("serialized object must be JSON");
+    assert_object_keys(&value, expected);
+    let actual_order = ordered_object_keys_from_bytes(bytes);
+    let expected_order: Vec<String> = expected.iter().map(|key| (*key).to_string()).collect();
+    assert_eq!(
+        actual_order, expected_order,
+        "serialized object key order changed"
+    );
+    value
 }
 
 fn assert_string_fields(value: &Value, fields: &[&str]) {
@@ -468,36 +524,69 @@ fn assert_nullable_fields(value: &Value, fields: &[&str]) {
 }
 
 fn assert_json_document(bytes: &[u8]) -> Value {
+    assert!(!bytes.is_empty(), "JSON output must not be empty");
     assert!(
-        !bytes.starts_with(&[0xef, 0xbb, 0xbf]),
+        !bytes.windows(3).any(|window| window == [0xef, 0xbb, 0xbf]),
         "JSON must not have a BOM"
     );
+    assert!(!bytes.contains(&b'\r'), "JSON must use LF, not CRLF or CR");
     assert!(
         bytes.ends_with(b"\n"),
         "JSON must end with exactly an LF terminator"
     );
+    assert!(
+        !bytes[..bytes.len() - 1].ends_with(b"\n"),
+        "JSON must have exactly one final LF terminator"
+    );
     serde_json::from_slice(bytes).expect("JSON output must parse")
 }
 
-fn assert_ndjson_document(bytes: &[u8], kind: &str, record_types: &[&str]) {
+fn assert_json_document_with_keys(bytes: &[u8], expected: &[&str]) -> Value {
+    let value = assert_json_document(bytes);
+    assert_object_keys(&value, expected);
+    let actual_order = ordered_object_keys_from_bytes(bytes);
+    let expected_order: Vec<String> = expected.iter().map(|key| (*key).to_string()).collect();
+    assert_eq!(
+        actual_order, expected_order,
+        "serialized object key order changed"
+    );
+    value
+}
+
+fn assert_ndjson_document(bytes: &[u8], kind: &str, record_types: &[&str]) -> Vec<Value> {
+    assert!(!bytes.is_empty(), "NDJSON output must not be empty");
     assert!(
-        !bytes.starts_with(&[0xef, 0xbb, 0xbf]),
+        !bytes.windows(3).any(|window| window == [0xef, 0xbb, 0xbf]),
         "NDJSON must not have a BOM"
     );
+    assert!(
+        !bytes.contains(&b'\r'),
+        "NDJSON must use LF, not CRLF or CR"
+    );
     assert!(bytes.ends_with(b"\n"), "NDJSON must end with an LF");
-    let lines: Vec<&[u8]> = bytes[..bytes.len() - 1]
-        .split(|byte| *byte == b'\n')
-        .collect();
+    let body = &bytes[..bytes.len() - 1];
+    assert!(
+        !body.ends_with(b"\n"),
+        "NDJSON must have exactly one final LF terminator"
+    );
+    assert!(
+        !body.windows(2).any(|pair| pair == b"\n\n"),
+        "NDJSON must not contain blank lines"
+    );
+    let lines: Vec<&[u8]> = body.split(|byte| *byte == b'\n').collect();
     assert_eq!(lines.len(), record_types.len());
+    let mut records = Vec::with_capacity(lines.len());
     for (line, expected_record_type) in lines.iter().zip(record_types) {
         assert!(!line.is_empty(), "NDJSON must not contain blank records");
-        let value: Value = serde_json::from_slice(line).expect("NDJSON record must parse");
-        assert_exact_keys(&value, &["schema_version", "kind", "record_type", "data"]);
+        let value =
+            assert_exact_keys_from_bytes(line, &["schema_version", "kind", "record_type", "data"]);
         assert_eq!(value["schema_version"], REPORT_SCHEMA_VERSION);
         assert_eq!(value["kind"], kind);
         assert_eq!(value["record_type"], *expected_record_type);
         assert!(value["data"].is_object(), "NDJSON data must be an object");
+        records.push(value);
     }
+    records
 }
 
 fn assert_csv_document(bytes: &[u8], expected_header: &[&str]) {
@@ -544,16 +633,25 @@ fn schema_validation_report() -> ValidationReportDto {
         },
         summary: ValidationSummaryDto {
             records_emitted: "18446744073709551615".to_string(),
-            total_diagnostics: "1".to_string(),
+            total_diagnostics: "2".to_string(),
             had_diagnostics: true,
         },
-        diagnostics: vec![ValidationDiagnosticDto {
-            index: "0".to_string(),
-            stage: "packet".to_string(),
-            kind: "malformed".to_string(),
-            message: "bounded malformed packet diagnostic".to_string(),
-            byte_offset: Some("1024".to_string()),
-        }],
+        diagnostics: vec![
+            ValidationDiagnosticDto {
+                index: "0".to_string(),
+                stage: "packet".to_string(),
+                kind: "malformed".to_string(),
+                message: "bounded malformed packet diagnostic".to_string(),
+                byte_offset: Some("1024".to_string()),
+            },
+            ValidationDiagnosticDto {
+                index: "1".to_string(),
+                stage: "reader".to_string(),
+                kind: "io".to_string(),
+                message: "bounded reader diagnostic".to_string(),
+                byte_offset: None,
+            },
+        ],
         completion: ValidationCompletionDto {
             status: "complete".to_string(),
             is_complete: true,
@@ -665,6 +763,44 @@ fn schema_dns_observation() -> DnsObservation {
     }
 }
 
+fn schema_dns_edns_observation() -> DnsObservation {
+    let mut observation = schema_dns_observation();
+    let edns = DnsEdnsMetadata {
+        udp_payload_size: 1_232,
+        extended_rcode: 1,
+        version: 0,
+        dnssec_ok: true,
+        z: 0,
+        options: vec![
+            DnsEdnsOptionMetadata { code: 8, length: 4 },
+            DnsEdnsOptionMetadata {
+                code: 10,
+                length: 0,
+            },
+        ],
+    };
+    observation.packet = PacketReference::new(3, None, None, 128, 128, false);
+    observation.transport = DnsTransport::Tcp;
+    observation.message_kind = DnsMessageKind::Query;
+    observation.flags = DnsFlags::from_u16(0x0100);
+    observation.response_code = 0;
+    observation.effective_response_code = 0x100;
+    observation.declared_ancount = 0;
+    observation.declared_arcount = 1;
+    observation.questions[0].qtype = 28;
+    observation.edns = Some(edns.clone());
+    observation.records = vec![DnsResourceRecord {
+        name: DnsName::root(),
+        rtype: 41,
+        rclass: edns.udp_payload_size,
+        ttl: u32::from(edns.extended_rcode) << 24,
+        rdlength: 4,
+        rdata: DnsRdataMetadata::Opt(edns),
+        section: DnsSection::Additional,
+    }];
+    observation
+}
+
 fn schema_http_observation() -> pcapraven_domain::HttpObservation {
     let pkt_ref = PacketReference::new(0, None, None, 128, 128, false);
     pcapraven_domain::HttpObservation {
@@ -702,6 +838,27 @@ fn schema_http_observation() -> pcapraven_domain::HttpObservation {
         header_section_bytes: 45,
         completeness: pcapraven_domain::HttpObservationCompleteness::Complete,
     }
+}
+
+fn schema_http_response_observation() -> pcapraven_domain::HttpObservation {
+    let mut observation = schema_http_observation();
+    observation.packet = PacketReference::new(1, None, None, 128, 128, false);
+    observation.source_port = 80;
+    observation.destination_port = 54_321;
+    observation.version = pcapraven_domain::HttpVersion::Http10;
+    observation.message_kind = HttpMessageKind::Response;
+    observation.request = None;
+    observation.response = Some(HttpResponseMetadata { status_code: 204 });
+    observation.headers.host = None;
+    observation.headers.user_agent = None;
+    observation.headers.server = Some(pcapraven_domain::HttpByteString::from("example"));
+    observation.headers.content_type = Some(pcapraven_domain::HttpByteString::from("text/plain"));
+    observation.headers.content_length = pcapraven_domain::HttpContentLengthState::Present(42);
+    observation.headers.transfer_encoding = Some(pcapraven_domain::HttpByteString::from("chunked"));
+    observation.completeness = HttpObservationCompleteness::Partial {
+        reason: "response body truncated",
+    };
+    observation
 }
 
 fn schema_tls_observation() -> pcapraven_domain::TlsObservation {
@@ -754,8 +911,66 @@ fn schema_tls_observation() -> pcapraven_domain::TlsObservation {
     }
 }
 
+fn schema_tls_server_hello_observation() -> pcapraven_domain::TlsObservation {
+    let mut observation = schema_tls_observation();
+    observation.packet = PacketReference::new(2, None, None, 128, 128, false);
+    observation.source_port = 443;
+    observation.destination_port = 54_321;
+    observation.record_version = pcapraven_domain::TlsVersion::Tls13;
+    observation.handshake_kind = TlsHandshakeKind::ServerHello;
+    observation.client_hello = None;
+    observation.server_hello = Some(TlsServerHelloMetadata {
+        legacy_version: pcapraven_domain::TlsVersion::Tls12,
+        session_id_echo_length: 32,
+        cipher_suite: 0x1301,
+        compression_method: 0,
+        selected_version: Some(pcapraven_domain::TlsVersion::Tls13),
+        selected_group: Some(0x001d),
+        selected_alpn: Some(pcapraven_domain::TlsByteString::new(b"h2".to_vec())),
+        has_pre_shared_key: true,
+        has_early_data: true,
+        extensions: vec![
+            pcapraven_domain::TlsExtensionMetadata {
+                extension_type: 43,
+                declared_length: 2,
+            },
+            pcapraven_domain::TlsExtensionMetadata {
+                extension_type: 51,
+                declared_length: 2,
+            },
+        ],
+    });
+    observation.completeness = TlsObservationCompleteness::Complete;
+    observation
+}
+
 fn schema_finding() -> (FindingRecord, EvidenceRecord) {
-    let flow = schema_flow();
+    schema_finding_at(0, 0, 0)
+}
+
+fn schema_finding_at(
+    finding_id: u64,
+    evidence_id: u64,
+    flow_id: u64,
+) -> (FindingRecord, EvidenceRecord) {
+    schema_finding_at_with_levels(
+        finding_id,
+        evidence_id,
+        flow_id,
+        Severity::High,
+        Confidence::Medium,
+    )
+}
+
+fn schema_finding_at_with_levels(
+    finding_id: u64,
+    evidence_id: u64,
+    flow_id: u64,
+    severity: Severity,
+    confidence: Confidence,
+) -> (FindingRecord, EvidenceRecord) {
+    let mut flow = schema_flow();
+    flow.reference = FlowReference::new(flow_id);
     let subject = FindingSubject::try_new(
         vec![PacketReference::new(0, None, None, 128, 128, false)],
         vec![flow.reference],
@@ -783,42 +998,28 @@ fn schema_finding() -> (FindingRecord, EvidenceRecord) {
     evidence_builder.add_measurement(measurement).unwrap();
     evidence_builder.add_flow_reference(flow.reference).unwrap();
     let evidence_draft = evidence_builder.build().unwrap();
-    let evidence = EvidenceRecord::from_draft(
-        pcapraven_domain::EvidenceReference::new(0),
-        evidence_draft.clone(),
-    );
+    let evidence =
+        EvidenceRecord::from_draft(EvidenceReference::new(evidence_id), evidence_draft.clone());
 
     let finding_draft = FindingDraft::try_new(
         subject,
         title,
         summary,
         rationale,
-        Severity::High,
-        Confidence::Medium,
+        severity,
+        confidence,
         vec![evidence_draft],
     )
     .unwrap();
-    let mitre_id = MitreAttackId::try_new("T1071.004").unwrap();
-    let mitre_declaration = MitreMappingDeclaration::try_new(
-        MitreAttackDomain::Enterprise,
-        MitreAttackCatalogVersion::new(19, 2),
-        mitre_id,
-        "Application Layer Protocol: DNS",
-        MitreAttackObjectVersion::new(1, 4),
+    let mitre_mapping = schema_mitre_mapping(
         MitreTactic::CommandAndControl,
-        MitreAttackRelationship::Analytical,
-        MitreMappingRationale::try_new("High diversity DNS tunneling behavior").unwrap(),
-    )
-    .unwrap();
-    let mitre_mapping = MitreMapping::from_declaration(
-        &mitre_declaration,
         MitreMappingProvenance::DetectorDeclared {
             detector_id: pcapraven_domain::DetectorId::try_new("dns.possible_tunneling").unwrap(),
             detector_version: pcapraven_domain::DetectorVersion::new(1, 1, 1),
         },
     );
     let finding = FindingRecord::try_new(
-        pcapraven_domain::FindingReference::new(0),
+        pcapraven_domain::FindingReference::new(finding_id),
         pcapraven_domain::DetectorId::try_new("dns.possible_tunneling").unwrap(),
         pcapraven_domain::DetectorVersion::new(1, 1, 1),
         finding_draft.subject().clone(),
@@ -833,6 +1034,37 @@ fn schema_finding() -> (FindingRecord, EvidenceRecord) {
     )
     .unwrap();
     (finding, evidence)
+}
+
+fn schema_mitre_mapping(tactic: MitreTactic, provenance: MitreMappingProvenance) -> MitreMapping {
+    let mitre_id = MitreAttackId::try_new("T1071.004").unwrap();
+    let mitre_declaration = MitreMappingDeclaration::try_new(
+        MitreAttackDomain::Enterprise,
+        MitreAttackCatalogVersion::new(19, 2),
+        mitre_id,
+        "Application Layer Protocol: DNS",
+        MitreAttackObjectVersion::new(1, 4),
+        tactic,
+        MitreAttackRelationship::Analytical,
+        MitreMappingRationale::try_new("High diversity DNS tunneling behavior").unwrap(),
+    )
+    .unwrap();
+    MitreMapping::from_declaration(&mitre_declaration, provenance)
+}
+
+fn schema_evidence_with_measurement(
+    id: u64,
+    kind: EvidenceKind,
+    measurement: EvidenceMeasurement,
+    limitation: Option<EvidenceLimitation>,
+) -> EvidenceRecord {
+    let description = EvidenceDescription::try_new("schema contract evidence").unwrap();
+    let mut builder = EvidenceRecord::builder(EvidenceReference::new(id), kind, description);
+    builder.add_measurement(measurement).unwrap();
+    if let Some(limitation) = limitation {
+        builder.add_limitation(limitation).unwrap();
+    }
+    builder.build().unwrap()
 }
 
 fn schema_analysis_report(
@@ -882,11 +1114,117 @@ fn schema_analysis_report(
     }
 }
 
+fn schema_protocol_observations() -> Vec<ProtocolObservation> {
+    let dns = schema_dns_observation();
+    let http = schema_http_response_observation();
+    let tls = schema_tls_server_hello_observation();
+    let excluded_dns = schema_dns_edns_observation();
+    let mut unassociated_http = schema_http_observation();
+    unassociated_http.packet = PacketReference::new(4, None, None, 128, 128, false);
+
+    vec![
+        ProtocolObservation::try_new(
+            ObservationReference::new(0, ProtocolKind::Dns, 0),
+            ObservationFlowAssociation::Associated {
+                flow: FlowReference::new(0),
+                direction: FlowDirection::AToB,
+            },
+            ProtocolObservationData::Dns(dns),
+        )
+        .unwrap(),
+        ProtocolObservation::try_new(
+            ObservationReference::new(1, ProtocolKind::Http, 0),
+            ObservationFlowAssociation::Associated {
+                flow: FlowReference::new(1),
+                direction: FlowDirection::BToA,
+            },
+            ProtocolObservationData::Http(http),
+        )
+        .unwrap(),
+        ProtocolObservation::try_new(
+            ObservationReference::new(2, ProtocolKind::Tls, 0),
+            ObservationFlowAssociation::Associated {
+                flow: FlowReference::new(2),
+                direction: FlowDirection::SameEndpoint,
+            },
+            ProtocolObservationData::Tls(tls),
+        )
+        .unwrap(),
+        ProtocolObservation::try_new(
+            ObservationReference::new(3, ProtocolKind::Dns, 0),
+            ObservationFlowAssociation::Excluded(FlowExclusionReason::MissingTransportLayer),
+            ProtocolObservationData::Dns(excluded_dns),
+        )
+        .unwrap(),
+        ProtocolObservation::try_new(
+            ObservationReference::new(4, ProtocolKind::Http, 0),
+            ObservationFlowAssociation::Unassociated,
+            ProtocolObservationData::Http(unassociated_http),
+        )
+        .unwrap(),
+    ]
+}
+
+fn schema_analysis_report_from_domains(
+    flows: &[FlowRecord],
+    observations: &[ProtocolObservation],
+    findings: &[FindingRecord],
+    evidence: &[EvidenceRecord],
+) -> AnalysisReportDto {
+    AnalysisReportDto {
+        schema_version: REPORT_SCHEMA_VERSION,
+        kind: "analysis",
+        metadata: schema_validation_report().metadata,
+        summary: AnalysisSummaryDto {
+            total_packets: observations.len().to_string(),
+            total_flows: flows.len().to_string(),
+            total_dns_observations: observations
+                .iter()
+                .filter(|observation| observation.protocol_kind() == ProtocolKind::Dns)
+                .count()
+                .to_string(),
+            total_http_observations: observations
+                .iter()
+                .filter(|observation| observation.protocol_kind() == ProtocolKind::Http)
+                .count()
+                .to_string(),
+            total_tls_observations: observations
+                .iter()
+                .filter(|observation| observation.protocol_kind() == ProtocolKind::Tls)
+                .count()
+                .to_string(),
+            total_findings: findings.len().to_string(),
+            total_evidence_records: evidence.len().to_string(),
+        },
+        completion: ReportCompletionDto {
+            status: "partial".to_string(),
+            limitations: vec![
+                "capture_truncated".to_string(),
+                "packet_count_budget_reached".to_string(),
+                "flow_budget_reached".to_string(),
+                "observation_budget_reached".to_string(),
+            ],
+        },
+        filter: None,
+        flows: flows.iter().map(FlowRecordDto::from_domain).collect(),
+        observations: observations
+            .iter()
+            .map(ProtocolObservationDto::from_domain)
+            .collect(),
+        evidence: evidence
+            .iter()
+            .map(EvidenceRecordDto::from_domain)
+            .collect(),
+        findings: findings.iter().map(FindingRecordDto::from_domain).collect(),
+    }
+}
+
 #[test]
 fn test_all_dto_shapes_and_actual_conversion_domains() {
-    let validation = schema_json(&schema_validation_report());
+    let validation_dto = schema_validation_report();
+    let validation = schema_json(&validation_dto);
     assert_exact_keys(
-        &validation,
+        &validation_dto,
         &[
             "schema_version",
             "kind",
@@ -898,7 +1236,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_exact_keys(
-        &validation["metadata"],
+        &validation_dto.metadata,
         &[
             "format",
             "byte_order",
@@ -931,7 +1269,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_exact_keys(
-        &validation["summary"],
+        &validation_dto.summary,
         &["records_emitted", "total_diagnostics", "had_diagnostics"],
     );
     assert_string_fields(
@@ -940,7 +1278,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert_boolean_fields(&validation["summary"], &["had_diagnostics"]);
     assert_exact_keys(
-        &validation["diagnostics"][0],
+        &validation_dto.diagnostics[0],
         &["index", "stage", "kind", "message", "byte_offset"],
     );
     assert_string_fields(
@@ -948,7 +1286,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         &["index", "stage", "kind", "message", "byte_offset"],
     );
     assert_exact_keys(
-        &validation["completion"],
+        &validation_dto.completion,
         &["status", "is_complete", "terminal_error"],
     );
     assert_string_fields(&validation["completion"], &["status"]);
@@ -957,14 +1295,17 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert!(validation["completion"]["terminal_error"].is_null());
 
     let flow = schema_flow();
-    let flows = schema_json(&FlowsReportDto::from_domain_flows(std::slice::from_ref(
-        &flow,
-    )));
-    assert_exact_keys(&flows, &["schema_version", "kind", "total_flows", "flows"]);
+    let flows_dto = FlowsReportDto::from_domain_flows(std::slice::from_ref(&flow));
+    let flows = schema_json(&flows_dto);
+    assert_exact_keys(
+        &flows_dto,
+        &["schema_version", "kind", "total_flows", "flows"],
+    );
     assert_string_fields(&flows, &["schema_version", "kind", "total_flows"]);
     let flow = &flows["flows"][0];
+    let flow_dto = &flows_dto.flows[0];
     assert_exact_keys(
-        flow,
+        flow_dto,
         &[
             "id",
             "ordinal",
@@ -994,12 +1335,18 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert_eq!(flow["id"], "Flow(0)");
     assert_eq!(flow["ordinal"], "0");
     assert_exact_keys(
-        &flow["traffic"],
+        &flow_dto.traffic,
         &["total", "a_to_b", "b_to_a", "same_endpoint"],
     );
     for bucket in ["total", "a_to_b", "b_to_a", "same_endpoint"] {
         assert_exact_keys(
-            &flow["traffic"][bucket],
+            match bucket {
+                "total" => &flow_dto.traffic.total,
+                "a_to_b" => &flow_dto.traffic.a_to_b,
+                "b_to_a" => &flow_dto.traffic.b_to_a,
+                "same_endpoint" => &flow_dto.traffic.same_endpoint,
+                _ => unreachable!("schema traffic bucket is fixed"),
+            },
             &[
                 "packet_count",
                 "captured_bytes",
@@ -1018,7 +1365,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         );
     }
     assert_exact_keys(
-        &flow["temporal"],
+        &flow_dto.temporal,
         &[
             "status",
             "unavailable_reason",
@@ -1034,7 +1381,11 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert_string_fields(&flow["temporal"], &["status"]);
     assert_exact_keys(
-        &flow["temporal"]["duration"],
+        flow_dto
+            .temporal
+            .duration
+            .as_ref()
+            .expect("schema flow has a duration"),
         &["numerator", "denominator", "display"],
     );
     assert_string_fields(
@@ -1045,7 +1396,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert!(flow["temporal"]["first_packet_timestamp"].is_null());
     assert!(flow["temporal"]["last_packet_timestamp"].is_null());
     assert_exact_keys(
-        &flow["temporal"]["timestamp_coverage"],
+        &flow_dto.temporal.timestamp_coverage,
         &[
             "available_timestamps",
             "unavailable_timestamps",
@@ -1063,7 +1414,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_exact_keys(
-        &flow["temporal"]["overall_inter_arrival"],
+        &flow_dto.temporal.overall_inter_arrival,
         &[
             "interval_sample_count",
             "discontinuity_count",
@@ -1083,11 +1434,11 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
 
-    let dns = schema_json(&DnsReportDto::from_domain_observations(
-        std::slice::from_ref(&schema_dns_observation()),
-    ));
+    let dns_domain = schema_dns_observation();
+    let dns_dto = DnsReportDto::from_domain_observations(std::slice::from_ref(&dns_domain));
+    let dns = schema_json(&dns_dto);
     assert_exact_keys(
-        &dns,
+        &dns_dto,
         &[
             "schema_version",
             "kind",
@@ -1096,8 +1447,9 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     let dns_observation = &dns["observations"][0];
+    let dns_observation_dto = &dns_dto.observations[0];
     assert_exact_keys(
-        dns_observation,
+        dns_observation_dto,
         &[
             "packet_ordinal",
             "transport",
@@ -1157,24 +1509,80 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert!(dns_observation["edns"].is_null());
     assert_exact_keys(
-        &dns_observation["questions"][0],
+        &dns_observation_dto.questions[0],
         &["name", "qtype", "qtype_name", "qclass"],
     );
     assert_string_fields(&dns_observation["questions"][0], &["name", "qtype_name"]);
     assert_number_fields(&dns_observation["questions"][0], &["qtype", "qclass"]);
     assert_exact_keys(
-        &dns_observation["answers"][0],
+        &dns_observation_dto.answers[0],
         &["name", "rtype", "rclass", "ttl", "data"],
     );
     assert_string_fields(&dns_observation["answers"][0], &["name", "data"]);
     assert_number_fields(&dns_observation["answers"][0], &["rtype", "rclass", "ttl"]);
 
-    let http_observation = schema_http_observation();
-    let http = schema_json(&HttpReportDto::from_domain_observations(
-        std::slice::from_ref(&http_observation),
-    ));
+    let dns_edns_domain = schema_dns_edns_observation();
+    let dns_edns_dto = DnsObservationDto::from_domain(&dns_edns_domain);
+    let dns_edns = schema_json(&dns_edns_dto);
     assert_exact_keys(
-        &http,
+        &dns_edns_dto,
+        &[
+            "packet_ordinal",
+            "transport",
+            "source_ip",
+            "source_port",
+            "destination_ip",
+            "destination_port",
+            "transaction_id",
+            "message_kind",
+            "opcode",
+            "authoritative_answer",
+            "truncation",
+            "recursion_desired",
+            "recursion_available",
+            "response_code",
+            "questions",
+            "answers",
+            "authorities",
+            "additionals",
+            "edns",
+            "completeness",
+        ],
+    );
+    assert_eq!(dns_edns["packet_ordinal"], "3");
+    assert_eq!(dns_edns["transport"], "tcp");
+    assert_eq!(dns_edns["message_kind"], "query");
+    assert_eq!(dns_edns["response_code"], 256);
+    assert_exact_keys(
+        dns_edns_dto
+            .edns
+            .as_ref()
+            .expect("schema EDNS metadata is present"),
+        &[
+            "udp_payload_size",
+            "extended_rcode",
+            "version",
+            "dnssec_ok",
+            "options",
+        ],
+    );
+    assert_eq!(dns_edns["edns"]["udp_payload_size"], 1232);
+    assert_eq!(dns_edns["edns"]["extended_rcode"], 1);
+    assert_eq!(dns_edns["edns"]["version"], 0);
+    assert_eq!(dns_edns["edns"]["dnssec_ok"], true);
+    assert_eq!(dns_edns["edns"]["options"], serde_json::json!([8, 10]));
+    assert_exact_keys(
+        &dns_edns_dto.additionals[0],
+        &["name", "rtype", "rclass", "ttl", "data"],
+    );
+    assert_eq!(dns_edns["additionals"][0]["rtype"], 41);
+    assert_eq!(dns_edns["additionals"][0]["data"], "OPT udp=1232 do=true");
+
+    let http_observation = schema_http_observation();
+    let http_dto = HttpReportDto::from_domain_observations(std::slice::from_ref(&http_observation));
+    let http = schema_json(&http_dto);
+    assert_exact_keys(
+        &http_dto,
         &[
             "schema_version",
             "kind",
@@ -1183,8 +1591,9 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     let http_observation = &http["observations"][0];
+    let http_observation_dto = &http_dto.observations[0];
     assert_exact_keys(
-        http_observation,
+        http_observation_dto,
         &[
             "packet_ordinal",
             "transport",
@@ -1213,11 +1622,17 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_number_fields(http_observation, &["source_port", "destination_port"]);
-    assert_exact_keys(&http_observation["request"], &["method", "target"]);
+    assert_exact_keys(
+        http_observation_dto
+            .request
+            .as_ref()
+            .expect("schema request is present"),
+        &["method", "target"],
+    );
     assert_string_fields(&http_observation["request"], &["method", "target"]);
     assert!(http_observation["response"].is_null());
     assert_exact_keys(
-        &http_observation["headers"],
+        &http_observation_dto.headers,
         &[
             "host",
             "content_type",
@@ -1237,7 +1652,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         &["host", "content_length", "user_agent"],
     );
     assert_exact_keys(
-        &http_observation["headers"]["sensitive_headers"],
+        &http_observation_dto.headers.sensitive_headers,
         &[
             "authorization_present",
             "cookie_present",
@@ -1255,12 +1670,63 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
 
-    let tls_observation = schema_tls_observation();
-    let tls = schema_json(&TlsReportDto::from_domain_observations(
-        std::slice::from_ref(&tls_observation),
-    ));
+    let http_response_domain = schema_http_response_observation();
+    let http_response_dto = HttpObservationDto::from_domain(&http_response_domain);
+    let http_response = schema_json(&http_response_dto);
     assert_exact_keys(
-        &tls,
+        &http_response_dto,
+        &[
+            "packet_ordinal",
+            "transport",
+            "source_ip",
+            "source_port",
+            "destination_ip",
+            "destination_port",
+            "message_kind",
+            "version",
+            "request",
+            "response",
+            "headers",
+            "completeness",
+        ],
+    );
+    assert_eq!(http_response["packet_ordinal"], "1");
+    assert_eq!(http_response["message_kind"], "response");
+    assert_eq!(http_response["version"], "HTTP/1.0");
+    assert!(http_response["request"].is_null());
+    assert_exact_keys(
+        http_response_dto
+            .response
+            .as_ref()
+            .expect("schema HTTP response metadata is present"),
+        &["status_code"],
+    );
+    assert_eq!(http_response["response"]["status_code"], 204);
+    assert_exact_keys(
+        &http_response_dto.headers,
+        &[
+            "host",
+            "content_type",
+            "content_length",
+            "transfer_encoding",
+            "server",
+            "user_agent",
+            "sensitive_headers",
+        ],
+    );
+    assert!(http_response["headers"]["host"].is_null());
+    assert_eq!(http_response["headers"]["content_type"], "text/plain");
+    assert_eq!(http_response["headers"]["content_length"], "42");
+    assert_eq!(http_response["headers"]["transfer_encoding"], "chunked");
+    assert_eq!(http_response["headers"]["server"], "example");
+    assert!(http_response["headers"]["user_agent"].is_null());
+    assert_eq!(http_response["completeness"], "partial");
+
+    let tls_observation = schema_tls_observation();
+    let tls_dto = TlsReportDto::from_domain_observations(std::slice::from_ref(&tls_observation));
+    let tls = schema_json(&tls_dto);
+    assert_exact_keys(
+        &tls_dto,
         &[
             "schema_version",
             "kind",
@@ -1269,8 +1735,9 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     let tls_observation = &tls["observations"][0];
+    let tls_observation_dto = &tls_dto.observations[0];
     assert_exact_keys(
-        tls_observation,
+        tls_observation_dto,
         &[
             "packet_ordinal",
             "source_ip",
@@ -1297,7 +1764,10 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert_number_fields(tls_observation, &["source_port", "destination_port"]);
     assert_exact_keys(
-        &tls_observation["client_hello"],
+        tls_observation_dto
+            .client_hello
+            .as_ref()
+            .expect("schema client hello is present"),
         &[
             "client_version",
             "server_name",
@@ -1319,7 +1789,11 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert!(tls_observation["server_hello"].is_null());
     assert_exact_keys(
-        &tls_observation["client_hello"]["extensions"][0],
+        &tls_observation_dto
+            .client_hello
+            .as_ref()
+            .expect("schema client hello is present")
+            .extensions[0],
         &["extension_type", "length"],
     );
     assert_number_fields(
@@ -1327,14 +1801,146 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         &["extension_type", "length"],
     );
 
-    let (finding, evidence) = schema_finding();
-    let findings = schema_json(&FindingsReportDto::from_domain_findings(
-        &[&finding],
-        &[&evidence],
-        None,
-    ));
+    let tls_server_domain = schema_tls_server_hello_observation();
+    let tls_server_dto = TlsObservationDto::from_domain(&tls_server_domain);
+    let tls_server = schema_json(&tls_server_dto);
     assert_exact_keys(
-        &findings,
+        &tls_server_dto,
+        &[
+            "packet_ordinal",
+            "source_ip",
+            "source_port",
+            "destination_ip",
+            "destination_port",
+            "record_version",
+            "handshake_kind",
+            "client_hello",
+            "server_hello",
+            "completeness",
+        ],
+    );
+    assert_eq!(tls_server["packet_ordinal"], "2");
+    assert_eq!(tls_server["record_version"], "TLS 1.3");
+    assert_eq!(tls_server["handshake_kind"], "server_hello");
+    assert!(tls_server["client_hello"].is_null());
+    let tls_server_hello_dto = tls_server_dto
+        .server_hello
+        .as_ref()
+        .expect("schema TLS ServerHello metadata is present");
+    assert_exact_keys(
+        tls_server_hello_dto,
+        &[
+            "server_version",
+            "selected_version",
+            "selected_cipher_suite",
+            "selected_alpn",
+            "extensions",
+        ],
+    );
+    assert_eq!(tls_server["server_hello"]["server_version"], "TLS 1.2");
+    assert_eq!(tls_server["server_hello"]["selected_version"], "TLS 1.3");
+    assert_eq!(
+        tls_server["server_hello"]["selected_cipher_suite"],
+        "0x1301"
+    );
+    assert_eq!(tls_server["server_hello"]["selected_alpn"], "h2");
+    assert_exact_keys(
+        &tls_server_hello_dto.extensions[0],
+        &["extension_type", "length"],
+    );
+    assert_eq!(
+        tls_server["server_hello"]["extensions"][0]["extension_type"],
+        43
+    );
+    assert_eq!(
+        tls_server["server_hello"]["extensions"][1]["extension_type"],
+        51
+    );
+
+    let protocol_observations = schema_protocol_observations();
+    let protocol_dtos: Vec<ProtocolObservationDto> = protocol_observations
+        .iter()
+        .map(ProtocolObservationDto::from_domain)
+        .collect();
+    assert_eq!(protocol_dtos.len(), 5);
+    for observation_dto in &protocol_dtos {
+        assert_exact_keys(
+            observation_dto,
+            &[
+                "id",
+                "protocol",
+                "packet_reference",
+                "completeness",
+                "association",
+                "data",
+            ],
+        );
+        assert_exact_keys(
+            &observation_dto.association,
+            &["status", "flow_reference", "direction", "exclusion_reason"],
+        );
+        assert_exact_keys(&observation_dto.data, &["dns", "http", "tls"]);
+    }
+    assert_eq!(protocol_dtos[0].association.status, "associated");
+    assert_eq!(
+        protocol_dtos[0].association.direction.as_deref(),
+        Some("a_to_b")
+    );
+    assert!(protocol_dtos[0].data.dns.is_some());
+    assert!(protocol_dtos[0].data.http.is_none());
+    assert!(protocol_dtos[0].data.tls.is_none());
+    assert_eq!(
+        protocol_dtos[1].association.direction.as_deref(),
+        Some("b_to_a")
+    );
+    assert_eq!(protocol_dtos[1].protocol, "http");
+    let protocol_http = protocol_dtos[1]
+        .data
+        .http
+        .as_ref()
+        .expect("schema protocol HTTP data is present");
+    assert!(protocol_http.request.is_none());
+    assert_eq!(
+        protocol_http
+            .response
+            .as_ref()
+            .expect("schema protocol HTTP response is present")
+            .status_code,
+        204
+    );
+    assert_eq!(
+        protocol_dtos[2].association.direction.as_deref(),
+        Some("same_endpoint")
+    );
+    assert_eq!(protocol_dtos[2].protocol, "tls");
+    let protocol_tls = protocol_dtos[2]
+        .data
+        .tls
+        .as_ref()
+        .expect("schema protocol TLS data is present");
+    assert!(protocol_tls.client_hello.is_none());
+    assert!(protocol_tls.server_hello.is_some());
+    assert_eq!(protocol_dtos[3].association.status, "excluded");
+    assert_eq!(
+        protocol_dtos[3].association.exclusion_reason.as_deref(),
+        Some("MissingTransportLayer")
+    );
+    assert!(protocol_dtos[3].association.flow_reference.is_none());
+    assert!(protocol_dtos[3].data.dns.as_ref().unwrap().edns.is_some());
+    assert_eq!(protocol_dtos[4].association.status, "unassociated");
+    assert!(protocol_dtos[4].association.flow_reference.is_none());
+    assert!(protocol_dtos[4].association.direction.is_none());
+    assert!(protocol_dtos[4].association.exclusion_reason.is_none());
+    assert!(protocol_dtos[4].data.http.is_some());
+    assert!(protocol_dtos[4].data.dns.is_none());
+    assert!(protocol_dtos[4].data.tls.is_none());
+
+    let (finding_domain, evidence_domain) = schema_finding();
+    let findings_dto =
+        FindingsReportDto::from_domain_findings(&[&finding_domain], &[&evidence_domain], None);
+    let findings = schema_json(&findings_dto);
+    assert_exact_keys(
+        &findings_dto,
         &[
             "schema_version",
             "kind",
@@ -1347,8 +1953,9 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert!(findings["filter"].is_null());
     let finding = &findings["findings"][0];
+    let finding_dto = &findings_dto.findings[0];
     assert_exact_keys(
-        finding,
+        finding_dto,
         &[
             "id",
             "ordinal",
@@ -1382,7 +1989,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert_eq!(finding["id"], "find:0");
     assert_eq!(finding["severity"], "high");
     assert_eq!(finding["confidence"], "medium");
-    assert_exact_keys(&finding["subject"], &["packets", "flows", "observations"]);
+    assert_exact_keys(&finding_dto.subject, &["packets", "flows", "observations"]);
     assert_array_fields(&finding["subject"], &["packets", "flows", "observations"]);
     assert_eq!(finding["subject"]["flows"][0], "Flow(0)");
     assert_array_fields(
@@ -1394,7 +2001,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_exact_keys(
-        &finding["mitre_mappings"][0],
+        &finding_dto.mitre_mappings[0],
         &[
             "domain",
             "catalog_version",
@@ -1409,7 +2016,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_exact_keys(
-        &finding["mitre_mappings"][0]["provenance"],
+        &finding_dto.mitre_mappings[0].provenance,
         &["kind", "component_id", "component_version"],
     );
     assert_eq!(
@@ -1417,8 +2024,9 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         "command_and_control"
     );
     let evidence = &findings["evidence"][0];
+    let evidence_dto = &findings_dto.evidence[0];
     assert_exact_keys(
-        evidence,
+        evidence_dto,
         &[
             "id",
             "kind",
@@ -1443,8 +2051,9 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     );
     assert_eq!(evidence["kind"], "RatioComparison");
     let measurement = &evidence["measurements"][0];
+    let measurement_dto = &evidence_dto.measurements[0];
     assert_exact_keys(
-        measurement,
+        measurement_dto,
         &[
             "metric_key",
             "observed_value",
@@ -1457,7 +2066,16 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
     assert_eq!(measurement["metric_key"], "label_octet_diversity_ratio");
     assert_eq!(measurement["comparison"], ">");
     assert_eq!(measurement["observed_value"]["type"], "Ratio");
-    assert_exact_keys(
+    assert_exact_keys(&measurement_dto.observed_value, &["type", "value"]);
+    if let EvidenceValueDto::Ratio(ratio) = &measurement_dto.observed_value {
+        assert_exact_keys(
+            ratio,
+            &["numerator", "denominator", "string_representation"],
+        );
+    } else {
+        panic!("schema finding measurement must use a ratio");
+    }
+    assert_object_keys(
         &measurement["observed_value"]["value"],
         &["numerator", "denominator", "string_representation"],
     );
@@ -1466,14 +2084,18 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         "17/20"
     );
 
-    let analysis = schema_json(&schema_analysis_report(
-        &schema_flow(),
-        &schema_dns_observation(),
-        &schema_finding().0,
-        &schema_finding().1,
-    ));
+    let analysis_flow = schema_flow();
+    let analysis_dns = schema_dns_observation();
+    let (analysis_finding, analysis_evidence) = schema_finding();
+    let analysis_dto = schema_analysis_report(
+        &analysis_flow,
+        &analysis_dns,
+        &analysis_finding,
+        &analysis_evidence,
+    );
+    let analysis = schema_json(&analysis_dto);
     assert_exact_keys(
-        &analysis,
+        &analysis_dto,
         &[
             "schema_version",
             "kind",
@@ -1488,7 +2110,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         ],
     );
     assert_exact_keys(
-        &analysis["summary"],
+        &analysis_dto.summary,
         &[
             "total_packets",
             "total_flows",
@@ -1511,13 +2133,14 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
             "total_evidence_records",
         ],
     );
-    assert_exact_keys(&analysis["completion"], &["status", "limitations"]);
+    assert_exact_keys(&analysis_dto.completion, &["status", "limitations"]);
     assert_string_fields(&analysis["completion"], &["status"]);
     assert_array_fields(&analysis["completion"], &["limitations"]);
     assert!(analysis["filter"].is_null());
     let observation = &analysis["observations"][0];
+    let observation_dto = &analysis_dto.observations[0];
     assert_exact_keys(
-        observation,
+        observation_dto,
         &[
             "id",
             "protocol",
@@ -1532,7 +2155,7 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         &["id", "protocol", "packet_reference", "completeness"],
     );
     assert_exact_keys(
-        &observation["association"],
+        &observation_dto.association,
         &["status", "flow_reference", "direction", "exclusion_reason"],
     );
     assert_string_fields(
@@ -1540,7 +2163,36 @@ fn test_all_dto_shapes_and_actual_conversion_domains() {
         &["status", "flow_reference", "direction"],
     );
     assert!(observation["association"]["exclusion_reason"].is_null());
-    assert_exact_keys(&observation["data"], &["dns", "http", "tls"]);
+    assert_exact_keys(&observation_dto.data, &["dns", "http", "tls"]);
+    assert_exact_keys(
+        observation_dto
+            .data
+            .dns
+            .as_ref()
+            .expect("schema analysis DNS data is present"),
+        &[
+            "packet_ordinal",
+            "transport",
+            "source_ip",
+            "source_port",
+            "destination_ip",
+            "destination_port",
+            "transaction_id",
+            "message_kind",
+            "opcode",
+            "authoritative_answer",
+            "truncation",
+            "recursion_desired",
+            "recursion_available",
+            "response_code",
+            "questions",
+            "answers",
+            "authorities",
+            "additionals",
+            "edns",
+            "completeness",
+        ],
+    );
     assert!(observation["data"]["dns"].is_object());
     assert!(observation["data"]["http"].is_null());
     assert!(observation["data"]["tls"].is_null());
@@ -1634,20 +2286,185 @@ fn test_token_registries_boundaries_and_nullable_empty_values() {
     assert_eq!(flow_value["end_reason"], "end_of_input");
     assert_eq!(flow_value["temporal"]["status"], "available");
 
+    for (end_reason, token) in [
+        (FlowEndReason::EndOfInput, "end_of_input"),
+        (FlowEndReason::IdleTimeout, "idle_timeout"),
+        (FlowEndReason::TcpReset, "tcp_reset"),
+        (FlowEndReason::TcpNewInitialSyn, "tcp_new_initial_syn"),
+        (FlowEndReason::AnalysisStopped, "analysis_stopped"),
+    ] {
+        let mut flow = schema_flow();
+        flow.end_reason = end_reason;
+        let value = schema_json(&FlowRecordDto::from_domain(&flow));
+        assert_eq!(value["end_reason"], token);
+    }
+    let mut udp_flow = schema_flow();
+    udp_flow.key = FlowKey::new(
+        TransportProtocol::Udp,
+        udp_flow.key.endpoint_a(),
+        udp_flow.key.endpoint_b(),
+    );
+    assert_eq!(
+        schema_json(&FlowRecordDto::from_domain(&udp_flow))["protocol"],
+        "udp"
+    );
+    for (reason, token) in [
+        (
+            FlowTemporalUnavailableReason::InsufficientSamples,
+            "insufficient_samples",
+        ),
+        (
+            FlowTemporalUnavailableReason::TimestampUnavailable,
+            "timestamp_unavailable",
+        ),
+        (
+            FlowTemporalUnavailableReason::InvalidTimestamp,
+            "invalid_timestamp",
+        ),
+        (
+            FlowTemporalUnavailableReason::NonMonotonicTimestamp,
+            "non_monotonic_timestamp",
+        ),
+        (
+            FlowTemporalUnavailableReason::ArithmeticOverflow,
+            "arithmetic_overflow",
+        ),
+    ] {
+        let mut flow = schema_flow();
+        flow.temporal.duration = FlowTemporalValue::Unavailable(reason);
+        let value = schema_json(&FlowRecordDto::from_domain(&flow));
+        assert_eq!(value["temporal"]["status"], "unavailable");
+        assert_eq!(value["temporal"]["unavailable_reason"], token);
+        assert!(value["temporal"]["duration"].is_null());
+    }
+
+    for (association, status, direction, exclusion_reason) in [
+        (
+            ObservationFlowAssociation::Associated {
+                flow: FlowReference::new(0),
+                direction: FlowDirection::AToB,
+            },
+            "associated",
+            Some("a_to_b"),
+            None,
+        ),
+        (
+            ObservationFlowAssociation::Associated {
+                flow: FlowReference::new(0),
+                direction: FlowDirection::BToA,
+            },
+            "associated",
+            Some("b_to_a"),
+            None,
+        ),
+        (
+            ObservationFlowAssociation::Associated {
+                flow: FlowReference::new(0),
+                direction: FlowDirection::SameEndpoint,
+            },
+            "associated",
+            Some("same_endpoint"),
+            None,
+        ),
+        (
+            ObservationFlowAssociation::Excluded(FlowExclusionReason::MissingNetworkLayer),
+            "excluded",
+            None,
+            Some("MissingNetworkLayer"),
+        ),
+        (
+            ObservationFlowAssociation::Excluded(FlowExclusionReason::MissingTransportLayer),
+            "excluded",
+            None,
+            Some("MissingTransportLayer"),
+        ),
+        (
+            ObservationFlowAssociation::Excluded(FlowExclusionReason::FragmentedWithoutTransport),
+            "excluded",
+            None,
+            Some("FragmentedWithoutTransport"),
+        ),
+        (
+            ObservationFlowAssociation::Excluded(FlowExclusionReason::UnsupportedTransport),
+            "excluded",
+            None,
+            Some("UnsupportedTransport"),
+        ),
+        (
+            ObservationFlowAssociation::Unassociated,
+            "unassociated",
+            None,
+            None,
+        ),
+    ] {
+        let value = schema_json(&ObservationFlowAssociationDto::from_domain(&association));
+        assert_eq!(value["status"], status);
+        assert_eq!(value["direction"].as_str(), direction);
+        assert_eq!(value["exclusion_reason"].as_str(), exclusion_reason);
+    }
+
     let dns = schema_json(&DnsObservationDto::from_domain(&schema_dns_observation()));
     assert_eq!(dns["transport"], "udp");
     assert_eq!(dns["message_kind"], "response");
     assert_eq!(dns["completeness"], "complete");
+
+    let dns_query = schema_json(&DnsObservationDto::from_domain(
+        &schema_dns_edns_observation(),
+    ));
+    assert_eq!(dns_query["transport"], "tcp");
+    assert_eq!(dns_query["message_kind"], "query");
+    assert_eq!(dns_query["completeness"], "complete");
 
     let http = schema_json(&HttpObservationDto::from_domain(&schema_http_observation()));
     assert_eq!(http["transport"], "tcp");
     assert_eq!(http["message_kind"], "request");
     assert_eq!(http["completeness"], "complete");
 
+    let http_response = schema_json(&HttpObservationDto::from_domain(
+        &schema_http_response_observation(),
+    ));
+    assert_eq!(http_response["message_kind"], "response");
+    assert_eq!(http_response["version"], "HTTP/1.0");
+    assert_eq!(http_response["response"]["status_code"], 204);
+    assert!(http_response["request"].is_null());
+    assert_eq!(http_response["completeness"], "partial");
+
     let tls = schema_json(&TlsObservationDto::from_domain(&schema_tls_observation()));
     assert_eq!(tls["handshake_kind"], "client_hello");
     assert_eq!(tls["completeness"], "complete");
     assert_eq!(tls["client_hello"]["cipher_suites"][0], "0x1301");
+
+    let tls_server = schema_json(&TlsObservationDto::from_domain(
+        &schema_tls_server_hello_observation(),
+    ));
+    assert_eq!(tls_server["handshake_kind"], "server_hello");
+    assert_eq!(tls_server["server_hello"]["selected_version"], "TLS 1.3");
+    assert_eq!(tls_server["server_hello"]["selected_alpn"], "h2");
+    assert!(tls_server["client_hello"].is_null());
+    for (handshake_kind, token) in [
+        (TlsHandshakeKind::ClientHello, "client_hello"),
+        (TlsHandshakeKind::ServerHello, "server_hello"),
+        (TlsHandshakeKind::HelloRetryRequest, "hello_retry_request"),
+        (TlsHandshakeKind::Other(255), "other"),
+    ] {
+        let mut observation = schema_tls_observation();
+        observation.handshake_kind = handshake_kind;
+        let value = schema_json(&TlsObservationDto::from_domain(&observation));
+        assert_eq!(value["handshake_kind"], token);
+    }
+    for (version, token) in [
+        (TlsVersion::Ssl30, "SSLv3"),
+        (TlsVersion::Tls10, "TLS 1.0"),
+        (TlsVersion::Tls11, "TLS 1.1"),
+        (TlsVersion::Tls12, "TLS 1.2"),
+        (TlsVersion::Tls13, "TLS 1.3"),
+        (TlsVersion::Unknown(0x1234), "Unknown"),
+    ] {
+        let mut observation = schema_tls_observation();
+        observation.record_version = version;
+        let value = schema_json(&TlsObservationDto::from_domain(&observation));
+        assert_eq!(value["record_version"], token);
+    }
 
     let (finding, evidence) = schema_finding();
     let finding_value = schema_json(&FindingRecordDto::from_domain(&finding));
@@ -1660,41 +2477,181 @@ fn test_token_registries_boundaries_and_nullable_empty_values() {
     assert_eq!(evidence_value["measurements"][0]["unit"], "ratio");
     assert_eq!(evidence_value["measurements"][0]["comparison"], ">");
 
-    let all_values = [
-        (EvidenceValueDto::Integer(i128::MIN.to_string()), "Integer"),
+    for (id, (kind, token)) in [
+        (EvidenceKind::PacketMeasurement, "PacketMeasurement"),
+        (EvidenceKind::FlowMeasurement, "FlowMeasurement"),
+        (EvidenceKind::ProtocolObservation, "ProtocolObservation"),
+        (EvidenceKind::TemporalMetric, "TemporalMetric"),
+        (EvidenceKind::RatioComparison, "RatioComparison"),
+        (EvidenceKind::ProtocolFact, "ProtocolFact"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let measurement = EvidenceMeasurement::try_new(
+            EvidenceMetricKey::try_new(format!("kind_{id}")).unwrap(),
+            EvidenceValue::Unsigned(1),
+            EvidenceUnit::Count,
+        )
+        .unwrap();
+        let record = schema_evidence_with_measurement(id as u64 + 10, kind, measurement, None);
+        let value = schema_json(&EvidenceRecordDto::from_domain(&record));
+        assert_eq!(value["kind"], token);
+        assert!(value["limitations"].as_array().unwrap().is_empty());
+    }
+
+    for (id, (comparison, token)) in [
+        (EvidenceComparison::Equal, "=="),
+        (EvidenceComparison::NotEqual, "!="),
+        (EvidenceComparison::LessThan, "<"),
+        (EvidenceComparison::LessThanOrEqual, "<="),
+        (EvidenceComparison::GreaterThan, ">"),
+        (EvidenceComparison::GreaterThanOrEqual, ">="),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let measurement = EvidenceMeasurement::try_with_threshold(
+            EvidenceMetricKey::try_new(format!("comparison_{id}")).unwrap(),
+            EvidenceValue::Ratio(EvidenceRatio::from_fraction(1, 2).unwrap()),
+            EvidenceValue::Ratio(EvidenceRatio::from_fraction(1, 4).unwrap()),
+            comparison,
+            EvidenceUnit::Ratio,
+        )
+        .unwrap();
+        let record = schema_evidence_with_measurement(
+            id as u64 + 20,
+            EvidenceKind::RatioComparison,
+            measurement,
+            None,
+        );
+        let value = schema_json(&EvidenceRecordDto::from_domain(&record));
+        assert_eq!(value["measurements"][0]["comparison"], token);
+    }
+
+    for (id, (unit, value, token)) in [
+        (EvidenceUnit::Bytes, EvidenceValue::Unsigned(8), "bytes"),
+        (EvidenceUnit::Packets, EvidenceValue::Unsigned(2), "packets"),
+        (EvidenceUnit::Nanoseconds, EvidenceValue::Unsigned(3), "ns"),
+        (EvidenceUnit::Microseconds, EvidenceValue::Unsigned(4), "us"),
+        (EvidenceUnit::Milliseconds, EvidenceValue::Unsigned(5), "ms"),
         (
-            EvidenceValueDto::Unsigned(u128::MAX.to_string()),
-            "Unsigned",
+            EvidenceUnit::Seconds,
+            EvidenceValue::Duration(FlowDuration::from_secs(6)),
+            "s",
         ),
         (
-            EvidenceValueDto::Ratio(RatioDto {
-                numerator: "17".to_string(),
-                denominator: "20".to_string(),
-                string_representation: "17/20".to_string(),
-            }),
+            EvidenceUnit::Ratio,
+            EvidenceValue::Ratio(EvidenceRatio::from_fraction(1, 3).unwrap()),
+            "ratio",
+        ),
+        (EvidenceUnit::Count, EvidenceValue::Boolean(true), "count"),
+        (
+            EvidenceUnit::PercentageInteger,
+            EvidenceValue::Unsigned(50),
+            "%",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let measurement = EvidenceMeasurement::try_new(
+            EvidenceMetricKey::try_new(format!("unit_{id}")).unwrap(),
+            value,
+            unit,
+        )
+        .unwrap();
+        let record = schema_evidence_with_measurement(
+            id as u64 + 30,
+            EvidenceKind::ProtocolFact,
+            measurement,
+            None,
+        );
+        let value = schema_json(&EvidenceRecordDto::from_domain(&record));
+        assert_eq!(value["measurements"][0]["unit"], token);
+        assert!(value["measurements"][0]["threshold"].is_null());
+        assert!(value["measurements"][0]["comparison"].is_null());
+    }
+
+    for (id, limitation) in [
+        EvidenceLimitation::CaptureTruncated,
+        EvidenceLimitation::TruncatedPayload,
+        EvidenceLimitation::MissingNetworkLayer,
+        EvidenceLimitation::IncompleteHandshake,
+        EvidenceLimitation::PacketCountBudgetReached,
+        EvidenceLimitation::ObservationBudgetReached,
+        EvidenceLimitation::FlowBudgetReached,
+        EvidenceLimitation::HeaderBudgetExceeded,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let measurement = EvidenceMeasurement::try_new(
+            EvidenceMetricKey::try_new(format!("limitation_{id}")).unwrap(),
+            EvidenceValue::Unsigned(1),
+            EvidenceUnit::Count,
+        )
+        .unwrap();
+        let record = schema_evidence_with_measurement(
+            id as u64 + 40,
+            EvidenceKind::ProtocolFact,
+            measurement,
+            Some(limitation),
+        );
+        let value = schema_json(&EvidenceRecordDto::from_domain(&record));
+        assert_eq!(value["limitations"][0], limitation.as_str());
+    }
+
+    for (severity, token) in [
+        (Severity::Info, "info"),
+        (Severity::Low, "low"),
+        (Severity::Medium, "medium"),
+        (Severity::High, "high"),
+        (Severity::Critical, "critical"),
+    ] {
+        let (finding, _) = schema_finding_at_with_levels(50, 50, 0, severity, Confidence::Low);
+        let value = schema_json(&FindingRecordDto::from_domain(&finding));
+        assert_eq!(value["severity"], token);
+    }
+    for (confidence, token) in [
+        (Confidence::Low, "low"),
+        (Confidence::Medium, "medium"),
+        (Confidence::High, "high"),
+    ] {
+        let (finding, _) = schema_finding_at_with_levels(51, 51, 0, Severity::Info, confidence);
+        let value = schema_json(&FindingRecordDto::from_domain(&finding));
+        assert_eq!(value["confidence"], token);
+    }
+
+    let all_values = [
+        (EvidenceValue::Integer(i128::MIN), "Integer"),
+        (EvidenceValue::Unsigned(u128::MAX), "Unsigned"),
+        (
+            EvidenceValue::Ratio(EvidenceRatio::from_fraction(17, 20).unwrap()),
             "Ratio",
         ),
-        (EvidenceValueDto::Boolean(true), "Boolean"),
+        (EvidenceValue::Boolean(true), "Boolean"),
         (
-            EvidenceValueDto::Duration(DurationDto {
-                numerator: "15".to_string(),
-                denominator: "2".to_string(),
-                display: "15/2s".to_string(),
-            }),
+            EvidenceValue::Duration(FlowDuration::from_fraction(15, 2).unwrap()),
             "Duration",
         ),
     ];
-    for (value, tag) in all_values {
-        let value = schema_json(&value);
-        assert_exact_keys(&value, &["type", "value"]);
+    for (domain_value, tag) in all_values {
+        let dto = EvidenceValueDto::from_domain(&domain_value);
+        let value = schema_json(&dto);
+        assert_exact_keys(&dto, &["type", "value"]);
         assert_eq!(value["type"], tag);
     }
     assert_eq!(
-        schema_json(&EvidenceValueDto::Integer(i128::MIN.to_string()))["value"],
+        schema_json(&EvidenceValueDto::from_domain(&EvidenceValue::Integer(
+            i128::MIN
+        )))["value"],
         i128::MIN.to_string()
     );
     assert_eq!(
-        schema_json(&EvidenceValueDto::Unsigned(u128::MAX.to_string()))["value"],
+        schema_json(&EvidenceValueDto::from_domain(&EvidenceValue::Unsigned(
+            u128::MAX
+        )))["value"],
         u128::MAX.to_string()
     );
 
@@ -1714,14 +2671,35 @@ fn test_token_registries_boundaries_and_nullable_empty_values() {
 #[test]
 fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
     let validation = schema_validation_report();
-    let flow = schema_flow();
-    let dns = schema_dns_observation();
-    let http = schema_http_observation();
-    let tls = schema_tls_observation();
-    let (finding, evidence) = schema_finding();
-    let findings = vec![&finding];
-    let evidence_records = vec![&evidence];
-    let analysis = schema_analysis_report(&flow, &dns, &finding, &evidence);
+    let mut flow_0 = schema_flow();
+    flow_0.reference = FlowReference::new(0);
+    let mut flow_1 = schema_flow();
+    flow_1.reference = FlowReference::new(1);
+    let mut flow_2 = schema_flow();
+    flow_2.reference = FlowReference::new(2);
+    let flows = vec![flow_0, flow_1, flow_2];
+    let dns_observations = vec![schema_dns_observation(), schema_dns_edns_observation()];
+    let http_observations = vec![
+        schema_http_observation(),
+        schema_http_response_observation(),
+    ];
+    let tls_observations = vec![
+        schema_tls_observation(),
+        schema_tls_server_hello_observation(),
+    ];
+    let protocol_observations = schema_protocol_observations();
+    let (finding_0, evidence_0) = schema_finding();
+    let (finding_1, evidence_1) = schema_finding_at(1, 1, 1);
+    let finding_domains = vec![finding_0, finding_1];
+    let evidence_domains = vec![evidence_0, evidence_1];
+    let findings: Vec<&FindingRecord> = finding_domains.iter().collect();
+    let evidence_records: Vec<&EvidenceRecord> = evidence_domains.iter().collect();
+    let analysis = schema_analysis_report_from_domains(
+        &flows,
+        &protocol_observations,
+        &finding_domains,
+        &evidence_domains,
+    );
 
     let validation_json = render_deterministically(|output| {
         report_validation(
@@ -1734,7 +2712,19 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         )
         .unwrap();
     });
-    assert_eq!(assert_json_document(&validation_json)["kind"], "validation");
+    let validation_json_value = assert_json_document_with_keys(
+        &validation_json,
+        &[
+            "schema_version",
+            "kind",
+            "source_path",
+            "metadata",
+            "summary",
+            "diagnostics",
+            "completion",
+        ],
+    );
+    assert_eq!(validation_json_value["kind"], "validation");
     let validation_ndjson = render_deterministically(|output| {
         report_validation(
             ReportFormat::Ndjson,
@@ -1746,7 +2736,18 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         )
         .unwrap();
     });
-    assert_ndjson_document(&validation_ndjson, "validation", &["summary", "diagnostic"]);
+    let validation_records = assert_ndjson_document(
+        &validation_ndjson,
+        "validation",
+        &["summary", "diagnostic", "diagnostic"],
+    );
+    assert_eq!(validation_records[0]["record_type"], "summary");
+    assert_eq!(validation_records[1]["data"]["index"], "0");
+    assert_eq!(validation_records[1]["data"]["stage"], "packet");
+    assert_eq!(validation_records[1]["data"]["kind"], "malformed");
+    assert_eq!(validation_records[2]["data"]["index"], "1");
+    assert_eq!(validation_records[2]["data"]["stage"], "reader");
+    assert_eq!(validation_records[2]["data"]["kind"], "io");
     let validation_csv = render_deterministically(|output| {
         report_validation(
             ReportFormat::Csv,
@@ -1773,15 +2774,23 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
     assert!(!validation_table.is_empty());
 
     let flows_json = render_deterministically(|output| {
-        report_flows(ReportFormat::Json, std::slice::from_ref(&flow), output).unwrap();
+        report_flows(ReportFormat::Json, &flows, output).unwrap();
     });
-    assert_eq!(assert_json_document(&flows_json)["kind"], "flows");
+    let flows_json_value = assert_json_document_with_keys(
+        &flows_json,
+        &["schema_version", "kind", "total_flows", "flows"],
+    );
+    assert_eq!(flows_json_value["kind"], "flows");
     let flows_ndjson = render_deterministically(|output| {
-        report_flows(ReportFormat::Ndjson, std::slice::from_ref(&flow), output).unwrap();
+        report_flows(ReportFormat::Ndjson, &flows, output).unwrap();
     });
-    assert_ndjson_document(&flows_ndjson, "flows", &["summary", "flow"]);
+    let flow_records =
+        assert_ndjson_document(&flows_ndjson, "flows", &["summary", "flow", "flow", "flow"]);
+    assert_eq!(flow_records[1]["data"]["ordinal"], "0");
+    assert_eq!(flow_records[2]["data"]["ordinal"], "1");
+    assert_eq!(flow_records[3]["data"]["ordinal"], "2");
     let flows_csv = render_deterministically(|output| {
-        report_flows(ReportFormat::Csv, std::slice::from_ref(&flow), output).unwrap();
+        report_flows(ReportFormat::Csv, &flows, output).unwrap();
     });
     assert_csv_document(
         &flows_csv,
@@ -1808,20 +2817,31 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         ],
     );
     let flows_table = render_deterministically(|output| {
-        report_flows(ReportFormat::Table, std::slice::from_ref(&flow), output).unwrap();
+        report_flows(ReportFormat::Table, &flows, output).unwrap();
     });
     assert!(!flows_table.is_empty());
 
     let dns_json = render_deterministically(|output| {
-        report_dns(ReportFormat::Json, std::slice::from_ref(&dns), output).unwrap();
+        report_dns(ReportFormat::Json, &dns_observations, output).unwrap();
     });
-    assert_eq!(assert_json_document(&dns_json)["kind"], "dns");
+    let dns_json_value = assert_json_document_with_keys(
+        &dns_json,
+        &[
+            "schema_version",
+            "kind",
+            "total_observations",
+            "observations",
+        ],
+    );
+    assert_eq!(dns_json_value["kind"], "dns");
     let dns_ndjson = render_deterministically(|output| {
-        report_dns(ReportFormat::Ndjson, std::slice::from_ref(&dns), output).unwrap();
+        report_dns(ReportFormat::Ndjson, &dns_observations, output).unwrap();
     });
-    assert_ndjson_document(&dns_ndjson, "dns", &["summary", "dns"]);
+    let dns_records = assert_ndjson_document(&dns_ndjson, "dns", &["summary", "dns", "dns"]);
+    assert_eq!(dns_records[1]["data"]["packet_ordinal"], "0");
+    assert_eq!(dns_records[2]["data"]["packet_ordinal"], "3");
     let dns_csv = render_deterministically(|output| {
-        report_dns(ReportFormat::Csv, std::slice::from_ref(&dns), output).unwrap();
+        report_dns(ReportFormat::Csv, &dns_observations, output).unwrap();
     });
     assert_csv_document(
         &dns_csv,
@@ -1849,20 +2869,31 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         ],
     );
     let dns_table = render_deterministically(|output| {
-        report_dns(ReportFormat::Table, std::slice::from_ref(&dns), output).unwrap();
+        report_dns(ReportFormat::Table, &dns_observations, output).unwrap();
     });
     assert!(!dns_table.is_empty());
 
     let http_json = render_deterministically(|output| {
-        report_http(ReportFormat::Json, std::slice::from_ref(&http), output).unwrap();
+        report_http(ReportFormat::Json, &http_observations, output).unwrap();
     });
-    assert_eq!(assert_json_document(&http_json)["kind"], "http");
+    let http_json_value = assert_json_document_with_keys(
+        &http_json,
+        &[
+            "schema_version",
+            "kind",
+            "total_observations",
+            "observations",
+        ],
+    );
+    assert_eq!(http_json_value["kind"], "http");
     let http_ndjson = render_deterministically(|output| {
-        report_http(ReportFormat::Ndjson, std::slice::from_ref(&http), output).unwrap();
+        report_http(ReportFormat::Ndjson, &http_observations, output).unwrap();
     });
-    assert_ndjson_document(&http_ndjson, "http", &["summary", "http"]);
+    let http_records = assert_ndjson_document(&http_ndjson, "http", &["summary", "http", "http"]);
+    assert_eq!(http_records[1]["data"]["packet_ordinal"], "0");
+    assert_eq!(http_records[2]["data"]["packet_ordinal"], "1");
     let http_csv = render_deterministically(|output| {
-        report_http(ReportFormat::Csv, std::slice::from_ref(&http), output).unwrap();
+        report_http(ReportFormat::Csv, &http_observations, output).unwrap();
     });
     assert_csv_document(
         &http_csv,
@@ -1892,20 +2923,31 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         ],
     );
     let http_table = render_deterministically(|output| {
-        report_http(ReportFormat::Table, std::slice::from_ref(&http), output).unwrap();
+        report_http(ReportFormat::Table, &http_observations, output).unwrap();
     });
     assert!(!http_table.is_empty());
 
     let tls_json = render_deterministically(|output| {
-        report_tls(ReportFormat::Json, std::slice::from_ref(&tls), output).unwrap();
+        report_tls(ReportFormat::Json, &tls_observations, output).unwrap();
     });
-    assert_eq!(assert_json_document(&tls_json)["kind"], "tls");
+    let tls_json_value = assert_json_document_with_keys(
+        &tls_json,
+        &[
+            "schema_version",
+            "kind",
+            "total_observations",
+            "observations",
+        ],
+    );
+    assert_eq!(tls_json_value["kind"], "tls");
     let tls_ndjson = render_deterministically(|output| {
-        report_tls(ReportFormat::Ndjson, std::slice::from_ref(&tls), output).unwrap();
+        report_tls(ReportFormat::Ndjson, &tls_observations, output).unwrap();
     });
-    assert_ndjson_document(&tls_ndjson, "tls", &["summary", "tls"]);
+    let tls_records = assert_ndjson_document(&tls_ndjson, "tls", &["summary", "tls", "tls"]);
+    assert_eq!(tls_records[1]["data"]["packet_ordinal"], "0");
+    assert_eq!(tls_records[2]["data"]["packet_ordinal"], "2");
     let tls_csv = render_deterministically(|output| {
-        report_tls(ReportFormat::Csv, std::slice::from_ref(&tls), output).unwrap();
+        report_tls(ReportFormat::Csv, &tls_observations, output).unwrap();
     });
     assert_csv_document(
         &tls_csv,
@@ -1929,7 +2971,7 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         ],
     );
     let tls_table = render_deterministically(|output| {
-        report_tls(ReportFormat::Table, std::slice::from_ref(&tls), output).unwrap();
+        report_tls(ReportFormat::Table, &tls_observations, output).unwrap();
     });
     assert!(!tls_table.is_empty());
 
@@ -1943,7 +2985,19 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         )
         .unwrap();
     });
-    assert_eq!(assert_json_document(&findings_json)["kind"], "findings");
+    let findings_json_value = assert_json_document_with_keys(
+        &findings_json,
+        &[
+            "schema_version",
+            "kind",
+            "total_findings",
+            "total_evidence_records",
+            "filter",
+            "findings",
+            "evidence",
+        ],
+    );
+    assert_eq!(findings_json_value["kind"], "findings");
     let findings_ndjson = render_deterministically(|output| {
         report_findings(
             ReportFormat::Ndjson,
@@ -1954,11 +3008,15 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
         )
         .unwrap();
     });
-    assert_ndjson_document(
+    let findings_records = assert_ndjson_document(
         &findings_ndjson,
         "findings",
-        &["summary", "finding", "evidence"],
+        &["summary", "finding", "finding", "evidence", "evidence"],
     );
+    assert_eq!(findings_records[1]["data"]["id"], "find:0");
+    assert_eq!(findings_records[2]["data"]["id"], "find:1");
+    assert_eq!(findings_records[3]["data"]["id"], "evi:0");
+    assert_eq!(findings_records[4]["data"]["id"], "evi:1");
     let findings_csv = render_deterministically(|output| {
         report_findings(
             ReportFormat::Csv,
@@ -2002,40 +3060,60 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
     assert!(!findings_table.is_empty());
 
     let analysis_json = render_deterministically(|output| {
-        report_analysis(
-            ReportFormat::Json,
-            &analysis,
-            std::slice::from_ref(&flow),
-            &findings,
-            output,
-        )
-        .unwrap();
+        report_analysis(ReportFormat::Json, &analysis, &flows, &findings, output).unwrap();
     });
-    assert_eq!(assert_json_document(&analysis_json)["kind"], "analysis");
+    let analysis_json_value = assert_json_document_with_keys(
+        &analysis_json,
+        &[
+            "schema_version",
+            "kind",
+            "metadata",
+            "summary",
+            "completion",
+            "filter",
+            "flows",
+            "observations",
+            "evidence",
+            "findings",
+        ],
+    );
+    assert_eq!(analysis_json_value["kind"], "analysis");
     let analysis_ndjson = render_deterministically(|output| {
-        report_analysis(
-            ReportFormat::Ndjson,
-            &analysis,
-            std::slice::from_ref(&flow),
-            &findings,
-            output,
-        )
-        .unwrap();
+        report_analysis(ReportFormat::Ndjson, &analysis, &flows, &findings, output).unwrap();
     });
-    assert_ndjson_document(
+    let analysis_records = assert_ndjson_document(
         &analysis_ndjson,
         "analysis",
-        &["summary", "flow", "observation", "evidence", "finding"],
+        &[
+            "summary",
+            "flow",
+            "flow",
+            "flow",
+            "observation",
+            "observation",
+            "observation",
+            "observation",
+            "observation",
+            "evidence",
+            "evidence",
+            "finding",
+            "finding",
+        ],
     );
+    assert_eq!(analysis_records[1]["data"]["ordinal"], "0");
+    assert_eq!(analysis_records[2]["data"]["ordinal"], "1");
+    assert_eq!(analysis_records[3]["data"]["ordinal"], "2");
+    assert_eq!(analysis_records[4]["data"]["id"], "obs:0:dns:0");
+    assert_eq!(analysis_records[5]["data"]["id"], "obs:1:http:0");
+    assert_eq!(analysis_records[6]["data"]["id"], "obs:2:tls:0");
+    assert_eq!(analysis_records[7]["data"]["id"], "obs:3:dns:0");
+    assert_eq!(analysis_records[8]["data"]["id"], "obs:4:http:0");
+    assert_eq!(analysis_records[9]["data"]["id"], "evi:0");
+    assert_eq!(analysis_records[10]["data"]["id"], "evi:1");
+    assert_eq!(analysis_records[11]["data"]["id"], "find:0");
+    assert_eq!(analysis_records[12]["data"]["id"], "find:1");
     let analysis_table = render_deterministically(|output| {
-        report_analysis(
-            ReportFormat::Table,
-            &analysis,
-            std::slice::from_ref(&flow),
-            &findings,
-            output,
-        )
-        .unwrap();
+        report_analysis(ReportFormat::Table, &analysis, &flows, &findings, output).unwrap();
     });
     assert!(!analysis_table.is_empty());
 
@@ -2043,7 +3121,7 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
     let error = report_analysis(
         ReportFormat::Csv,
         &analysis,
-        std::slice::from_ref(&flow),
+        &flows,
         &findings,
         &mut analysis_csv,
     )
