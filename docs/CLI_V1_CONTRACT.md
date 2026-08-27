@@ -426,8 +426,8 @@ matrix.
 
 ## Phase Status
 
-Phase 21 is the CLI v1 contract-freeze phase. Acceptance requires the Phase 20
-prerequisite, the artifacts and tests above, passing PR-head CI on all required
-platforms, and an independent source-read-only Reviewer with zero CRITICAL and
-HIGH findings. Until that gate is complete, later phases remain future and
-unimplemented.
+Phase 21 CLI v1 contract-freeze acceptance is complete and accepted. The Phase
+20 prerequisite, contract artifacts and tests, required PR-head CI, independent
+source-read-only review, and conditional frozen performance comparison all
+passed with no CRITICAL or HIGH findings. Phase 22 is next and not implemented;
+later phases remain future and unimplemented.

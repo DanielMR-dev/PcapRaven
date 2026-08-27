@@ -30,9 +30,10 @@ limited to private CLI helpers. PR workflow run `32889910915` for HEAD
 the accepted performance retry passed stability `24/24`, median budgets
 `24/24`, and growth budgets `13/13`; and the independent source-read-only
 re-review found no CRITICAL or HIGH findings. Phase 20 final security and
-supply-chain hardening is complete and accepted. Phase 21 is the active CLI v1
-contract-freeze phase; Phases 22 through 28 remain future and not implemented.
-No later capability or release is claimed.
+supply-chain hardening is complete and accepted. Phase 21 CLI v1 contract-freeze
+acceptance is complete and accepted. Phase 22 is next and not implemented;
+Phases 23 through 28 remain future and not implemented. No later capability or
+release is claimed.
 
 ## Tracked Current Inventory
 
@@ -120,7 +121,7 @@ No later capability or release is claimed.
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
 | `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and completed Phase 18.3 performance acceptance. |
-| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline and acceptance environments, frozen budgets, and completed Phase 18.3 acceptance. |
+| `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline and acceptance environments, frozen budgets, completed Phase 18.3 acceptance, and Phase 21 performance revalidation evidence. |
 | `docs/performance/` | Tracked Phase 18.2 baseline/budget evidence, Phase 18.3 final acceptance evidence, and Phase 21 conditional performance revalidation evidence. |
 | `docs/performance/phase18-2-baseline-run-1.json` | Raw full baseline measurement run 1 for the clean Phase 18.2 measurement revision. |
 | `docs/performance/phase18-2-baseline-run-2.json` | Raw full baseline measurement run 2 for the clean Phase 18.2 measurement revision. |
@@ -130,10 +131,10 @@ No later capability or release is claimed.
 | `docs/performance/phase18-3-acceptance-run-2.json` | Raw full Phase 18.3 final acceptance measurement run 2. |
 | `docs/performance/phase18-3-acceptance-run-3.json` | Raw full Phase 18.3 final acceptance measurement run 3. |
 | `docs/performance/phase18-3-acceptance-result.json` | Deterministic Phase 18.3 final acceptance result: 24/24 median, 13/13 growth, and overall pass. |
-| `docs/performance/phase21-acceptance-run-1.json` | Raw full Phase 21 conditional performance revalidation measurement run 1. |
-| `docs/performance/phase21-acceptance-run-2.json` | Raw full Phase 21 conditional performance revalidation measurement run 2. |
-| `docs/performance/phase21-acceptance-run-3.json` | Raw full Phase 21 conditional performance revalidation measurement run 3. |
-| `docs/performance/phase21-acceptance-result.json` | Deterministic frozen Phase 21 conditional performance revalidation result. |
+| `docs/performance/phase21-acceptance-run-1.json` | Raw full Phase 21 conditional performance revalidation measurement run 1 from clean SHA `1e65137`. |
+| `docs/performance/phase21-acceptance-run-2.json` | Raw full Phase 21 conditional performance revalidation measurement run 2 from clean SHA `1e65137`. |
+| `docs/performance/phase21-acceptance-run-3.json` | Raw full Phase 21 conditional performance revalidation measurement run 3 from clean SHA `1e65137`. |
+| `docs/performance/phase21-acceptance-result.json` | Deterministic frozen Phase 21 conditional performance revalidation result: 24/24 stability, 24/24 median, 13/13 growth, and overall pass. |
 | `docs/SECURITY_MODEL.md` | Technical threat model and mandatory hostile-input controls. |
 | `docs/TESTING.md` | Reader, normalizer, flow reconstructor, DNS/HTTP/TLS, observations, evidence, detection engine, periodic beaconing, DNS anomaly/tunneling, connection behavior, cross-detector correlation, reporting, CLI integration, fixture corpus, and golden tests, dependency audits, quality gates, fuzzing, and later test strategy. |
 | `docs/ROADMAP.md` | Ordered Phase 0 through Phase 28 path to v1.0.0 and release gates. |

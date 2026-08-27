@@ -31,8 +31,11 @@ source-read-only Reviewer re-review found no CRITICAL or HIGH findings. Phase
 20 final security and supply-chain hardening is complete and accepted; it
 changed no production behavior or runtime dependency, so no new performance
 comparison was required. The Phase 21 conditional performance requirement
-passed using the frozen methodology. Formal Phase 21 closure remains pending
-independent Reviewer and governance completion.
+passed using the frozen methodology, as recorded in the clean tracked result
+`docs/performance/phase21-acceptance-result.json`. The independent
+source-read-only Reviewer found no CRITICAL or HIGH findings, and PR-head CI
+run `33091771181` passed. Phase 21 CLI v1 contract-freeze acceptance is
+complete and accepted.
 Phase 22 is next and not implemented; Phases 23 through 28 remain future and
 not implemented.
 

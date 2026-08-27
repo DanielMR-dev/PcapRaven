@@ -28,11 +28,12 @@ and engineering contracts are owned by:
 Update the canonical owner first. Other files should summarize and link rather
 than duplicate a competing contract.
 
-The accepted repository baseline is Phase 20 after the mandatory Phase 18.3
-final robustness and performance acceptance gate. Phase 18.1 full fuzz
-acceptance, Phase 18.2 performance baseline/budget work, and Phase 18.3 final
-acceptance are complete. Phase 19 release code-health audit and targeted
-behavior-preserving internal refactoring is complete and accepted. Its
+The accepted repository baseline is Phase 21 after the mandatory Phase 18.3
+final robustness and performance acceptance gate and the CLI v1 contract
+freeze. Phase 18.1 full fuzz acceptance, Phase 18.2 performance baseline/budget
+work, and Phase 18.3 final acceptance are complete. Phase 19 release code-health
+audit and targeted behavior-preserving internal refactoring is complete and
+accepted. Its
 implementation was limited to private CLI helpers and introduced no product
 feature, release, API, schema, dependency, or workspace change. PR workflow
 run `32889910915` for HEAD `674c8fd` passed all 13 logical jobs, including all
@@ -40,9 +41,9 @@ eight fuzz-smoke targets; the accepted performance retry at measurement SHA
 `dbcf108` passed stability `24/24`, median budgets `24/24`, and growth budgets
 `13/13`; and the independent source-read-only re-review found no CRITICAL or
 HIGH findings. Phase 20 final security and supply-chain hardening is complete
-and accepted. Phase 21 is the active CLI v1 contract-freeze phase; Phases 22
-through 28 remain future and not implemented. No v1.0.0 or release-readiness
-claim is made.
+and accepted. Phase 21 CLI v1 contract-freeze acceptance is complete and
+accepted. Phase 22 is next and not implemented; Phases 23 through 28 remain
+future and not implemented. No v1.0.0 or release-readiness claim is made.
 
 Phase 0 product and governance work, Phase 1
 workspace/tooling work, Phase 2 capture reader work, Phase 3 packet
@@ -64,9 +65,10 @@ end-to-end regression testing, and the Phase 17.1 hardening gate are complete.
 Phase 18 robustness and performance verification is complete. Phase 19 release
 code-health audit and targeted internal-refactoring scope is complete and
 accepted. Phase 20 final security and supply-chain hardening is complete and
-accepted. Phase 21 is the active CLI v1 contract-freeze phase; Phases 22
-through 28 remain future and not implemented. No Phase 19 feature, release, or
-later capability may be claimed as implemented.
+accepted. Phase 21 CLI v1 contract-freeze acceptance is complete and accepted.
+Phase 22 is next and not implemented; Phases 23 through 28 remain future and
+not implemented. No Phase 19 feature, release, or later capability may be
+claimed as implemented.
 
 ## Project Invariants
 

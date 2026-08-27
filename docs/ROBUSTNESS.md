@@ -12,9 +12,9 @@ Phase 18.3 final performance acceptance is complete and passed the frozen
 budgets. Phase 19 release code-health audit and targeted behavior-preserving
 internal refactoring is complete and accepted. Phase 20 final security and
 supply-chain hardening is complete and accepted without changing the fuzzed
-production surfaces. Release packaging is Phase 24 future work; Phase 21 is
-the active CLI v1 contract-freeze phase; Phases 22 through 28 remain future
-and not implemented.
+production surfaces. Release packaging is Phase 24 future work. Phase 21 CLI
+v1 contract-freeze acceptance is complete and accepted. Phase 22 is next and
+not implemented; Phases 23 through 28 remain future and not implemented.
 
 ## Threat Model and Invariants
 

@@ -7,9 +7,9 @@ Phase 7, Phase 8, Phase 9, Phase 10, Phase 11, Phase 12, Phase 13, Phase 14, Pha
 Phase 16, Phase 17, and Phase 18; Phase 19 release code-health audit and targeted
 behavior-preserving internal refactoring is complete and accepted. Phase 20
 final security and supply-chain hardening is complete and accepted. It has no
-released or supported software versions yet. Phase 21 is the active CLI v1
-contract-freeze phase; Phases 22 through 28 remain future and not implemented.
-This policy covers
+released or supported software versions yet. Phase 21 CLI v1 contract-freeze
+acceptance is complete and accepted. Phase 22 is next and not implemented;
+Phases 23 through 28 remain future and not implemented. This policy covers
 vulnerabilities in repository configuration, documentation, the bounded PCAP/PCAPNG reader,
 protocol normalizer, flow reconstructor and metrics engine, DNS, HTTP/1.x, and TLS 1.2 / TLS 1.3 protocol parsers,
 unified protocol observations, structured evidence foundation, detection engine architecture,
