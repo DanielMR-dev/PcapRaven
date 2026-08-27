@@ -629,12 +629,12 @@ The production reporting dependencies in `pcapraven-reporting` are exact `serde 
 to the `pcapraven-reporting` presentation crate. `pcapraven-domain` remains pure `std` without
 any serialization dependencies. No telemetry or network behavior. Zero project `unsafe` code.
 
-### `clap = "=4.6.4"` (Phase 6)
+### `clap = "=4.6.6"` (Phase 6)
 
-The production CLI dependency in `pcapraven-cli` is exact `clap = "=4.6.4"`, licensed
+The production CLI dependency in `pcapraven-cli` is exact `clap = "=4.6.6"`, licensed
 MIT/Apache-2.0, with declared MSRV 1.85. It uses `default-features = false` and enabled
 features `["std", "help", "usage", "error-context"]`. Audited transitive tree:
-`clap_builder = 4.6.2`, `clap_lex = 1.1.0`, `anstyle = 1.0.14`. Zero network or telemetry
+`clap_builder = 4.6.6`, `clap_lex = 1.1.0`, `anstyle = 1.0.14`. Zero network or telemetry
 behavior. Zero project `unsafe` code.
 
 ### `proptest = 1.11.0` (Dev-only)
@@ -649,7 +649,7 @@ The excluded fuzz package uses exact `libfuzzer-sys = 0.4.13`, licensed
 `(MIT OR Apache-2.0) AND NCSA`. It is excluded from the production workspace and
 runtime.
 
-### `serde_json = 1.0.140` (Fuzz-only reuse)
+### `serde_json = 1.0.143` (Fuzz-only reuse)
 
 The excluded fuzz package reuses the exact already-locked reporting version
 with `default-features = false` and `features = ["alloc"]`. It validates emitted
