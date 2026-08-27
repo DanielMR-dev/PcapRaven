@@ -92,7 +92,7 @@ it does not mean that a freshness-only update is required.
 | `serde` | `=1.0.229` | runtime | default disabled; `alloc`, `derive` | crates.io | MIT OR Apache-2.0 | active; `1.0.229` reviewed (2026-07-18) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `serde_json` | `=1.0.140` | runtime and fuzz | default disabled; `alloc` | crates.io | MIT OR Apache-2.0 | active; newer `1.0.151` reviewed (2026-07-20) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `csv` | `=1.3.1` | runtime and fuzz | default disabled | crates.io | MIT OR Unlicense | maintained; newer `1.4.0` reviewed (2025-10-17) | clean in both applicable RustSec/cargo-deny checks | KEEP |
-| `clap` | `=4.6.4` | runtime | default disabled; `std`, `help`, `usage`, `error-context` | crates.io | MIT OR Apache-2.0 | active; newer `4.6.6` reviewed (2026-08-06) | clean in both applicable RustSec/cargo-deny checks | KEEP |
+| `clap` | `=4.6.6` | runtime | default disabled; `std`, `help`, `usage`, `error-context` | crates.io | MIT OR Apache-2.0 | active; `4.6.6` reviewed (2026-08-06) | clean in both applicable RustSec/cargo-deny checks | KEEP |
 | `proptest` | `=1.11.0` | dev only | default disabled; `std` | crates.io | MIT OR Apache-2.0 | passive maintenance stated upstream; latest reviewed `1.11.0` | clean in main cargo-deny check | KEEP |
 | `libfuzzer-sys` | `=0.4.13` | fuzz only | default features | crates.io | MIT OR Apache-2.0 OR NCSA | active; latest reviewed `0.4.13` (2026-06-04) | clean in fuzz RustSec/cargo-deny checks | KEEP |
 
