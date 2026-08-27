@@ -3108,6 +3108,86 @@ fn test_all_machine_formats_have_frozen_envelopes_headers_and_order() {
     assert_eq!(analysis_records[6]["data"]["id"], "obs:2:tls:0");
     assert_eq!(analysis_records[7]["data"]["id"], "obs:3:dns:0");
     assert_eq!(analysis_records[8]["data"]["id"], "obs:4:http:0");
+    let analysis_dns = &analysis_records[4]["data"];
+    assert_eq!(analysis_dns["protocol"], "dns");
+    assert_eq!(analysis_dns["association"]["status"], "associated");
+    assert_eq!(analysis_dns["association"]["flow_reference"], "Flow(0)");
+    assert_eq!(analysis_dns["association"]["direction"], "a_to_b");
+    assert!(analysis_dns["association"]["exclusion_reason"].is_null());
+    assert_object_keys(
+        &analysis_dns["association"],
+        &["status", "flow_reference", "direction", "exclusion_reason"],
+    );
+    assert_object_keys(&analysis_dns["data"], &["dns", "http", "tls"]);
+    assert!(analysis_dns["data"]["dns"].is_object());
+    assert!(analysis_dns["data"]["http"].is_null());
+    assert!(analysis_dns["data"]["tls"].is_null());
+
+    let analysis_http = &analysis_records[5]["data"];
+    assert_eq!(analysis_http["protocol"], "http");
+    assert_eq!(analysis_http["association"]["status"], "associated");
+    assert_eq!(analysis_http["association"]["flow_reference"], "Flow(1)");
+    assert_eq!(analysis_http["association"]["direction"], "b_to_a");
+    assert!(analysis_http["association"]["exclusion_reason"].is_null());
+    assert_object_keys(
+        &analysis_http["association"],
+        &["status", "flow_reference", "direction", "exclusion_reason"],
+    );
+    assert_object_keys(&analysis_http["data"], &["dns", "http", "tls"]);
+    assert!(analysis_http["data"]["dns"].is_null());
+    assert!(analysis_http["data"]["http"].is_object());
+    assert!(analysis_http["data"]["tls"].is_null());
+
+    let analysis_tls = &analysis_records[6]["data"];
+    assert_eq!(analysis_tls["protocol"], "tls");
+    assert_eq!(analysis_tls["association"]["status"], "associated");
+    assert_eq!(analysis_tls["association"]["flow_reference"], "Flow(2)");
+    assert_eq!(analysis_tls["association"]["direction"], "same_endpoint");
+    assert!(analysis_tls["association"]["exclusion_reason"].is_null());
+    assert_object_keys(
+        &analysis_tls["association"],
+        &["status", "flow_reference", "direction", "exclusion_reason"],
+    );
+    assert_object_keys(&analysis_tls["data"], &["dns", "http", "tls"]);
+    assert!(analysis_tls["data"]["dns"].is_null());
+    assert!(analysis_tls["data"]["http"].is_null());
+    assert!(analysis_tls["data"]["tls"].is_object());
+
+    let analysis_excluded_dns = &analysis_records[7]["data"];
+    assert_eq!(analysis_excluded_dns["protocol"], "dns");
+    assert_eq!(analysis_excluded_dns["association"]["status"], "excluded");
+    assert!(analysis_excluded_dns["association"]["flow_reference"].is_null());
+    assert!(analysis_excluded_dns["association"]["direction"].is_null());
+    assert_eq!(
+        analysis_excluded_dns["association"]["exclusion_reason"],
+        "MissingTransportLayer"
+    );
+    assert_object_keys(
+        &analysis_excluded_dns["association"],
+        &["status", "flow_reference", "direction", "exclusion_reason"],
+    );
+    assert_object_keys(&analysis_excluded_dns["data"], &["dns", "http", "tls"]);
+    assert!(analysis_excluded_dns["data"]["dns"].is_object());
+    assert!(analysis_excluded_dns["data"]["http"].is_null());
+    assert!(analysis_excluded_dns["data"]["tls"].is_null());
+
+    let analysis_unassociated_http = &analysis_records[8]["data"];
+    assert_eq!(analysis_unassociated_http["protocol"], "http");
+    assert_eq!(
+        analysis_unassociated_http["association"]["status"],
+        "unassociated"
+    );
+    assert!(analysis_unassociated_http["association"]["flow_reference"].is_null());
+    assert!(analysis_unassociated_http["association"]["direction"].is_null());
+    assert!(analysis_unassociated_http["association"]["exclusion_reason"].is_null());
+    assert_object_keys(
+        &analysis_unassociated_http["association"],
+        &["status", "flow_reference", "direction", "exclusion_reason"],
+    );
+    assert_object_keys(&analysis_unassociated_http["data"], &["dns", "http", "tls"]);
+    assert!(analysis_unassociated_http["data"]["dns"].is_null());
+    assert!(analysis_unassociated_http["data"]["http"].is_object());
+    assert!(analysis_unassociated_http["data"]["tls"].is_null());
     assert_eq!(analysis_records[9]["data"]["id"], "evi:0");
     assert_eq!(analysis_records[10]["data"]["id"], "evi:1");
     assert_eq!(analysis_records[11]["data"]["id"], "find:0");
