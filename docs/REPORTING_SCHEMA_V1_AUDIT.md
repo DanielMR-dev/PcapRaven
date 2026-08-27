@@ -23,7 +23,8 @@ and acceptance evidence are recorded in `AGENTS.md`, `docs/ROADMAP.md`,
 | --- | --- |
 | Branch | `phase-22-reporting-schema-v1-final-audit` |
 | Phase 21 starting baseline | `458c567c7ad323a91f17460f7065cffded4932ce` |
-| Phase 22 parallel test commits | `d13fe54` (`test(phase-22): strengthen reporting schema contract`); `354dd3d` (`test(phase-22): close schema contract audit gaps`); `6e2fcec` (`test(phase-22): assert analysis branch nullability`) |
+| Phase 22 schema-contract test commits | `d13fe54` (`test(phase-22): strengthen reporting schema contract`); `354dd3d` (`test(phase-22): close schema contract audit gaps`); `6e2fcec` (`test(phase-22): assert analysis branch nullability`); `1d278c0` (`test(phase-22): complete schema token coverage`) |
+| Phase 22 documentation remediation commit | `ac72ea1` (`docs(phase-22): clarify reporting schema references`) |
 | Workspace package count | 7 runtime packages |
 | MSRV | Rust `1.85` (`Cargo.toml`) |
 | Stable toolchain | `1.97.1` (`rust-toolchain.toml`) |
@@ -33,11 +34,16 @@ and acceptance evidence are recorded in `AGENTS.md`, `docs/ROADMAP.md`,
 | package version | `0.0.0` |
 | schema version | `v1.0` |
 
-The branch includes the Phase 22 parallel schema-contract test remediations
-committed at `d13fe54`, `354dd3d`, and `6e2fcec` in
-`crates/pcapraven-reporting/tests/schema_contract.rs`. They were applied after
-the Phase 21 starting baseline and were not modified by this documentation/
-audit work. The current worktree has no uncommitted test delta in that file.
+The branch includes the Phase 22 schema-contract test remediations committed at
+`d13fe54`, `354dd3d`, `6e2fcec`, and `1d278c0` in
+`crates/pcapraven-reporting/tests/schema_contract.rs`. The follow-up
+`1d278c0` directly covers validation `pcapng`/`big_endian`/`failed` tokens,
+HTTP invalid `Content-Length`, and populated `PacketTimestampDto` and
+`FindingFilterDto` shapes. The documentation-only follow-up `ac72ea1` resolves
+the reporting reference wording, manifest inventory, and roadmap disclaimer
+findings. These commits were applied after the Phase 21 starting baseline. The
+current worktree has no uncommitted change in `schema_contract.rs`; the audit
+ledger is the only intended uncommitted file.
 
 ## Serializer Dependency Baseline
 
@@ -233,21 +239,24 @@ fixture, CLI-contract artifact, or schema-version file was changed.
 
 ## Schema Contract Test Coverage
 
-The Phase 22 parallel schema-contract test remediations span commits `d13fe54`,
-`354dd3d`, and `6e2fcec`; `354dd3d` closes the remaining audit gaps and
-`6e2fcec` adds the final analysis-branch nullability assertions in
-`crates/pcapraven-reporting/tests/schema_contract.rs`. The final target run
-passed 9 tests. It covers root and nested shapes, JSON types, wide integers,
-null/empty behavior, token boundaries and reporting DTO/domain conversions,
-tagged evidence values, JSON/NDJSON/CSV format properties, headers, privacy,
-formula safety, and deterministic output. Direct application conversion
-coverage is provided by `validation_conversion_maps_every_diagnostic_stage_and_kind`
-in commit `51e9b4d` at `app.rs:886-955`; it covers all 42 stage/kind
-combinations. `cargo test -p pcapraven-cli --bin pcapraven --locked` passed
-11/11 tests. The reporting schema target
-`cargo test -p pcapraven-reporting --test schema_contract --locked` passed
-9/9 tests, and remains complementary to the 49 end-to-end
-golden scenarios and the separate Phase 21 CLI contract test.
+The Phase 22 schema-contract test remediations span commits `d13fe54`,
+`354dd3d`, `6e2fcec`, and `1d278c0`; `354dd3d` closes the initial audit gaps,
+`6e2fcec` adds the analysis-branch nullability assertions, and `1d278c0`
+directly covers validation `pcapng`/`big_endian`/`failed`, HTTP invalid
+`Content-Length`, and populated `PacketTimestampDto`/`FindingFilterDto`
+shapes. The adjacent documentation reconciliation is committed at
+`ac72ea1`, which resolves the reporting reference wording, manifest inventory,
+and roadmap disclaimer findings. The final target run passed 9 tests. It
+covers root and nested shapes, JSON types, wide integers, null/empty behavior,
+token boundaries and reporting DTO/domain conversions, tagged evidence values,
+JSON/NDJSON/CSV format properties, headers, privacy, formula safety, and
+deterministic output. Direct application conversion coverage is provided by
+`validation_conversion_maps_every_diagnostic_stage_and_kind` in commit
+`51e9b4d` at `app.rs:886-955`; it covers all 42 stage/kind combinations.
+`cargo test -p pcapraven-cli --bin pcapraven --locked` passed 11/11 tests. The
+reporting schema target `cargo test -p pcapraven-reporting --test
+schema_contract --locked` passed 9/9 tests, and remains complementary to the
+49 end-to-end golden scenarios and the separate Phase 21 CLI contract test.
 
 ## Documentation Discrepancy Ledger
 
@@ -256,7 +265,7 @@ golden scenarios and the separate Phase 21 CLI contract test.
 | D-001 | `dto/flows.rs:40-44,80-88`; domain `flow.rs:250-253` | Previous `REPORTING.md` described `reference` and `flow:0` | JSON uses `id`, `ordinal`, and `Flow(0)` | Documentation defect; no wire impact | `DOC_CORRECTION` |
 | D-002 | `dto/findings.rs:337-360` | Previous prose used a measurement `name` | Field is `metric_key`, followed by observed value, optional threshold/comparison, unit | Documentation defect; no wire impact | `DOC_CORRECTION` |
 | D-003 | `dto/findings.rs:364-378` | Generic lowercase-snake-case wording | Tagged `type` values are `Integer`, `Unsigned`, `Ratio`, `Boolean`, `Duration` | Intentional accepted wire exception | `INTENTIONAL_WIRE_EXCEPTION` |
-| D-004 | `app.rs:218-240,886-955`; Phase 22 schema-contract test remediations in `d13fe54`, `354dd3d`, and `6e2fcec`; direct conversion coverage in `51e9b4d` | Old test examples did not model application tokens | Stages are `format`, `header`, `block`, `interface`, `packet`, `reader`; kinds are `unsupported`, `malformed`, `incomplete`, `invalid_reference`, `resource_limit`, `io`, `internal`; all 42 combinations are covered by the application conversion test | Test evidence gap; no wire change | `ADDRESSED (51e9b4d)` |
+| D-004 | `app.rs:218-240,886-955`; Phase 22 schema-contract test remediations in `d13fe54`, `354dd3d`, `6e2fcec`, and `1d278c0`; direct conversion coverage in `51e9b4d` | Old test examples did not model application tokens | Stages are `format`, `header`, `block`, `interface`, `packet`, `reader`; kinds are `unsupported`, `malformed`, `incomplete`, `invalid_reference`, `resource_limit`, `io`, `internal`; all 42 combinations are covered by the application conversion test | Test evidence gap; no wire change | `ADDRESSED (51e9b4d); shape/token follow-up (1d278c0)` |
 | D-005 | `csv/mod.rs:229-471`; `lib.rs` format dispatch | Hierarchical JSON field inventory was not a CSV projection inventory | CSV is a supported machine-readable flat projection for validation, flows, DNS, HTTP, TLS, and findings; analysis CSV is rejected. Table rendering is a separate human-facing format. | Supported machine-readable CSV projection; no wire redesign | `MACHINE_CSV_PROJECTION; TABLE_SEPARATE` |
 | D-006 | DTO modules contain no omission attributes | Prior contract did not state omission behavior | Optional fields are `null`, vectors are `[]` | Contract clarification; no wire change | `ALREADY_CORRECT` |
 | D-007 | `crates/pcapraven-cli/src/app.rs:113-245,886-955`; direct coverage added by `51e9b4d` | The audit previously implied validation conversion was tested only by the schema-contract suite | `convert_validation_outcome` has direct app.rs unit coverage for all 42 stage/kind combinations | Test coverage gap; no wire change | `ADDRESSED (51e9b4d)` |
@@ -291,11 +300,12 @@ contract remain unchanged.
 
 ### Validation Evidence
 
-The following final local gates were run against the current Phase 22 HEAD and
-passed. The schema-contract result was run with all three committed test
-remediations (`d13fe54`, `354dd3d`, `6e2fcec`). This evidence update changes
-only this audit document; no Rust source, test, fixture, golden, lockfile, or
-schema-version file was changed here.
+The following final local gates were run against the tested remediation head
+`ac72ea15b4e68aca3f90e6954932ea191317e674` and passed. The schema-contract
+result was run with all four committed test remediations (`d13fe54`,
+`354dd3d`, `6e2fcec`, `1d278c0`). This evidence update changes only this audit
+document; no Rust source, test, fixture, golden, lockfile, or schema-version
+file was changed here.
 
 | Command | Result |
 | --- | --- |
@@ -339,21 +349,41 @@ and `fuzz/Cargo.lock` SHA-256
 ### Final PR-head CI evidence
 
 PR #32 for `DanielMR-dev/PcapRaven` was verified at exact head
-`aaa3d34b6860fdf9537f9d5786588cd880548735` by CI workflow run
-`33109219281` (run number 107). The run completed with conclusion `success`:
-all 14 jobs completed successfully, including Linux quality, MSRV 1.85.0,
-security and supply-chain checks, all eight Linux fuzz-smoke targets, and the
-Ubuntu, Windows, and macOS cross-platform workspace checks. The cross-platform
-contract, golden, and schema steps passed. Each fuzz job's conditional
-`Upload target crash artifacts on failure` step was skipped as expected while
-the job itself succeeded.
+`ac72ea15b4e68aca3f90e6954932ea191317e674` by CI workflow run
+`33123524823` (run number 108). This is the final CI evidence for the tested
+code/remediation state. The run completed with conclusion `success`; all 14
+jobs completed successfully:
+
+| Job | Completed checks | Result |
+| --- | --- | --- |
+| `MSRV 1.85.0` | MSRV workspace check, build, and test | `success` |
+| `Linux quality` | Pinned toolchain, formatting, Clippy, verification support, fixture integrity, goldens, workspace tests, documentation, metadata, architecture, Phase 18 methodology/acceptance, and benchmark smoke | `success` |
+| `Security and supply chain` | Main/fuzz lockfile audits and main/fuzz dependency-policy checks | `success` |
+| `Cross-platform workspace check (ubuntu-latest)` | Workspace, reporting schema, canonical goldens, and CLI v1 contract | `success` |
+| `Cross-platform workspace check (windows-latest)` | Workspace, reporting schema, canonical goldens, and CLI v1 contract | `success` |
+| `Cross-platform workspace check (macos-latest)` | Workspace, reporting schema, canonical goldens, and CLI v1 contract | `success` |
+| `Linux fuzz smoke (fuzz_pcap_reader)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_packet_normalizer)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_flow_reconstructor)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_dns_parser)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_http_parser)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_tls_parser)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_detection_engine)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+| `Linux fuzz smoke (fuzz_reporting)` | Bounded fuzz smoke; failure-artifact upload skipped as expected | `success` |
+
+The cross-platform workspace, contract, golden, schema, MSRV, quality,
+security/supply-chain, and all eight fuzz-smoke jobs are therefore covered by
+this exact-head result. The conditional fuzz failure-artifact upload step was
+skipped for each successful fuzz job as expected.
 
 This branch changes tests, documentation, audit evidence, and governance only;
 the sole production-tree edit is entirely under `#[cfg(test)]`. The conditional
 full fuzz-acceptance campaign and full Phase 18 performance comparison were
 therefore not required because no fuzzed or benchmarked production behavior
 changed. The local eight-target fuzz smoke and benchmark smoke passed as
-recorded above.
+recorded above. The final audit-ledger commit itself is documentation-only and
+is not represented by this run; after it is committed and pushed, its exact
+head must receive its own PR CI verification.
 
 ## Reviewer Findings
 
@@ -364,7 +394,7 @@ reported.
 | Severity | Finding | Disposition |
 | --- | --- | --- |
 | HIGH | Direct coverage for `app.rs` `convert_validation_outcome` was missing. | `REMEDIATED` by `51e9b4d`, which adds `app.rs:886-955` coverage for all 42 stage/kind combinations; the CLI-bin test passed 11/11. |
-| HIGH | Mandatory Phase 22 acceptance evidence was missing. | `ADDRESSED`: exact-head PR CI run `33109219281` completed successfully at `aaa3d34b6860fdf9537f9d5786588cd880548735`; all 14 jobs passed, satisfying the final gate. The conditional full fuzz-acceptance and full Phase 18 performance reruns were not required because no fuzzed or benchmarked production behavior changed. |
+| HIGH | Mandatory Phase 22 acceptance evidence was missing. | The earlier evidence was insufficient for the later remediation head; the finding was subsequently addressed by exact-head PR CI run `33123524823` for `ac72ea15b4e68aca3f90e6954932ea191317e674`, as recorded below. The conditional full fuzz-acceptance and full Phase 18 performance reruns were not required because no fuzzed or benchmarked production behavior changed. |
 | MEDIUM | The token registry omitted bounded HTTP and TLS version rows. | `REMEDIATED` by `30707e0`, which records the HTTP/1.0, HTTP/1.1, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, TLS 1.3, and `Unknown` tokens. |
 | MEDIUM | The CSV disposition incorrectly labeled supported machine-readable CSV as non-machine table behavior. | `REMEDIATED` in this audit update; D-005 now distinguishes supported machine-readable CSV projections from human-facing table rendering. |
 
@@ -385,11 +415,29 @@ The exact generated artifact was removed before delivery, and no tracked
 implementation change resulted. The LOW finding is therefore resolved. Final
 acceptance-gate evidence is recorded above.
 
+### Independent review of `a1c84ba`
+
+The subsequent independent source-read-only review of
+`a1c84ba5341c0b68f32e1cd6c04d2f290d6e1e7e` was `REJECT`. It reported one
+HIGH, two MEDIUM, and one LOW finding; no CRITICAL finding was reported. The
+review and its dispositions were:
+
+| Severity | Finding | Disposition |
+| --- | --- | --- |
+| HIGH | The current head lacked exact-current-head PR CI evidence. | `ADDRESSED` by pushing `ac72ea1`; exact-head CI run `33123524823` passed all 14 jobs for `ac72ea15b4e68aca3f90e6954932ea191317e674`. |
+| MEDIUM | Token coverage and populated `PacketTimestampDto`/`FindingFilterDto` shape coverage were incomplete. | `REMEDIATED` by `1d278c0`, which directly covers validation `pcapng`/`big_endian`/`failed`, HTTP invalid `Content-Length`, and the populated DTO shapes. |
+| MEDIUM | Reporting reference wording was internally contradictory. | `REMEDIATED` by `ac72ea1`, which clarifies decimal ordinals versus structured reference identifiers. |
+| LOW | The manifest inventory and roadmap disclaimer had summary drift. | `REMEDIATED` by `ac72ea1`, which updates both summaries. |
+
+This records findings against `a1c84ba` only; it does not claim an independent
+review of the later audit-ledger commit.
+
 ## Residual Limitations
 
 - Local WSL validation is not native Windows or macOS execution; authoritative
-  CI run `33109219281` supplied the passing Windows and macOS cross-platform
-  contract, golden, and schema evidence.
+  CI run `33123524823` supplied the passing Windows and macOS cross-platform
+  contract, golden, and schema evidence for the tested `ac72ea1` remediation
+  head.
 - The local eight-target fuzz smoke pass required the documented
   `LSAN_OPTIONS=detect_leaks=0` workaround after the initial unmodified
   `fuzz_pcap_reader` zero-byte ptrace-only sanitizer teardown issue;
@@ -400,15 +448,21 @@ acceptance-gate evidence is recorded above.
 - The final re-review's sole LOW cache artifact finding was resolved before
   delivery by removing `scripts/__pycache__/run_phase18_benchmarks.cpython-314.pyc`;
   it caused no tracked implementation change and is not a remaining limitation.
-- The Phase 22 parallel schema-contract test remediations are committed at
-  `d13fe54`, `354dd3d`, and `6e2fcec`; `schema_contract.rs` has no uncommitted
-  test delta. This evidence update did not modify that file.
+- The Phase 22 schema-contract test remediations are committed at `d13fe54`,
+  `354dd3d`, `6e2fcec`, and `1d278c0`; `schema_contract.rs` has no uncommitted
+  change. The current ledger update is documentation-only and does not modify
+  that file.
+- The final audit-ledger commit is not yet represented by CI. After this
+  documentation-only change is committed and pushed, its exact-head PR CI is
+  the last mechanical verification required for the ledger.
 
 ## Phase Status
 
 Phase 21: `COMPLETE / ACCEPTED`
 
-Phase 22: `COMPLETE / ACCEPTED`
+Phase 22: `COMPLETE / ACCEPTED` for the tested remediation state at
+`ac72ea15b4e68aca3f90e6954932ea191317e674`; the audit-ledger commit itself
+remains subject to its own exact-head PR CI after push.
 
 Phase 23: `NEXT / NOT IMPLEMENTED`
 
