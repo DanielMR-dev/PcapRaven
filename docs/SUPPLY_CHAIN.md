@@ -69,7 +69,7 @@ dev dependency is `proptest`; it is used by four crates through the shared
 workspace declaration and is not linked into production binaries. The fuzz
 graph contains three direct external packages (`libfuzzer-sys`, `serde_json`,
 and `csv`) plus six local PcapRaven path dependencies. Its complete resolved
-graph contains 30 registry packages and seven local path packages.
+graph contains 29 registry packages and seven local path packages.
 
 The compile-time surface is part of this review. Main-graph metadata identifies
 the proc-macro packages `serde_derive 1.0.229` and `zerocopy-derive 0.8.56`, and
@@ -148,7 +148,7 @@ cargo audit --file Cargo.lock --deny warnings       PASS
   scanned 50 crate dependencies; loaded 1226 advisories
 
 cargo audit --file fuzz/Cargo.lock --deny warnings  PASS
-  scanned 37 crate dependencies; loaded 1226 advisories
+  scanned 36 crate dependencies; loaded 1226 advisories
 ```
 
 The machine policy also runs `cargo deny` advisories checks for both graphs.
@@ -257,7 +257,7 @@ immutable full commit SHA:
 | Action | Pin and documented tag | Use |
 | --- | --- | --- |
 | `actions/checkout` | `3d3c42e5aac5ba805825da76410c181273ba90b1` (`v7.0.1`) | all jobs |
-| `actions/upload-artifact` | `ea165f8d65b6e75b540449e92b4886f43607fa02` (`v4.6.2`) | fuzz failure artifacts |
+| `actions/upload-artifact` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` (`v7.0.1`) | fuzz failure artifacts |
 
 The workflow keeps `permissions: contents: read`, uses ordinary `pull_request`
 and `push` to `main` triggers, adds no privileged trigger, and adds no secret
