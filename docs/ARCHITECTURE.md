@@ -224,7 +224,7 @@ and flow inspection:
   by a single suppression summary line unless `--quiet`.
 - **Presentation Exception:** Prior to Phase 16 formal reporting, `pcapraven-cli` implements minimal
   factual table rendering for human stdout inspection.
-- **Audited Dependency:** Adds `clap = "=4.6.4"` with `default-features = false` and features
+- **Audited Dependency:** Adds `clap = "=4.6.6"` with `default-features = false` and features
   `["std", "help", "usage", "error-context"]`.
 
 ## Phase 7 DNS Protocol Analysis Boundary

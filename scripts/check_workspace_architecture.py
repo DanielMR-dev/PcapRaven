@@ -146,7 +146,7 @@ EXPECTED_EXTERNAL = {
     },
     "pcapraven-cli": {
         "clap": {
-            "req": "=4.6.4",
+            "req": "=4.6.6",
             "kind": None,
             "features": ["std", "help", "usage", "error-context"],
             "uses_default_features": False,
