@@ -401,8 +401,17 @@ while the reporting source changes in `flows.rs` and `tls.rs` are Rustdoc-only.
 The conditional full fuzz-acceptance campaign and full Phase 18 performance
 comparison were therefore not required because no fuzzed or benchmarked
 production behavior changed. The local eight-target fuzz smoke and benchmark
-smoke passed as recorded above. The ledger-only commit recorded by this update
-will receive a separate exact branch-head CI check after it is pushed.
+smoke passed as recorded above. The parent ledger-only commit
+`cc68a27747e27dbdb3d9d297c0133e041e272894` was additionally verified by PR #32
+CI workflow run `33128699466` (run number `111`). It completed with conclusion
+`success`, and all 14 jobs completed successfully. That result covers the
+ledger-only documentation commit at the parent head and remains distinct from
+historical run `33123524823` for `ac72ea15b4e68aca3f90e6954932ea191317e674`
+and code/test/documentation run `33127890900` for
+`6223cb4af139e6a21ccbf1b6b6518999049e6569`. The follow-up text added by this
+commit is documentation-only; this ledger does not claim an independent review
+or exact-head CI result for it, and final delivery reports that resulting-head
+CI separately.
 
 ## Reviewer Findings
 
@@ -461,7 +470,7 @@ not claim an independent review of this ledger commit.
 
 | Severity | Finding | Disposition |
 | --- | --- | --- |
-| HIGH | The audit ledger's final CI evidence was stale and named the predecessor `ac72ea1` / run `33123524823` instead of the current remediation head. | `REMEDIATED` by this ledger correction, which marks run `33123524823` historical and records latest exact-head run `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`; a separate exact branch-head CI check will verify the resulting ledger-only commit after push. |
+| HIGH | The audit ledger's final CI evidence was stale and named the predecessor `ac72ea1` / run `33123524823` instead of the current remediation head. | `REMEDIATED` by parent ledger-only commit `cc68a27747e27dbdb3d9d297c0133e041e272894`, which marks run `33123524823` historical and records latest exact-head run `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`. Parent head `cc68a277` is covered by exact-head PR #32 CI run `33128699466` (run 111), with all 14 jobs successful. The follow-up text in this commit is documentation-only; no independent review or exact-head CI result for it is claimed here, and its resulting-head CI is reported separately in final delivery. |
 | MEDIUM | CSV missing-cell encoding was not frozen precisely. | `REMEDIATED` by `e8923b9`, which adds exact HTTP/TLS CSV byte assertions, and `10e4c46`, which aligns the canonical CSV documentation with sanitized `'-` cells and controlled raw `-` sentinels. |
 | MEDIUM | Real `app.rs` validation conversion branches were not exercised. | `REMEDIATED` by `c9fd414`, which adds real PCAPNG, big-endian metadata, and failed-completion conversion coverage. |
 | LOW | Rustdoc examples used stale flow and TLS version spellings. | `REMEDIATED` by `6223cb4`, which corrects the `Flow(0)` and `TLS 1.x` examples. |
@@ -491,7 +500,11 @@ not claim an independent review of this ledger commit.
   fixtures, goldens, lockfiles, manifests, or the schema.
 - The latest code/test/documentation remediation evidence is exact-head CI run
   `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`. This ledger-only
-  commit will receive a separate exact branch-head CI check after it is pushed.
+  parent head is additionally covered by exact-head PR #32 CI run
+  `33128699466` (run number 111), with all 14 jobs successful. The follow-up
+  text added by this commit is documentation-only; its resulting-head exact CI
+  is not represented by the parent-head run, and final delivery reports that
+  result separately without claiming a review of this follow-up.
 
 ## Phase Status
 
@@ -499,9 +512,12 @@ Phase 21: `COMPLETE / ACCEPTED`
 
 Phase 22: `COMPLETE / ACCEPTED`. Latest code/test/documentation remediation
 head `6223cb4af139e6a21ccbf1b6b6518999049e6569` passed exact-head CI run
-`33127890900` with all 14 jobs successful. This ledger-only documentation
-commit preserves the accepted wire format and will receive a separate exact
-branch-head CI check after it is pushed.
+`33127890900` with all 14 jobs successful. Parent ledger-only head
+`cc68a27747e27dbdb3d9d297c0133e041e272894` also passed exact-head PR #32 CI
+run `33128699466` (run number 111), with all 14 jobs successful. The follow-up
+text added by this commit preserves the accepted wire format and is
+documentation-only; its resulting-head exact CI is reported separately in
+final delivery, without claiming an independent review of this follow-up.
 
 Phase 23: `NEXT / NOT IMPLEMENTED`
 
