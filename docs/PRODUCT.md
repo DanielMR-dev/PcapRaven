@@ -23,8 +23,9 @@ code-health audit and targeted behavior-preserving internal refactoring is
 complete and accepted; it adds no product feature semantics. Phase 20 final
 security and supply-chain hardening is complete and accepted without changing
 product behavior. Phase 21 CLI v1 contract-freeze acceptance is complete and
-accepted. Phase 22 is next and not implemented; Phases 23 through 28 remain
-future and not implemented.
+accepted. Phase 22 reporting schema v1 final audit is complete and accepted.
+Phase 23 cross-platform runtime acceptance is NEXT / NOT IMPLEMENTED; Phases
+24 through 28 remain FUTURE / NOT IMPLEMENTED.
 
 ## Problem Statement
 

@@ -31,9 +31,10 @@ the accepted performance retry passed stability `24/24`, median budgets
 `24/24`, and growth budgets `13/13`; and the independent source-read-only
 re-review found no CRITICAL or HIGH findings. Phase 20 final security and
 supply-chain hardening is complete and accepted. Phase 21 CLI v1 contract-freeze
-acceptance is complete and accepted. Phase 22 is next and not implemented;
-Phases 23 through 28 remain future and not implemented. No later capability or
-release is claimed.
+acceptance is complete and accepted. Phase 22 reporting schema v1 final audit
+is complete and accepted. Phase 23 cross-platform runtime acceptance is NEXT /
+NOT IMPLEMENTED; Phases 24 through 28 remain FUTURE / NOT IMPLEMENTED. No later
+capability or release is claimed.
 
 ## Tracked Current Inventory
 
@@ -120,6 +121,7 @@ release is claimed.
 | `docs/DOMAIN_MODEL.md` | Target packet, flow, observation, evidence, finding, and result concepts. |
 | `docs/DETECTION_MODEL.md` | Target detector/finding contract, severity, confidence, and mappings. |
 | `docs/REPORTING.md` | Reporting architecture, formats (table, JSON, NDJSON, CSV), schema versioning, and sanitization. |
+| `docs/REPORTING_SCHEMA_V1_AUDIT.md` | Phase 22 source-backed reporting schema v1 audit evidence ledger and discrepancy dispositions. |
 | `docs/ROBUSTNESS.md` | Phase 18 bounded fuzz matrix, completed Phase 18.1 acceptance campaign ledger, invariants, and completed Phase 18.3 performance acceptance. |
 | `docs/PERFORMANCE.md` | Phase 18 benchmark methodology, complexity audit, baseline and acceptance environments, frozen budgets, completed Phase 18.3 acceptance, and Phase 21 performance revalidation evidence. |
 | `docs/performance/` | Tracked Phase 18.2 baseline/budget evidence, Phase 18.3 final acceptance evidence, and Phase 21 conditional performance revalidation evidence. |
@@ -247,7 +249,7 @@ release is claimed.
 | `crates/pcapraven-reporting/src/ndjson/mod.rs` | Deterministic newline-delimited JSON streaming serializer. |
 | `crates/pcapraven-reporting/src/csv/mod.rs` | Deterministic 2D tabular CSV serializer with formula injection sanitization. |
 | `crates/pcapraven-reporting/tests/reporting.rs` | Integration, schema anchor, format projection, CSV formula defense, and property tests for reporting. |
-| `crates/pcapraven-reporting/tests/schema_contract.rs` | Schema contract tests verifying wide integer string formatting, null preservation, and NDJSON envelope structures. |
+| `crates/pcapraven-reporting/tests/schema_contract.rs` | Phase 22 schema contract tests covering exact DTO shapes, categorical tokens, nullability, wide-integer strings, exact duration/ratio values, NDJSON envelopes, CSV projections, privacy, deterministic ordering, and compatibility invariants. |
 | `crates/pcapraven-cli/Cargo.toml` | Binary package manifest for the `pcapraven` executable with audited `clap` dependency. |
 | `crates/pcapraven-cli/src/main.rs` | Functional CLI binary entry point and exit-code mapping. |
 | `crates/pcapraven-cli/src/analysis.rs` | Shared capture analysis pipeline and detection engine orchestration. |

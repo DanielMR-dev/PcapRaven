@@ -50,7 +50,7 @@ pub struct TlsObservationDto {
     pub destination_ip: String,
     /// Destination TCP port number.
     pub destination_port: u16,
-    /// TLS record layer version string (e.g. "TLSv1.0", "TLSv1.2").
+    /// TLS record layer version string (e.g. "TLS 1.0", "TLS 1.2").
     pub record_version: String,
     /// Handshake message kind ("client_hello", "server_hello", "hello_retry_request", "other").
     pub handshake_kind: String,
@@ -101,7 +101,7 @@ impl TlsObservationDto {
 /// TLS ClientHello metadata.
 #[derive(Debug, Clone, Serialize)]
 pub struct TlsClientHelloDto {
-    /// Client declared legacy protocol version string (e.g. "TLSv1.2").
+    /// Client declared legacy protocol version string (e.g. "TLS 1.2").
     pub client_version: String,
     /// Server Name Indication (SNI) hostname if present.
     pub server_name: Option<String>,
@@ -149,7 +149,7 @@ impl TlsClientHelloDto {
 /// TLS ServerHello metadata.
 #[derive(Debug, Clone, Serialize)]
 pub struct TlsServerHelloDto {
-    /// Server declared legacy protocol version string (e.g. "TLSv1.2").
+    /// Server declared legacy protocol version string (e.g. "TLS 1.2").
     pub server_version: String,
     /// Negotiated protocol version (from supported_versions extension if TLS 1.3).
     pub selected_version: Option<String>,
