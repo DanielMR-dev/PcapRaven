@@ -27,6 +27,7 @@ and acceptance evidence are recorded in `AGENTS.md`, `docs/ROADMAP.md`,
 | Phase 22 historical documentation remediation commit | `ac72ea1` (`docs(phase-22): clarify reporting schema references`) |
 | Current Phase 22 remediation commits | `c9fd414` (CLI real conversion branches); `e8923b9` (CSV exact missing-cell bytes); `10e4c46` (CSV documentation); `6223cb4` (Rustdoc corrections) |
 | Latest code/test/documentation remediation head | `6223cb4af139e6a21ccbf1b6b6518999049e6569`; PR #32 CI run `33127890900` |
+| Current parent head before this ledger-only follow-up | `201efef157aceda5c6b0f21059dfc1d96c071bae`; PR #32 CI run `33130041545` (run 112), all 14 jobs successful |
 | Workspace package count | 7 runtime packages |
 | MSRV | Rust `1.85` (`Cargo.toml`) |
 | Stable toolchain | `1.97.1` (`rust-toolchain.toml`) |
@@ -408,10 +409,18 @@ CI workflow run `33128699466` (run number `111`). It completed with conclusion
 ledger-only documentation commit at the parent head and remains distinct from
 historical run `33123524823` for `ac72ea15b4e68aca3f90e6954932ea191317e674`
 and code/test/documentation run `33127890900` for
-`6223cb4af139e6a21ccbf1b6b6518999049e6569`. The follow-up text added by this
-commit is documentation-only; this ledger does not claim an independent review
-or exact-head CI result for it, and final delivery reports that resulting-head
-CI separately.
+`6223cb4af139e6a21ccbf1b6b6518999049e6569`.
+
+The current parent head for this ledger-only follow-up is exact head
+`201efef157aceda5c6b0f21059dfc1d96c071bae`. PR #32 CI workflow run
+`33130041545` (run number `112`) verifies that exact parent head; it completed
+with conclusion `success`, and all 14 jobs were successful. This run is distinct
+from parent-ledger run `33128699466` and from the historical predecessor and
+code/test/documentation runs above. The new follow-up changes only this audit
+ledger, is documentation-only, and does not change product or schema behavior.
+It does not claim an independent review of this new commit or coverage of this
+new commit by run `33130041545`; final delivery separately supplies the exact CI
+result for the resulting head.
 
 ## Reviewer Findings
 
@@ -470,7 +479,7 @@ not claim an independent review of this ledger commit.
 
 | Severity | Finding | Disposition |
 | --- | --- | --- |
-| HIGH | The audit ledger's final CI evidence was stale and named the predecessor `ac72ea1` / run `33123524823` instead of the current remediation head. | `REMEDIATED` by parent ledger-only commit `cc68a27747e27dbdb3d9d297c0133e041e272894`, which marks run `33123524823` historical and records latest exact-head run `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`. Parent head `cc68a277` is covered by exact-head PR #32 CI run `33128699466` (run 111), with all 14 jobs successful. The follow-up text in this commit is documentation-only; no independent review or exact-head CI result for it is claimed here, and its resulting-head CI is reported separately in final delivery. |
+| HIGH | The audit ledger's final CI evidence was stale and named the predecessor `ac72ea1` / run `33123524823` instead of the current remediation head. | `REMEDIATED` by parent ledger-only commit `cc68a27747e27dbdb3d9d297c0133e041e272894`, which marks run `33123524823` historical and records latest exact-head run `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`. Parent head `cc68a277` is covered by exact-head PR #32 CI run `33128699466` (run 111), with all 14 jobs successful. The current parent head `201efef157aceda5c6b0f21059dfc1d96c071bae` is separately covered by run `33130041545` (run 112), with all 14 jobs successful. This new ledger-only follow-up is documentation-only, does not change product or schema behavior, and claims no independent review or CI coverage of this new commit; final delivery separately supplies the exact CI result for the resulting head. |
 | MEDIUM | CSV missing-cell encoding was not frozen precisely. | `REMEDIATED` by `e8923b9`, which adds exact HTTP/TLS CSV byte assertions, and `10e4c46`, which aligns the canonical CSV documentation with sanitized `'-` cells and controlled raw `-` sentinels. |
 | MEDIUM | Real `app.rs` validation conversion branches were not exercised. | `REMEDIATED` by `c9fd414`, which adds real PCAPNG, big-endian metadata, and failed-completion conversion coverage. |
 | LOW | Rustdoc examples used stale flow and TLS version spellings. | `REMEDIATED` by `6223cb4`, which corrects the `Flow(0)` and `TLS 1.x` examples. |
@@ -480,7 +489,9 @@ not claim an independent review of this ledger commit.
 - Local WSL validation is not native Windows or macOS execution; authoritative
   CI run `33127890900` supplied the passing Windows and macOS cross-platform
   contract, golden, and schema evidence for exact remediation head
-  `6223cb4af139e6a21ccbf1b6b6518999049e6569`.
+  `6223cb4af139e6a21ccbf1b6b6518999049e6569`, and run `33130041545` supplied
+  the same passing cross-platform evidence for current parent head
+  `201efef157aceda5c6b0f21059dfc1d96c071bae`.
 - The local eight-target fuzz smoke pass required the documented
   `LSAN_OPTIONS=detect_leaks=0` workaround after the initial unmodified
   `fuzz_pcap_reader` zero-byte ptrace-only sanitizer teardown issue;
@@ -502,9 +513,12 @@ not claim an independent review of this ledger commit.
   `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`. This ledger-only
   parent head is additionally covered by exact-head PR #32 CI run
   `33128699466` (run number 111), with all 14 jobs successful. The follow-up
-  text added by this commit is documentation-only; its resulting-head exact CI
-  is not represented by the parent-head run, and final delivery reports that
-  result separately without claiming a review of this follow-up.
+  current parent head `201efef157aceda5c6b0f21059dfc1d96c071bae` is additionally
+  covered by exact-head PR #32 CI run `33130041545` (run number 112), with all 14
+  jobs successful. The new ledger-only follow-up is documentation-only, does not
+  change product or schema behavior, and is not independently reviewed or
+  covered by the parent-head run; final delivery separately supplies the exact
+  CI result for the resulting head.
 
 ## Phase Status
 
@@ -513,11 +527,14 @@ Phase 21: `COMPLETE / ACCEPTED`
 Phase 22: `COMPLETE / ACCEPTED`. Latest code/test/documentation remediation
 head `6223cb4af139e6a21ccbf1b6b6518999049e6569` passed exact-head CI run
 `33127890900` with all 14 jobs successful. Parent ledger-only head
-`cc68a27747e27dbdb3d9d297c0133e041e272894` also passed exact-head PR #32 CI
-run `33128699466` (run number 111), with all 14 jobs successful. The follow-up
-text added by this commit preserves the accepted wire format and is
-documentation-only; its resulting-head exact CI is reported separately in
-final delivery, without claiming an independent review of this follow-up.
+`cc68a27747e27dbdb3d9d297c0133e041e272894` passed exact-head PR #32 CI run
+`33128699466` (run number 111), with all 14 jobs successful. Current parent head
+`201efef157aceda5c6b0f21059dfc1d96c071bae` passed exact-head PR #32 CI run
+`33130041545` (run number 112), with all 14 jobs successful. The new follow-up
+preserves the accepted wire format and is documentation-only; it does not
+change product or schema behavior and is not independently reviewed or covered
+by the parent-head run. Final delivery separately supplies the exact CI result
+for the resulting head.
 
 Phase 23: `NEXT / NOT IMPLEMENTED`
 
