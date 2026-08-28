@@ -24,7 +24,9 @@ and acceptance evidence are recorded in `AGENTS.md`, `docs/ROADMAP.md`,
 | Branch | `phase-22-reporting-schema-v1-final-audit` |
 | Phase 21 starting baseline | `458c567c7ad323a91f17460f7065cffded4932ce` |
 | Phase 22 schema-contract test commits | `d13fe54` (`test(phase-22): strengthen reporting schema contract`); `354dd3d` (`test(phase-22): close schema contract audit gaps`); `6e2fcec` (`test(phase-22): assert analysis branch nullability`); `1d278c0` (`test(phase-22): complete schema token coverage`) |
-| Phase 22 documentation remediation commit | `ac72ea1` (`docs(phase-22): clarify reporting schema references`) |
+| Phase 22 historical documentation remediation commit | `ac72ea1` (`docs(phase-22): clarify reporting schema references`) |
+| Current Phase 22 remediation commits | `c9fd414` (CLI real conversion branches); `e8923b9` (CSV exact missing-cell bytes); `10e4c46` (CSV documentation); `6223cb4` (Rustdoc corrections) |
+| Latest code/test/documentation remediation head | `6223cb4af139e6a21ccbf1b6b6518999049e6569`; PR #32 CI run `33127890900` |
 | Workspace package count | 7 runtime packages |
 | MSRV | Rust `1.85` (`Cargo.toml`) |
 | Stable toolchain | `1.97.1` (`rust-toolchain.toml`) |
@@ -39,11 +41,12 @@ The branch includes the Phase 22 schema-contract test remediations committed at
 `crates/pcapraven-reporting/tests/schema_contract.rs`. The follow-up
 `1d278c0` directly covers validation `pcapng`/`big_endian`/`failed` tokens,
 HTTP invalid `Content-Length`, and populated `PacketTimestampDto` and
-`FindingFilterDto` shapes. The documentation-only follow-up `ac72ea1` resolves
-the reporting reference wording, manifest inventory, and roadmap disclaimer
-findings. These commits were applied after the Phase 21 starting baseline. The
-current worktree has no uncommitted change in `schema_contract.rs`; the audit
-ledger is the only intended uncommitted file.
+`FindingFilterDto` shapes. The historical documentation-only follow-up
+`ac72ea1` resolves the reporting reference wording, manifest inventory, and
+roadmap disclaimer findings. The current remediation set is `c9fd414`,
+`e8923b9`, `10e4c46`, and `6223cb4`; these commits were applied after the
+Phase 21 starting baseline and are represented by exact head
+`6223cb4af139e6a21ccbf1b6b6518999049e6569`.
 
 ## Serializer Dependency Baseline
 
@@ -177,9 +180,11 @@ kind/value/comparison/unit/limitation, analysis limitations, and NDJSON record
 types. The registry records the intentional PascalCase exceptions for evidence
 kind/value/limitation and flow exclusion labels. Validation conversion is
 explicitly sourced from `app.rs:218-240` and uses the six stages and seven
-diagnostic kinds listed there. Commit `51e9b4d` adds `app.rs:886-955` unit
-coverage for all 42 stage/kind combinations, including the emitted stage/kind
-tokens and converted summary.
+diagnostic kinds listed there. Commit `51e9b4d` historically added the
+`app.rs:886-955` unit coverage for all 42 stage/kind combinations, including
+the emitted stage/kind tokens and converted summary. Commit `c9fd414` extends
+that direct application coverage through `app.rs:892-1027` with real PCAPNG,
+big-endian metadata and failed-completion conversion branches.
 
 ## Duration and Ratio Audit
 
@@ -205,10 +210,12 @@ no BOM, and no blank lines.
 
 The six supported headers and exact order are recorded canonically in
 [REPORTING.md](REPORTING.md#csv). The source is `csv/mod.rs:21-471`. The audit
-verified fixed column counts, `-` missing-value projection, list joining,
-boolean/native numeric text, valid CSV escaping, LF terminators, and no BOM.
-`analyze` CSV remains an explicit `UnsupportedFormat` and is covered by the
-CLI contract and golden error artifact. `sanitize_csv_cell` prefixes all
+verified fixed column counts, the documented sanitized-versus-raw missing-value
+projection, list joining, boolean/native numeric text, valid CSV escaping, LF
+terminators, and no BOM. Commit `e8923b9` freezes representative HTTP and TLS
+missing-cell bytes, including sanitized `'-` cells and controlled raw `-`
+sentinels. `analyze` CSV remains an explicit `UnsupportedFormat` and is covered
+by the CLI contract and golden error artifact. `sanitize_csv_cell` prefixes all
 formula/control triggers without trimming or mutating the original content;
 formula sentinels are covered in the schema and reporting tests.
 
@@ -244,19 +251,24 @@ The Phase 22 schema-contract test remediations span commits `d13fe54`,
 `6e2fcec` adds the analysis-branch nullability assertions, and `1d278c0`
 directly covers validation `pcapng`/`big_endian`/`failed`, HTTP invalid
 `Content-Length`, and populated `PacketTimestampDto`/`FindingFilterDto`
-shapes. The adjacent documentation reconciliation is committed at
+shapes. The historical adjacent documentation reconciliation is committed at
 `ac72ea1`, which resolves the reporting reference wording, manifest inventory,
-and roadmap disclaimer findings. The final target run passed 9 tests. It
-covers root and nested shapes, JSON types, wide integers, null/empty behavior,
-token boundaries and reporting DTO/domain conversions, tagged evidence values,
-JSON/NDJSON/CSV format properties, headers, privacy, formula safety, and
-deterministic output. Direct application conversion coverage is provided by
+and roadmap disclaimer findings. Commit `e8923b9` adds exact HTTP/TLS CSV
+missing-cell byte coverage, while `10e4c46` documents the corresponding
+sanitized-versus-raw projection. The latest schema-contract target passed 10
+tests. It covers root and nested shapes, JSON types, wide integers, null/empty
+behavior, token boundaries and reporting DTO/domain conversions, tagged
+evidence values, JSON/NDJSON/CSV format properties, headers, privacy, formula
+safety, missing-cell bytes, and deterministic output. Direct application
+conversion coverage is provided by
 `validation_conversion_maps_every_diagnostic_stage_and_kind` in commit
 `51e9b4d` at `app.rs:886-955`; it covers all 42 stage/kind combinations.
-`cargo test -p pcapraven-cli --bin pcapraven --locked` passed 11/11 tests. The
-reporting schema target `cargo test -p pcapraven-reporting --test
-schema_contract --locked` passed 9/9 tests, and remains complementary to the
-49 end-to-end golden scenarios and the separate Phase 21 CLI contract test.
+Commit `c9fd414` adds real PCAPNG, big-endian metadata, and failed-completion
+conversion coverage. `cargo test -p pcapraven-cli --bin pcapraven --locked`
+passed 12/12 tests. The reporting schema target
+`cargo test -p pcapraven-reporting --test schema_contract --locked` passed
+10/10 tests, and remains complementary to the 49 end-to-end golden scenarios
+and the separate Phase 21 CLI contract test.
 
 ## Documentation Discrepancy Ledger
 
@@ -265,10 +277,10 @@ schema_contract --locked` passed 9/9 tests, and remains complementary to the
 | D-001 | `dto/flows.rs:40-44,80-88`; domain `flow.rs:250-253` | Previous `REPORTING.md` described `reference` and `flow:0` | JSON uses `id`, `ordinal`, and `Flow(0)` | Documentation defect; no wire impact | `DOC_CORRECTION` |
 | D-002 | `dto/findings.rs:337-360` | Previous prose used a measurement `name` | Field is `metric_key`, followed by observed value, optional threshold/comparison, unit | Documentation defect; no wire impact | `DOC_CORRECTION` |
 | D-003 | `dto/findings.rs:364-378` | Generic lowercase-snake-case wording | Tagged `type` values are `Integer`, `Unsigned`, `Ratio`, `Boolean`, `Duration` | Intentional accepted wire exception | `INTENTIONAL_WIRE_EXCEPTION` |
-| D-004 | `app.rs:218-240,886-955`; Phase 22 schema-contract test remediations in `d13fe54`, `354dd3d`, `6e2fcec`, and `1d278c0`; direct conversion coverage in `51e9b4d` | Old test examples did not model application tokens | Stages are `format`, `header`, `block`, `interface`, `packet`, `reader`; kinds are `unsupported`, `malformed`, `incomplete`, `invalid_reference`, `resource_limit`, `io`, `internal`; all 42 combinations are covered by the application conversion test | Test evidence gap; no wire change | `ADDRESSED (51e9b4d); shape/token follow-up (1d278c0)` |
+| D-004 | `app.rs:218-240,892-1027`; Phase 22 schema-contract test remediations in `d13fe54`, `354dd3d`, `6e2fcec`, and `1d278c0`; direct conversion coverage in `51e9b4d` and `c9fd414` | Old test examples did not model application tokens | Stages are `format`, `header`, `block`, `interface`, `packet`, `reader`; kinds are `unsupported`, `malformed`, `incomplete`, `invalid_reference`, `resource_limit`, `io`, `internal`; all 42 combinations are covered by the application conversion test, with real PCAPNG/big-endian/failed branches also exercised | Test evidence gap; no wire change | `ADDRESSED (51e9b4d, c9fd414); shape/token follow-up (1d278c0)` |
 | D-005 | `csv/mod.rs:229-471`; `lib.rs` format dispatch | Hierarchical JSON field inventory was not a CSV projection inventory | CSV is a supported machine-readable flat projection for validation, flows, DNS, HTTP, TLS, and findings; analysis CSV is rejected. Table rendering is a separate human-facing format. | Supported machine-readable CSV projection; no wire redesign | `MACHINE_CSV_PROJECTION; TABLE_SEPARATE` |
 | D-006 | DTO modules contain no omission attributes | Prior contract did not state omission behavior | Optional fields are `null`, vectors are `[]` | Contract clarification; no wire change | `ALREADY_CORRECT` |
-| D-007 | `crates/pcapraven-cli/src/app.rs:113-245,886-955`; direct coverage added by `51e9b4d` | The audit previously implied validation conversion was tested only by the schema-contract suite | `convert_validation_outcome` has direct app.rs unit coverage for all 42 stage/kind combinations | Test coverage gap; no wire change | `ADDRESSED (51e9b4d)` |
+| D-007 | `crates/pcapraven-cli/src/app.rs:113-245,892-1027`; direct coverage added by `51e9b4d` and `c9fd414` | The audit previously implied validation conversion was tested only by the schema-contract suite | `convert_validation_outcome` has direct app.rs unit coverage for all 42 stage/kind combinations and real PCAPNG/big-endian/failed branches | Test coverage gap; no wire change | `ADDRESSED (51e9b4d, c9fd414)` |
 
 No blocking schema defect was found. No accepted field, type, token, envelope,
 CSV header, or schema version was changed.
@@ -300,12 +312,13 @@ contract remain unchanged.
 
 ### Validation Evidence
 
-The following final local gates were run against the tested remediation head
-`ac72ea15b4e68aca3f90e6954932ea191317e674` and passed. The schema-contract
-result was run with all four committed test remediations (`d13fe54`,
-`354dd3d`, `6e2fcec`, `1d278c0`). This evidence update changes only this audit
-document; no Rust source, test, fixture, golden, lockfile, or schema-version
-file was changed here.
+The following final local gates were run against the current code/test/
+documentation remediation head `6223cb4af139e6a21ccbf1b6b6518999049e6569`
+and passed. The schema-contract result was run with all committed test
+remediations (`d13fe54`, `354dd3d`, `6e2fcec`, `1d278c0`, `e8923b9`), and the
+CLI-bin result includes the real conversion-branch coverage from `c9fd414`.
+This ledger update changes only this audit document; no Rust source, test,
+fixture, golden, lockfile, or schema-version file is changed here.
 
 | Command | Result |
 | --- | --- |
@@ -327,8 +340,9 @@ file was changed here.
 | `cargo audit --file fuzz/Cargo.lock --deny warnings` | `PASS` |
 | `cargo deny --all-features --config deny.toml --locked check advisories bans licenses sources` | `PASS` |
 | `cargo deny --manifest-path fuzz/Cargo.toml --all-features --config deny.toml --locked check advisories bans licenses sources` | `PASS` |
-| `cargo test -p pcapraven-reporting --test schema_contract --locked` | `PASS` — final result: 9 passed, 0 failed |
-| `cargo test -p pcapraven-reporting --locked` | `PASS` — reporting unit/integration/schema/doc targets passed (4 + 11 + 9 + 0 tests) |
+| `cargo test -p pcapraven-reporting --test schema_contract --locked` | `PASS` — final result: 10 passed, 0 failed |
+| `cargo test -p pcapraven-reporting --locked` | `PASS` — reporting unit/integration/schema/doc targets passed (4 + 11 + 10 + 0 tests) |
+| `cargo test -p pcapraven-cli --bin pcapraven --locked` | `PASS` — 12 passed |
 | `cargo test -p pcapraven-cli --test golden --locked` | `PASS` — 9 passed |
 | `cargo test -p pcapraven-cli --test contract --locked` | `PASS` — 14 passed |
 | `PYTHONDONTWRITEBYTECODE=1 python3 scripts/check_goldens.py` | `PASS` — verified 49 CLI golden scenarios without modifying `tests/golden` |
@@ -346,12 +360,17 @@ SHA-256 `e4c1615538cfec6852e3c3b405548a9580f29b1def8ea57a21b27125f08d0dba`
 and `fuzz/Cargo.lock` SHA-256
 `f3c37867b80c9389e287e91d38e0f0446585c199444bcd671985a72f9106329f`.
 
-### Final PR-head CI evidence
+### PR-head CI evidence
 
-PR #32 for `DanielMR-dev/PcapRaven` was verified at exact head
-`ac72ea15b4e68aca3f90e6954932ea191317e674` by CI workflow run
-`33123524823` (run number 108). This is the final CI evidence for the tested
-code/remediation state. The run completed with conclusion `success`; all 14
+Historical predecessor evidence: PR #32 for `DanielMR-dev/PcapRaven` was
+verified at exact head `ac72ea15b4e68aca3f90e6954932ea191317e674` by CI
+workflow run `33123524823` (run number 108). It completed with conclusion
+`success` and all 14 jobs completed successfully. This remains historical
+evidence for the `ac72ea1` remediation head, not the latest branch state.
+
+Latest code/test/documentation remediation evidence: PR #32 was verified at
+exact head `6223cb4af139e6a21ccbf1b6b6518999049e6569` by CI workflow run
+`33127890900` (run number 110). It completed with conclusion `success`; all 14
 jobs completed successfully:
 
 | Job | Completed checks | Result |
@@ -373,19 +392,17 @@ jobs completed successfully:
 
 The cross-platform workspace, contract, golden, schema, MSRV, quality,
 security/supply-chain, and all eight fuzz-smoke jobs are therefore covered by
-this exact-head result. The conditional fuzz failure-artifact upload step was
-skipped for each successful fuzz job as expected.
+the latest exact-head result. The conditional fuzz failure-artifact upload
+step was skipped for each successful fuzz job as expected.
 
 This branch changes tests, documentation, audit evidence, and governance only;
-the sole production-tree edit is entirely under `#[cfg(test)]`. The conditional
-full fuzz-acceptance campaign and full Phase 18 performance comparison were
-therefore not required because no fuzzed or benchmarked production behavior
-changed. The local eight-target fuzz smoke and benchmark smoke passed as
-recorded above. Run `33123524823` is for the tested `ac72ea1` remediation head.
-The remaining audit-ledger commit is documentation-only, and the final
-exact-head CI verification applies to the resulting branch head after that
-change is committed and pushed; the recorded run does not claim coverage of
-this unpushed commit.
+the only code change is the `#[cfg(test)]` application coverage in `app.rs`,
+while the reporting source changes in `flows.rs` and `tls.rs` are Rustdoc-only.
+The conditional full fuzz-acceptance campaign and full Phase 18 performance
+comparison were therefore not required because no fuzzed or benchmarked
+production behavior changed. The local eight-target fuzz smoke and benchmark
+smoke passed as recorded above. The ledger-only commit recorded by this update
+will receive a separate exact branch-head CI check after it is pushed.
 
 ## Reviewer Findings
 
@@ -434,12 +451,27 @@ review and its dispositions were:
 This records findings against `a1c84ba` only; it does not claim an independent
 review of the later audit-ledger commit.
 
+### Latest independent source-read-only review of pre-remediation HEAD `0b107cb`
+
+The latest independent source-read-only review examined pre-remediation HEAD
+`0b107cbde164dcfcc530b941e5ade0f866f28ad1` and was `REJECT`. It reported one
+HIGH, two MEDIUM, and one LOW finding; no CRITICAL finding was reported. The
+dispositions below are evidence-based remediations after that review and do
+not claim an independent review of this ledger commit.
+
+| Severity | Finding | Disposition |
+| --- | --- | --- |
+| HIGH | The audit ledger's final CI evidence was stale and named the predecessor `ac72ea1` / run `33123524823` instead of the current remediation head. | `REMEDIATED` by this ledger correction, which marks run `33123524823` historical and records latest exact-head run `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`; a separate exact branch-head CI check will verify the resulting ledger-only commit after push. |
+| MEDIUM | CSV missing-cell encoding was not frozen precisely. | `REMEDIATED` by `e8923b9`, which adds exact HTTP/TLS CSV byte assertions, and `10e4c46`, which aligns the canonical CSV documentation with sanitized `'-` cells and controlled raw `-` sentinels. |
+| MEDIUM | Real `app.rs` validation conversion branches were not exercised. | `REMEDIATED` by `c9fd414`, which adds real PCAPNG, big-endian metadata, and failed-completion conversion coverage. |
+| LOW | Rustdoc examples used stale flow and TLS version spellings. | `REMEDIATED` by `6223cb4`, which corrects the `Flow(0)` and `TLS 1.x` examples. |
+
 ## Residual Limitations
 
 - Local WSL validation is not native Windows or macOS execution; authoritative
-  CI run `33123524823` supplied the passing Windows and macOS cross-platform
-  contract, golden, and schema evidence for the tested `ac72ea1` remediation
-  head.
+  CI run `33127890900` supplied the passing Windows and macOS cross-platform
+  contract, golden, and schema evidence for exact remediation head
+  `6223cb4af139e6a21ccbf1b6b6518999049e6569`.
 - The local eight-target fuzz smoke pass required the documented
   `LSAN_OPTIONS=detect_leaks=0` workaround after the initial unmodified
   `fuzz_pcap_reader` zero-byte ptrace-only sanitizer teardown issue;
@@ -451,25 +483,25 @@ review of the later audit-ledger commit.
   delivery by removing `scripts/__pycache__/run_phase18_benchmarks.cpython-314.pyc`;
   it caused no tracked implementation change and is not a remaining limitation.
 - The Phase 22 schema-contract test remediations are committed at `d13fe54`,
-  `354dd3d`, `6e2fcec`, and `1d278c0`; `schema_contract.rs` has no uncommitted
-  change. The current ledger update is documentation-only and does not modify
-  that file.
-- Run `33123524823` is recorded for the tested `ac72ea1` remediation head. The
-  remaining audit-ledger change is documentation-only, and the final
-  exact-head PR CI verification applies to the resulting branch head after
-  this change is committed and pushed; the recorded run does not claim
-  coverage of this unpushed commit.
+  `354dd3d`, `6e2fcec`, `1d278c0`, and `e8923b9`; `schema_contract.rs` has no
+  uncommitted change. The current code/test/documentation remediation set is
+  `c9fd414` (CLI real conversion branches), `e8923b9` (CSV exact missing-cell
+  bytes), `10e4c46` (CSV documentation), and `6223cb4` (Rustdoc corrections).
+  The ledger update is documentation-only and does not modify source, tests,
+  fixtures, goldens, lockfiles, manifests, or the schema.
+- The latest code/test/documentation remediation evidence is exact-head CI run
+  `33127890900` for `6223cb4af139e6a21ccbf1b6b6518999049e6569`. This ledger-only
+  commit will receive a separate exact branch-head CI check after it is pushed.
 
 ## Phase Status
 
 Phase 21: `COMPLETE / ACCEPTED`
 
-Phase 22: `COMPLETE / ACCEPTED`. Run `33123524823` verifies the tested
-`ac72ea15b4e68aca3f90e6954932ea191317e674` remediation head. The remaining
-audit-ledger change is documentation-only, and the final exact-head CI
-verification applies to the resulting branch head after this change is
-committed and pushed; the recorded run does not claim coverage of this
-unpushed commit.
+Phase 22: `COMPLETE / ACCEPTED`. Latest code/test/documentation remediation
+head `6223cb4af139e6a21ccbf1b6b6518999049e6569` passed exact-head CI run
+`33127890900` with all 14 jobs successful. This ledger-only documentation
+commit preserves the accepted wire format and will receive a separate exact
+branch-head CI check after it is pushed.
 
 Phase 23: `NEXT / NOT IMPLEMENTED`
 
